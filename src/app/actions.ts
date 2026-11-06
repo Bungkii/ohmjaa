@@ -1,5 +1,5 @@
 import { createClient } from '@/utils/supabase/client';
-import { Student, PenaltyRecord } from '@/types/penalty';
+import { Student, PenaltyRecord, HomeworkTask, TaskCompletion } from '@/types/penalty';
 import fallbackStudents from '@/data/students.json';
 
 const STORAGE_KEY = 'ohmjaa_penalties_cache';
@@ -25,6 +25,45 @@ export async function getStudentsList(): Promise<Student[]> {
 
   const students = (fallbackStudents as unknown) as Student[];
   return [...students].sort((a, b) => a.student_no - b.student_no);
+}
+
+/**
+ * Fetch homework tasks from Kanbann `homework_tasks` table
+ */
+export async function getHomeworkTasks(): Promise<HomeworkTask[]> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('homework_tasks')
+      .select('*')
+      .order('due_date', { ascending: true });
+
+    if (!error && data) {
+      return data as HomeworkTask[];
+    }
+  } catch (err) {
+    console.warn('Supabase homework_tasks query error:', err);
+  }
+  return [];
+}
+
+/**
+ * Fetch all task completions for progress calculation
+ */
+export async function getTaskCompletions(): Promise<TaskCompletion[]> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('student_task_completions')
+      .select('student_id, task_id, status');
+
+    if (!error && data) {
+      return data as TaskCompletion[];
+    }
+  } catch (err) {
+    console.warn('Supabase student_task_completions query error:', err);
+  }
+  return [];
 }
 
 /**
