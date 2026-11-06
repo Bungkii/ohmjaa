@@ -77,7 +77,7 @@ export function Button({
     "inline-flex items-center justify-center font-medium rounded-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98] cursor-pointer";
 
   const variants = {
-    default: "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm hover:opacity-95 hover:shadow-md",
+    default: "bg-rose-600 text-white hover:bg-rose-700",
     outline: "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700",
     secondary: "bg-slate-100 text-slate-800 hover:bg-slate-200",
     ghost: "text-slate-600 hover:bg-slate-100",

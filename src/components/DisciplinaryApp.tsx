@@ -6,7 +6,6 @@ import {
   Trophy,
   CheckCircle2,
   Clock,
-  Sparkles,
   Search,
   BookOpen,
   Filter,
@@ -50,7 +49,7 @@ export function formatStudentFullName(student: Student): string {
 }
 
 export function getStudentAvatar(student: Student): string {
-  return student.prefix === "ด.ญ." ? "/asset/student-girl.webp" : "/asset/student-boy.webp";
+  return student.prefix === "ด.ญ." ? "/student-girl.webp" : "/student-boy.webp";
 }
 
 export function getUrgency(task: HomeworkTask) {
@@ -58,12 +57,14 @@ export function getUrgency(task: HomeworkTask) {
   const due = startOfDay(new Date(task.due_date));
   const today = startOfDay(new Date());
 
-  if (isBefore(due, today) || isToday(due)) {
-    return { level: "critical", text: "เกินกำหนดแล้ว!", color: "text-red-700 bg-red-100 border-red-200" };
+  if (isBefore(due, today)) {
+    return { level: "critical", text: "เกินกำหนด", color: "text-red-700 bg-red-50 border-red-200" };
+  } else if (isToday(due)) {
+    return { level: "warning", text: "ครบกำหนดวันนี้", color: "text-amber-700 bg-amber-50 border-amber-200" };
   } else if (isTomorrow(due) || differenceInDays(due, today) <= 2) {
     return { level: "warning", text: "ใกล้ถึงกำหนด", color: "text-amber-700 bg-amber-100 border-amber-200" };
   } else {
-    return { level: "chill", text: "ยังมีเวลา", color: "text-emerald-700 bg-emerald-100 border-emerald-200" };
+    return { level: "chill", text: "ยังไม่ถึงกำหนด", color: "text-slate-600 bg-slate-50 border-slate-200" };
   }
 }
 
@@ -265,7 +266,7 @@ export default function DisciplinaryApp({
 
       setRecords((prev) => [created, ...prev]);
       setIncidentText("");
-      toast.success(`บันทึกบทลงโทษ ${penaltyStudent.first_name} สำเร็จ! ✨`);
+      toast.success(`บันทึกข้อมูลของ ${penaltyStudent.first_name} แล้ว`);
     } catch (err) {
       toast.error("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
     } finally {
@@ -314,72 +315,69 @@ export default function DisciplinaryApp({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("ส่งออกไฟล์ CSV สำเร็จแล้ว 📄");
+    toast.success("ส่งออกไฟล์ CSV แล้ว");
   };
 
   // Kanban columns definition
   const columns = [
-    { id: "todo", title: "ต้องทำ (Todo)", tasks: filteredTasks.filter((t) => t.status === "todo") },
-    { id: "in_progress", title: "กำลังทำ (In Progress)", tasks: filteredTasks.filter((t) => t.status === "in_progress") },
-    { id: "done", title: "เสร็จแล้ว (Done)", tasks: filteredTasks.filter((t) => t.status === "done") },
+    { id: "todo", title: "ต้องทำ", tasks: filteredTasks.filter((t) => t.status === "todo") },
+    { id: "in_progress", title: "กำลังทำ", tasks: filteredTasks.filter((t) => t.status === "in_progress") },
+    { id: "done", title: "เสร็จแล้ว", tasks: filteredTasks.filter((t) => t.status === "done") },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-24 selection:bg-rose-100 selection:text-rose-800">
+    <div className="min-h-screen bg-[#f5f3ef] text-[#182422] font-sans pb-24 selection:bg-[#dce9e2] selection:text-[#173d36]">
       <Toaster position="bottom-right" />
 
       {/* ========================================================================= */}
       {/* 1. TOP NAVBAR (Kanbann & Primjaa Floating Pill Style)                     */}
       {/* ========================================================================= */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 sm:px-8 py-3 transition-all">
+      <header className="sticky top-0 z-40 bg-[#fdfcf9]/95 backdrop-blur-md border-b border-[#e5e2db] px-4 sm:px-8 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           
           {/* Logo & Brand */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center font-bold shadow-md shadow-rose-500/20 shrink-0">
-              <Gavel size={20} />
+            <div className="w-10 h-10 rounded-xl bg-[#16453d] text-white flex items-center justify-center shrink-0">
+              <BookOpen size={19} strokeWidth={1.8} />
             </div>
             <div>
-              <div className="flex items-center gap-1.5 font-extrabold text-base sm:text-lg text-slate-800 tracking-tight">
+              <div className="flex items-center gap-1.5 font-bold text-base sm:text-lg text-[#182422] tracking-tight">
                 <span>โอมจ๋า</span>
-                <span className="text-[10px] bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded-full border border-rose-200">
-                  ม.2/3
-                </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
-                ระบบจัดการวินัย & ตรวจสอบการบ้านห้อง ม.2/3
+              <p className="text-[11px] text-[#72807a] font-medium hidden sm:block">
+                ห้องเรียน ม.2/3
               </p>
             </div>
           </div>
 
           {/* Desktop Nav Pills */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1.5 rounded-full border border-slate-200/60 text-xs font-semibold">
+          <nav className="hidden md:flex items-center gap-1 bg-[#eeeee9] p-1 rounded-xl text-xs font-semibold">
             <button
               onClick={() => setActiveView("assignments")}
-              className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-md transition-colors cursor-pointer ${
                 activeView === "assignments"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                  ? "bg-white text-[#16453d] shadow-sm"
+                  : "text-[#61706a] hover:text-[#16453d] hover:bg-white/50"
               }`}
             >
               กระดานการบ้าน
             </button>
             <button
               onClick={() => setActiveView("disciplinary")}
-              className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-md transition-colors cursor-pointer ${
                 activeView === "disciplinary"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                  ? "bg-white text-[#16453d] shadow-sm"
+                  : "text-[#61706a] hover:text-[#16453d] hover:bg-white/50"
               }`}
             >
               บันทึกบทลงโทษ
             </button>
             <button
               onClick={() => setActiveView("history")}
-              className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-md transition-colors cursor-pointer ${
                 activeView === "history"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                  ? "bg-white text-[#16453d] shadow-sm"
+                  : "text-[#61706a] hover:text-[#16453d] hover:bg-white/50"
               }`}
             >
               ประวัติ ({records.length})
@@ -390,7 +388,7 @@ export default function DisciplinaryApp({
           <div className="flex items-center gap-2">
             <button
               onClick={handleExportCSV}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-2 rounded-full shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-2 rounded-lg transition-colors cursor-pointer"
               title="ส่งออกประวัติเป็นไฟล์ CSV"
             >
               <FileText size={14} className="text-slate-500" />
@@ -401,9 +399,8 @@ export default function DisciplinaryApp({
               href="https://primjaa.bungkii.app"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-full shadow-sm transition-all"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#16453d] hover:bg-[#0f352e] text-white px-4 py-2 rounded-lg transition-colors"
             >
-              <Sparkles size={14} className="text-amber-400" />
               <span>พริมจ๋า ม.2/3</span>
               <ExternalLink size={12} className="opacity-60" />
             </a>
@@ -415,15 +412,28 @@ export default function DisciplinaryApp({
       {/* ========================================================================= */}
       {/* 2. MAIN CONTAINER                                                         */}
       {/* ========================================================================= */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 pt-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-8 pt-8 sm:pt-10 space-y-7">
+
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold tracking-[0.18em] text-[#527568] uppercase mb-2">ห้องเรียน ม.2/3</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#182422]">
+              {activeView === "assignments" ? "ภาพรวมการบ้าน" : activeView === "disciplinary" ? "บันทึกวินัย" : "ประวัติบันทึก"}
+            </h1>
+            <p className="text-sm text-[#67736d] mt-1">
+              {activeView === "assignments" ? "ติดตามงานที่ต้องทำและกำหนดส่งของนักเรียน" : activeView === "disciplinary" ? "บันทึกเหตุการณ์และดูรายการล่าสุด" : "ค้นหาและส่งออกข้อมูลย้อนหลัง"}
+            </p>
+          </div>
+          {activeView === "assignments" && <div className="text-sm text-[#67736d]">ทั้งหมด <span className="font-bold text-[#182422]">{tasks.length}</span> งาน</div>}
+        </div>
 
         {/* ------------------------------------------------------------------------- */}
         {/* STUDENT IDENTIFICATION BANNER (Kanbann Parent Banner)                     */}
         {/* ------------------------------------------------------------------------- */}
         {selectedStudent ? (
-          <div className="rounded-3xl p-4 sm:p-5 bg-white border border-rose-100 shadow-[0_4px_24px_rgba(244,63,94,0.06)] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          <div className="rounded-2xl p-5 sm:p-6 bg-[#173f37] text-white flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
-              <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex items-center justify-center shrink-0 p-2 overflow-hidden">
+              <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-xl bg-white/90 flex items-center justify-center shrink-0 p-2 overflow-hidden">
                 <img
                   src={getStudentAvatar(selectedStudent)}
                   alt={selectedStudent.first_name}
@@ -436,32 +446,32 @@ export default function DisciplinaryApp({
 
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                  <h3 className="text-base sm:text-lg font-extrabold text-slate-800 truncate">
+                  <h3 className="text-base sm:text-lg font-bold text-white truncate">
                     {formatStudentFullName(selectedStudent)}
                   </h3>
                   {selectedStudent.nickname && (
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-700">
-                      น้อง{selectedStudent.nickname}
+                    <span className="text-xs font-medium text-[#b7d3c7]">
+                      ({selectedStudent.nickname})
                     </span>
                   )}
-                  <span className="text-xs font-semibold text-slate-400 font-mono">
+                  <span className="text-xs font-semibold text-[#b7d3c7] font-mono">
                     เลขที่ {selectedStudent.student_no}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 font-medium">
+                <p className="text-xs text-[#b7d3c7] font-medium">
                   รหัสนักเรียน: <span className="font-mono">{selectedStudent.student_id}</span> • ห้อง ม.2/3
                 </p>
               </div>
             </div>
 
             {/* Quick Metrics of this Student */}
-            <div className="flex items-center gap-3 justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
+            <div className="flex items-center gap-3 justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-white/20">
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-slate-500 font-medium">ส่งการบ้านแล้ว:</span>
-                <span className="font-extrabold text-slate-800 font-mono text-sm">
+                <span className="text-[#b7d3c7] font-medium">ส่งแล้ว</span>
+                <span className="font-bold text-white font-mono text-sm">
                   {studentStats.done}/{studentStats.total}
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold font-mono text-xs border border-emerald-200">
+                <span className="text-[#d8e9a0] font-semibold font-mono text-xs">
                   {studentStats.progress}%
                 </span>
               </div>
@@ -469,13 +479,13 @@ export default function DisciplinaryApp({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsSearchOpen(true)}
-                  className="text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full transition-colors cursor-pointer"
+                  className="text-xs font-semibold text-[#173f37] bg-white hover:bg-[#edf2eb] px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
                   เปลี่ยนคน
                 </button>
                 <button
                   onClick={() => setSelectedStudent(null)}
-                  className="text-slate-400 hover:text-rose-600 p-1 rounded-full transition-colors cursor-pointer"
+                  className="text-[#b7d3c7] hover:text-white p-1 rounded-full transition-colors cursor-pointer"
                   title="ยกเลิกการเลือก"
                 >
                   <X size={18} />
@@ -485,26 +495,26 @@ export default function DisciplinaryApp({
           </div>
         ) : (
           /* Prompt banner when no student is selected */
-          <div className="rounded-3xl p-5 bg-gradient-to-r from-rose-50 via-pink-50 to-white border border-pink-200/70 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="rounded-2xl p-5 sm:p-6 bg-[#173f37] text-white flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3.5 text-center sm:text-left">
-              <div className="w-12 h-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-500/20">
+              <div className="w-12 h-12 rounded-xl bg-white/10 text-[#d8e9a0] flex items-center justify-center shrink-0">
                 <Users size={22} />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-extrabold text-slate-800">
-                  ต้องการตรวจดูงานและบทลงโทษของนักเรียนคนไหน?
+                <h3 className="text-sm sm:text-base font-bold text-white">
+                  เลือกนักเรียนเพื่อดูข้อมูลรายบุคคล
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  แตะเพื่อค้นหาชื่อหรือเลขที่ เพื่อดูรายการการบ้านที่ยังค้างส่งและความคืบหน้าแบบเรียลไทม์
+                <p className="text-xs text-[#b7d3c7] mt-0.5">
+                  ค้นหาด้วยชื่อหรือเลขที่ เพื่อดูการบ้านและความคืบหน้า
                 </p>
               </div>
             </div>
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="px-5 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-extrabold shadow-md shadow-rose-500/20 transition-all shrink-0 cursor-pointer flex items-center gap-1.5"
+              className="px-4 py-2.5 rounded-lg bg-[#dce9a6] hover:bg-[#edf4c6] text-[#173f37] text-xs font-bold transition-colors shrink-0 cursor-pointer flex items-center gap-1.5"
             >
               <Search size={14} />
-              <span>เลือกลูกศิษย์ / นักเรียน</span>
+              <span>เลือกนักเรียน</span>
             </button>
           </div>
         )}
@@ -516,16 +526,16 @@ export default function DisciplinaryApp({
           <div className="space-y-6">
             
             {/* Toolbar: Views & Filters */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#fdfcf9] rounded-xl border border-[#e5e2db] p-3">
               
               {/* Subject filters */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
                 <button
                   onClick={() => setFilterSubject("all")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                     filterSubject === "all"
-                      ? "bg-rose-500 text-white shadow-2xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      ? "bg-[#16453d] text-white"
+                      : "bg-[#efeee9] text-[#58665f] hover:bg-[#e4e7df]"
                   }`}
                 >
                   ทุกวิชา ({tasks.length})
@@ -534,10 +544,10 @@ export default function DisciplinaryApp({
                   <button
                     key={sub}
                     onClick={() => setFilterSubject(sub)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                       filterSubject === sub
-                        ? "bg-rose-500 text-white shadow-2xs"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        ? "bg-[#16453d] text-white"
+                        : "bg-[#efeee9] text-[#58665f] hover:bg-[#e4e7df]"
                     }`}
                   >
                     {sub}
@@ -547,7 +557,7 @@ export default function DisciplinaryApp({
 
               {/* Status Filter when student is chosen */}
               {selectedStudent && (
-                <div className="flex items-center gap-1.5 shrink-0 text-xs bg-slate-100 p-1 rounded-xl">
+                <div className="flex items-center gap-1.5 shrink-0 text-xs bg-[#efeee9] p-1 rounded-lg">
                   <button
                     onClick={() => setChildFilter("all")}
                     className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
@@ -559,7 +569,7 @@ export default function DisciplinaryApp({
                   <button
                     onClick={() => setChildFilter("pending")}
                     className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                      childFilter === "pending" ? "bg-rose-500 text-white shadow-2xs" : "text-rose-600"
+                      childFilter === "pending" ? "bg-[#16453d] text-white" : "text-[#58665f]"
                     }`}
                   >
                     ยังไม่ส่ง ({studentStats.pending})
@@ -567,7 +577,7 @@ export default function DisciplinaryApp({
                   <button
                     onClick={() => setChildFilter("done")}
                     className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                      childFilter === "done" ? "bg-emerald-600 text-white shadow-2xs" : "text-emerald-700"
+                      childFilter === "done" ? "bg-[#16453d] text-white" : "text-[#58665f]"
                     }`}
                   >
                     ส่งแล้ว ({studentStats.done})
@@ -579,24 +589,24 @@ export default function DisciplinaryApp({
 
             {/* Kanban Columns (Kanbann Style) */}
             <div className="overflow-x-auto w-full pb-6">
-              <div className="flex gap-6 items-start min-w-max">
+              <div className="flex gap-4 items-stretch min-w-max lg:min-w-0">
                 {columns.map((col) => (
                   <div
                     key={col.id}
-                    className="bg-slate-100/70 rounded-3xl w-84 flex flex-col border border-slate-200/80 shadow-2xs shrink-0"
+                    className="bg-[#eeeee9] rounded-xl w-80 lg:w-1/3 flex flex-col border border-[#e4e2da] shrink-0 lg:shrink"
                   >
                     {/* Column Header */}
-                    <div className="p-4 border-b border-slate-200/60 flex items-center justify-between bg-white/60 rounded-t-3xl">
-                      <h3 className="font-bold text-slate-800 text-sm">{col.title}</h3>
-                      <span className="bg-white text-slate-600 text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+                    <div className="p-4 border-b border-[#e4e2da] flex items-center justify-between bg-[#f8f7f3] rounded-t-xl">
+                      <h3 className="font-bold text-[#263b34] text-sm">{col.title}</h3>
+                      <span className="text-slate-500 text-xs font-mono font-medium">
                         {col.tasks.length}
                       </span>
                     </div>
 
                     {/* Column Task Cards */}
-                    <div className="p-3 flex-1 flex flex-col gap-3 min-h-[200px]">
+                    <div className="p-3 flex-1 flex flex-col gap-2.5 min-h-[220px]">
                       {col.tasks.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-28 text-slate-400 border-2 border-dashed border-slate-200/80 rounded-2xl bg-white/40 mt-1">
+                        <div className="flex flex-col items-center justify-center h-28 text-slate-500 rounded-lg bg-white/60 mt-1">
                           <span className="text-xs font-medium">ไม่มีงานในคอลัมน์นี้</span>
                         </div>
                       ) : (
@@ -608,12 +618,12 @@ export default function DisciplinaryApp({
                             <div
                               key={task.id}
                               onClick={() => setSelectedTask(task)}
-                              className={`bg-white rounded-2xl p-4 shadow-2xs border transition-all cursor-pointer hover:border-slate-300 hover:shadow-xs ${
+                              className={`bg-[#fdfcf9] rounded-lg p-4 border transition-colors cursor-pointer hover:border-[#8ca99a] ${
                                 isDone
-                                  ? "border-emerald-200 bg-emerald-50/20"
+                                  ? "border-[#c7d9cc]"
                                   : urgency?.level === "critical"
-                                  ? "border-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.08)]"
-                                  : "border-slate-200"
+                                  ? "border-[#dfaaa0]"
+                                  : "border-[#e5e2db]"
                               }`}
                             >
                               {/* Urgency Badge */}
@@ -627,7 +637,7 @@ export default function DisciplinaryApp({
 
                               {/* Subject & Details */}
                               <div className="space-y-1">
-                                <h4 className={`font-bold text-slate-900 text-sm leading-snug ${isDone ? "line-through text-slate-400" : ""}`}>
+                                <h4 className={`font-bold text-[#182422] text-sm leading-snug ${isDone ? "text-[#78867d]" : ""}`}>
                                   {task.subject}
                                 </h4>
                                 <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
@@ -665,17 +675,17 @@ export default function DisciplinaryApp({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             {/* Form Column (Left 5 cols) */}
-            <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200/80 p-6 shadow-2xs space-y-5">
+            <div className="lg:col-span-5 bg-[#fdfcf9] rounded-xl border border-[#e5e2db] p-6 space-y-5">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                <div className="w-10 h-10 rounded-xl bg-[#e5eee7] text-[#16453d] flex items-center justify-center">
                   <Gavel size={20} />
                 </div>
                 <div>
-                  <h2 className="text-base font-extrabold text-slate-800">
-                    บันทึกบทลงโทษนักเรียน
+                  <h2 className="text-base font-bold text-[#182422]">
+                    เพิ่มบันทึกวินัย
                   </h2>
                   <p className="text-xs text-slate-400">
-                    คำนวณบทลงโทษและบันทึกลงระบบอัตโนมัติ
+                    เลือกนักเรียน ระบุเหตุการณ์ และตรวจสอบบทลงโทษ
                   </p>
                 </div>
               </div>
@@ -684,7 +694,7 @@ export default function DisciplinaryApp({
                 {/* Select Student */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    เลือกลูกศิษย์ <span className="text-rose-500">*</span>
+                    นักเรียน <span className="text-rose-600">*</span>
                   </label>
                   
                   <div className="relative">
@@ -745,7 +755,7 @@ export default function DisciplinaryApp({
                 {/* Incident Text */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    พฤติกรรม / สาเหตุ <span className="text-rose-500">*</span>
+                    รายละเอียดเหตุการณ์ <span className="text-rose-600">*</span>
                   </label>
                   <textarea
                     rows={2}
@@ -759,7 +769,7 @@ export default function DisciplinaryApp({
                 {/* Severity Picker */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-2">
-                    ระดับความรุนแรง <span className="text-rose-500">*</span>
+                    ระดับความรุนแรง <span className="text-rose-600">*</span>
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {(Object.keys(severityConfig) as SeverityLevel[]).map((level) => {
@@ -772,7 +782,7 @@ export default function DisciplinaryApp({
                           type="button"
                           key={level}
                           onClick={() => setSelectedSeverity(level)}
-                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          className={`p-3 rounded-lg border text-left transition-colors cursor-pointer flex flex-col justify-between ${
                             isSelected
                               ? `${conf.activeBorder} ${conf.activeBg}`
                               : `${conf.border} bg-white`
@@ -790,36 +800,33 @@ export default function DisciplinaryApp({
                 </div>
 
                 {/* Submit Banner */}
-                <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center justify-between">
+                <div className="p-4 rounded-xl bg-[#e8eee7] text-[#182422] flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-[10px] text-slate-400 uppercase font-mono tracking-wider">
-                      บทลงโทษอัตโนมัติ
+                    <div className="text-[11px] text-[#67736d] font-medium">
+                      บทลงโทษตามระดับที่เลือก
                     </div>
-                    <div className="text-xs font-bold text-amber-400 mt-0.5">
+                    <div className="text-sm font-bold text-[#16453d] mt-0.5">
                       {severityConfig[selectedSeverity].punishment}
                     </div>
                   </div>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl transition-all shadow-md shadow-rose-600/20 cursor-pointer disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#16453d] hover:bg-[#0f352e] text-white px-4 py-2.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 shrink-0"
                   >
                     <Send size={14} />
-                    <span>{isSubmitting ? "กำลังบันทึก..." : "บันทึกโทษ"}</span>
+                    <span>{isSubmitting ? "กำลังบันทึก..." : "บันทึกข้อมูล"}</span>
                   </button>
                 </div>
               </form>
             </div>
 
             {/* Recent Penalties Table (Right 7 cols) */}
-            <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+            <div className="lg:col-span-7 bg-[#fdfcf9] rounded-xl border border-[#e5e2db] p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="font-extrabold text-slate-800 text-sm">
-                  รายการลงโทษล่าสุด ({records.length} รายการ)
+                <h3 className="font-bold text-[#182422] text-sm">
+                  บันทึกล่าสุด ({records.length})
                 </h3>
-                <span className="text-xs font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                  ม.2/3 Realtime
-                </span>
               </div>
 
               <div className="overflow-x-auto">
@@ -884,7 +891,7 @@ export default function DisciplinaryApp({
         {/* VIEW 3: FULL AUDIT HISTORY                                                */}
         {/* ------------------------------------------------------------------------- */}
         {activeView === "history" && (
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+          <div className="bg-[#fdfcf9] rounded-xl border border-[#e5e2db] p-6 space-y-4">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-base font-extrabold text-slate-800">
@@ -992,8 +999,8 @@ export default function DisciplinaryApp({
       {/* 3. STUDENT SEARCH MODAL (Kanbann StudentSearchModal Style)                 */}
       {/* ========================================================================= */}
       {isSearchOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Search size={18} className="text-rose-500" />
@@ -1026,9 +1033,9 @@ export default function DisciplinaryApp({
                   onClick={() => {
                     setSelectedStudent(s);
                     setIsSearchOpen(false);
-                    toast.success(`กำลังติดตาม ${s.first_name} ✨`);
+                    toast.success(`เลือก ${s.first_name} แล้ว`);
                   }}
-                  className="p-3 rounded-2xl border border-slate-100 hover:border-rose-200 hover:bg-rose-50/40 transition-all cursor-pointer flex items-center justify-between"
+                  className="p-3 rounded-lg border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors cursor-pointer flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 font-mono text-xs font-bold flex items-center justify-center">
@@ -1042,7 +1049,7 @@ export default function DisciplinaryApp({
                       <div className="text-[10px] text-slate-400">รหัส {s.student_id}</div>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-rose-500 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
+                  <span className="text-xs font-medium text-slate-600">
                     เลือก
                   </span>
                 </div>
@@ -1056,14 +1063,11 @@ export default function DisciplinaryApp({
       {/* 4. TASK DETAIL MODAL                                                      */}
       {/* ========================================================================= */}
       {selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-xl border border-slate-200 space-y-4">
             <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase font-mono">
-                  {selectedTask.subject}
-                </span>
-                <h3 className="text-base font-extrabold text-slate-900 mt-1">
+                <h3 className="text-base font-semibold text-slate-900">
                   {selectedTask.subject}
                 </h3>
               </div>
@@ -1121,11 +1125,11 @@ export default function DisciplinaryApp({
       {/* ========================================================================= */}
       {/* 5. MOBILE BOTTOM NAVIGATION (Kanbann Mobile Style)                        */}
       {/* ========================================================================= */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-4 py-2 flex items-center justify-around shadow-lg">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#fdfcf9] border-t border-[#e5e2db] px-4 py-2 flex items-center justify-around">
         <button
           onClick={() => setActiveView("assignments")}
           className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer ${
-            activeView === "assignments" ? "text-rose-600" : "text-slate-400 hover:text-slate-600"
+            activeView === "assignments" ? "text-[#16453d]" : "text-[#7b8980] hover:text-[#16453d]"
           }`}
         >
           <BookOpen size={18} />
@@ -1134,7 +1138,7 @@ export default function DisciplinaryApp({
 
         <button
           onClick={() => setIsSearchOpen(true)}
-          className="flex flex-col items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+          className="flex flex-col items-center gap-1 text-[11px] font-bold text-[#7b8980] hover:text-[#16453d] transition-colors cursor-pointer"
         >
           <Users size={18} />
           <span>เลือกนักเรียน</span>
@@ -1143,7 +1147,7 @@ export default function DisciplinaryApp({
         <button
           onClick={() => setActiveView("disciplinary")}
           className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer ${
-            activeView === "disciplinary" ? "text-rose-600" : "text-slate-400 hover:text-slate-600"
+            activeView === "disciplinary" ? "text-[#16453d]" : "text-[#7b8980] hover:text-[#16453d]"
           }`}
         >
           <Gavel size={18} />
@@ -1153,7 +1157,7 @@ export default function DisciplinaryApp({
         <button
           onClick={() => setActiveView("history")}
           className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer ${
-            activeView === "history" ? "text-rose-600" : "text-slate-400 hover:text-slate-600"
+            activeView === "history" ? "text-[#16453d]" : "text-[#7b8980] hover:text-[#16453d]"
           }`}
         >
           <Clock size={18} />
@@ -1164,7 +1168,7 @@ export default function DisciplinaryApp({
           onClick={handleExportCSV}
           className="flex flex-col items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
         >
-          <FileText size={18} className="text-emerald-600" />
+          <FileText size={18} />
           <span>CSV</span>
         </button>
       </nav>
