@@ -134,8 +134,7 @@ export default function DisciplinaryApp({
   const [tasks] = useState<HomeworkTask[]>(initialTasks);
   const [completions] = useState<TaskCompletion[]>(initialCompletions);
 
-  // Active view: "assignments" | "disciplinary" | "history"
-  const [activeView, setActiveView] = useState<"assignments" | "disciplinary" | "history">("assignments");
+  const [activeView, setActiveView] = useState<"overview" | "assignments" | "disciplinary" | "history">("overview");
 
   // Selected Student for Persistent Tracking (Kanbann Parent Style)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -208,6 +207,16 @@ export default function DisciplinaryApp({
     const progress = total > 0 ? Math.round((done / total) * 100) : 0;
     return { total, done, pending, progress };
   }, [tasks, studentActiveTasks]);
+
+  const openTasks = useMemo(() => tasks.filter((task) => task.status !== "done"), [tasks]);
+  const upcomingTasks = useMemo(
+    () => [...openTasks].sort((a, b) => a.due_date.localeCompare(b.due_date)).slice(0, 5),
+    [openTasks]
+  );
+  const dueSoonCount = useMemo(
+    () => openTasks.filter((task) => ["critical", "warning"].includes(getUrgency(task)?.level ?? "")).length,
+    [openTasks]
+  );
 
   // Student search modal results
   const modalStudentResults = useMemo(() => {
@@ -353,6 +362,16 @@ export default function DisciplinaryApp({
           {/* Desktop Nav Pills */}
           <nav className="hidden md:flex items-center gap-1 bg-[#eeeee9] p-1 rounded-xl text-xs font-semibold">
             <button
+              onClick={() => setActiveView("overview")}
+              className={`px-4 py-2 rounded-md transition-colors cursor-pointer ${
+                activeView === "overview"
+                  ? "bg-white text-[#16453d] shadow-sm"
+                  : "text-[#61706a] hover:text-[#16453d] hover:bg-white/50"
+              }`}
+            >
+              ภาพรวม
+            </button>
+            <button
               onClick={() => setActiveView("assignments")}
               className={`px-4 py-2 rounded-md transition-colors cursor-pointer ${
                 activeView === "assignments"
@@ -370,7 +389,7 @@ export default function DisciplinaryApp({
                   : "text-[#61706a] hover:text-[#16453d] hover:bg-white/50"
               }`}
             >
-              บันทึกบทลงโทษ
+              บันทึกวินัย
             </button>
             <button
               onClick={() => setActiveView("history")}
@@ -418,10 +437,10 @@ export default function DisciplinaryApp({
           <div>
             <p className="text-[11px] font-bold tracking-[0.18em] text-[#527568] uppercase mb-2">ห้องเรียน ม.2/3</p>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#182422]">
-              {activeView === "assignments" ? "ภาพรวมการบ้าน" : activeView === "disciplinary" ? "บันทึกวินัย" : "ประวัติบันทึก"}
+              {activeView === "overview" ? "ภาพรวมห้องเรียน" : activeView === "assignments" ? "กระดานการบ้าน" : activeView === "disciplinary" ? "บันทึกวินัย" : "ประวัติบันทึก"}
             </h1>
             <p className="text-sm text-[#67736d] mt-1">
-              {activeView === "assignments" ? "ติดตามงานที่ต้องทำและกำหนดส่งของนักเรียน" : activeView === "disciplinary" ? "บันทึกเหตุการณ์และดูรายการล่าสุด" : "ค้นหาและส่งออกข้อมูลย้อนหลัง"}
+              {activeView === "overview" ? "งานที่ต้องติดตามและข้อมูลล่าสุดของห้อง ม.2/3" : activeView === "assignments" ? "ติดตามงานที่ต้องทำและกำหนดส่งของนักเรียน" : activeView === "disciplinary" ? "บันทึกเหตุการณ์และดูรายการล่าสุด" : "ค้นหาและส่งออกข้อมูลย้อนหลัง"}
             </p>
           </div>
           {activeView === "assignments" && <div className="text-sm text-[#67736d]">ทั้งหมด <span className="font-bold text-[#182422]">{tasks.length}</span> งาน</div>}
@@ -430,7 +449,7 @@ export default function DisciplinaryApp({
         {/* ------------------------------------------------------------------------- */}
         {/* STUDENT IDENTIFICATION BANNER (Kanbann Parent Banner)                     */}
         {/* ------------------------------------------------------------------------- */}
-        {selectedStudent ? (
+        {activeView === "assignments" && (selectedStudent ? (
           <div className="rounded-2xl p-5 sm:p-6 bg-[#173f37] text-white flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
               <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-xl bg-white/90 flex items-center justify-center shrink-0 p-2 overflow-hidden">
@@ -516,6 +535,89 @@ export default function DisciplinaryApp({
               <Search size={14} />
               <span>เลือกนักเรียน</span>
             </button>
+          </div>
+        ))}
+
+        {activeView === "overview" && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {[
+                { label: "นักเรียน", value: students.length, detail: "คนในห้อง", icon: Users },
+                { label: "การบ้านทั้งหมด", value: tasks.length, detail: "งานที่บันทึกไว้", icon: BookOpen },
+                { label: "ต้องติดตาม", value: dueSoonCount, detail: "ใกล้ครบหรือเกินกำหนด", icon: Clock },
+                { label: "บันทึกวินัย", value: records.length, detail: "รายการทั้งหมด", icon: FileText },
+              ].map(({ label, value, detail, icon: Icon }) => (
+                <div key={label} className="rounded-xl border border-[#e5e2db] bg-[#fdfcf9] p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-xs font-semibold text-[#67736d]">{label}</span>
+                    <Icon size={17} className="text-[#648879]" strokeWidth={1.8} />
+                  </div>
+                  <div className="mt-4 text-3xl font-bold tracking-tight text-[#182422] tabular-nums">{value}</div>
+                  <p className="mt-1 text-xs text-[#7a857d]">{detail}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+              <section className="lg:col-span-3 rounded-xl border border-[#e5e2db] bg-[#fdfcf9] overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-[#e5e2db]">
+                  <div>
+                    <h2 className="text-sm font-bold text-[#182422]">กำหนดส่งที่ควรดู</h2>
+                    <p className="text-xs text-[#7a857d] mt-0.5">เรียงจากวันที่ใกล้ที่สุด</p>
+                  </div>
+                  <button onClick={() => setActiveView("assignments")} className="text-xs font-semibold text-[#16453d] hover:underline cursor-pointer">ดูการบ้านทั้งหมด <ArrowRight size={13} className="inline ml-1" /></button>
+                </div>
+                {upcomingTasks.length ? (
+                  <div className="divide-y divide-[#eeece6]">
+                    {upcomingTasks.map((task) => {
+                      const urgency = getUrgency(task);
+                      return (
+                        <button key={task.id} onClick={() => setSelectedTask(task)} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-[#f7f7f2] transition-colors cursor-pointer">
+                          <div className="w-10 h-10 rounded-lg bg-[#e8eee7] text-[#16453d] flex items-center justify-center shrink-0"><BookOpen size={17} /></div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-semibold text-[#182422] truncate">{task.subject}</div>
+                            <div className="text-xs text-[#7a857d] truncate">{task.details}</div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-xs font-semibold text-[#35453d]">{task.due_date}</div>
+                            {urgency && <div className={`text-[11px] mt-0.5 ${urgency.level === "critical" ? "text-red-700" : urgency.level === "warning" ? "text-amber-700" : "text-[#7a857d]"}`}>{urgency.text}</div>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : <div className="px-5 py-12 text-center text-sm text-[#7a857d]">ยังไม่มีงานที่ต้องติดตาม</div>}
+              </section>
+
+              <div className="lg:col-span-2 space-y-4">
+                <section className="rounded-xl border border-[#e5e2db] bg-[#fdfcf9] p-5">
+                  <h2 className="text-sm font-bold text-[#182422]">ทางลัดสำหรับครู</h2>
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                    <button onClick={() => setActiveView("disciplinary")} className="rounded-lg bg-[#16453d] text-white p-3 text-left hover:bg-[#0f352e] transition-colors cursor-pointer">
+                      <Gavel size={18} className="mb-3" />
+                      <span className="text-xs font-semibold">เพิ่มบันทึกวินัย</span>
+                    </button>
+                    <button onClick={() => { setActiveView("assignments"); setIsSearchOpen(true); }} className="rounded-lg bg-[#e8eee7] text-[#16453d] p-3 text-left hover:bg-[#dce7dc] transition-colors cursor-pointer">
+                      <Search size={18} className="mb-3" />
+                      <span className="text-xs font-semibold">ค้นหานักเรียน</span>
+                    </button>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-[#e5e2db] bg-[#fdfcf9] overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-[#e5e2db]">
+                    <h2 className="text-sm font-bold text-[#182422]">บันทึกล่าสุด</h2>
+                    <button onClick={() => setActiveView("history")} className="text-xs font-semibold text-[#16453d] hover:underline cursor-pointer">ดูทั้งหมด</button>
+                  </div>
+                  {records.length ? records.slice(0, 3).map((record) => (
+                    <div key={record.id} className="px-5 py-3 border-b last:border-b-0 border-[#eeece6]">
+                      <div className="flex justify-between gap-3 text-xs"><span className="font-semibold text-[#182422] truncate">{record.student_name}</span><span className="text-[#7a857d] shrink-0">{new Date(record.created_at).toLocaleDateString("th-TH")}</span></div>
+                      <p className="text-xs text-[#7a857d] truncate mt-1">{record.incident}</p>
+                    </div>
+                  )) : <div className="px-5 py-8 text-center text-xs text-[#7a857d]">ยังไม่มีบันทึกวินัย</div>}
+                </section>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1127,6 +1229,15 @@ export default function DisciplinaryApp({
       {/* ========================================================================= */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#fdfcf9] border-t border-[#e5e2db] px-4 py-2 flex items-center justify-around">
         <button
+          onClick={() => setActiveView("overview")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer ${
+            activeView === "overview" ? "text-[#16453d]" : "text-[#7b8980] hover:text-[#16453d]"
+          }`}
+        >
+          <LayoutDashboard size={18} />
+          <span>ภาพรวม</span>
+        </button>
+        <button
           onClick={() => setActiveView("assignments")}
           className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer ${
             activeView === "assignments" ? "text-[#16453d]" : "text-[#7b8980] hover:text-[#16453d]"
@@ -1151,7 +1262,7 @@ export default function DisciplinaryApp({
           }`}
         >
           <Gavel size={18} />
-          <span>ลงโทษ</span>
+          <span>วินัย</span>
         </button>
 
         <button
@@ -1164,13 +1275,6 @@ export default function DisciplinaryApp({
           <span>ประวัติ</span>
         </button>
 
-        <button
-          onClick={handleExportCSV}
-          className="flex flex-col items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-        >
-          <FileText size={18} />
-          <span>CSV</span>
-        </button>
       </nav>
 
     </div>
