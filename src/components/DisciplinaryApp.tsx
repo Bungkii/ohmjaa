@@ -2,6 +2,22 @@
 
 import React, { useState, useTransition, useMemo } from "react";
 import * as XLSX from "xlsx";
+import {
+  Search,
+  CheckCircle,
+  AlertTriangle,
+  Info,
+  Leaf,
+  Flame,
+  ShieldAlert,
+  Gavel,
+  PlusCircle,
+  History,
+  FileSpreadsheet,
+  Clock,
+  Trash2,
+  FolderOpen,
+} from "lucide-react";
 import { Student, PenaltyRecord, SeverityLevel } from "@/types/penalty";
 import { createPenaltyRecord, deletePenaltyRecord } from "@/app/actions";
 
@@ -15,7 +31,7 @@ const severityRules: Record<
   {
     title: string;
     punishment: string;
-    icon: string;
+    icon: React.ElementType;
     iconColor: string;
     textClass: string;
     borderClass: string;
@@ -27,7 +43,7 @@ const severityRules: Record<
   low: {
     title: "รุนแรงน้อย",
     punishment: "ทำเวร 1 วัน",
-    icon: "fa-solid fa-leaf",
+    icon: Leaf,
     iconColor: "text-emerald-500",
     textClass: "text-emerald-700",
     borderClass: "hover:border-emerald-400",
@@ -38,7 +54,7 @@ const severityRules: Record<
   medium: {
     title: "รุนแรงกลาง",
     punishment: "ทำเวร 1 อาทิตย์",
-    icon: "fa-solid fa-triangle-exclamation",
+    icon: AlertTriangle,
     iconColor: "text-amber-500",
     textClass: "text-amber-700",
     borderClass: "hover:border-amber-400",
@@ -49,7 +65,7 @@ const severityRules: Record<
   high: {
     title: "รุนแรงมาก",
     punishment: "ทำเวร 1 เดือน",
-    icon: "fa-solid fa-fire",
+    icon: Flame,
     iconColor: "text-rose-500",
     textClass: "text-rose-700",
     borderClass: "hover:border-rose-400",
@@ -60,7 +76,7 @@ const severityRules: Record<
   strict: {
     title: "ปกครอง",
     punishment: "ให้ใบปกครอง",
-    icon: "fa-solid fa-shield-cat",
+    icon: ShieldAlert,
     iconColor: "text-purple-600",
     textClass: "text-purple-700",
     borderClass: "hover:border-purple-400",
@@ -185,25 +201,19 @@ export default function DisciplinaryApp({
 
   return (
     <>
-      {/* Toast Notification เดิม */}
+      {/* Toast Notification */}
       <div
         className={`fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 transition-all duration-300 z-50 ${
           toastMessage ? "translate-y-0 opacity-100" : "translate-y-20 opacity-0 pointer-events-none"
         }`}
       >
-        <i
-          className={
-            toastType === "success"
-              ? "fa-solid fa-circle-check text-emerald-400 text-lg"
-              : toastType === "warning"
-              ? "fa-solid fa-circle-exclamation text-amber-400 text-lg"
-              : "fa-solid fa-circle-info text-blue-400 text-lg"
-          }
-        ></i>
+        {toastType === "success" && <CheckCircle className="h-5 w-5 text-emerald-400" />}
+        {toastType === "warning" && <AlertTriangle className="h-5 w-5 text-amber-400" />}
+        {toastType === "info" && <Info className="h-5 w-5 text-blue-400" />}
         <span className="text-sm">{toastMessage}</span>
       </div>
 
-      {/* Main Container 12 Cols เดิม */}
+      {/* Main Container 12 Cols */}
       <main className="max-w-5xl mx-auto px-4 py-6 flex-grow w-full grid grid-cols-1 lg:grid-cols-12 gap-6 font-sans">
         
         {/* Left Column: Student Selector & Penalty Form (7 cols) */}
@@ -233,7 +243,7 @@ export default function DisciplinaryApp({
 
             {/* Search Input */}
             <div className="relative mb-4">
-              <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
@@ -288,7 +298,7 @@ export default function DisciplinaryApp({
                         </div>
                       </div>
                       {isSelected && (
-                        <i className="fa-solid fa-circle-check text-rose-500"></i>
+                        <CheckCircle className="h-5 w-5 text-rose-500" />
                       )}
                     </div>
                   );
@@ -331,6 +341,7 @@ export default function DisciplinaryApp({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
               {(["low", "medium", "high", "strict"] as SeverityLevel[]).map((key) => {
                 const item = severityRules[key];
+                const IconComponent = item.icon;
                 const isActive = selectedSeverity === key;
                 return (
                   <button
@@ -343,7 +354,7 @@ export default function DisciplinaryApp({
                         : `border-slate-200 ${item.borderClass} bg-slate-50`
                     }`}
                   >
-                    <i className={`${item.icon} ${item.iconColor} text-lg mb-1`}></i>
+                    <IconComponent className={`h-5 w-5 ${item.iconColor} mb-1`} />
                     <span className="text-xs font-bold text-slate-700">{item.title}</span>
                   </button>
                 );
@@ -354,7 +365,7 @@ export default function DisciplinaryApp({
             <div className="bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200/60 rounded-xl p-4 flex items-center justify-between mb-5">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-rose-500 font-bold text-lg">
-                  <i className="fa-solid fa-gavel"></i>
+                  <Gavel className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="text-xs text-slate-500">บทลงโทษที่ได้รับ (อัตโนมัติ)</div>
@@ -377,8 +388,8 @@ export default function DisciplinaryApp({
               onClick={() => handleSaveRecord()}
               className="w-full py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white rounded-xl font-medium text-sm shadow-md hover:opacity-95 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
             >
-              <i className="fa-solid fa-plus-circle"></i>{" "}
-              {isPending ? "กำลังบันทึก..." : "บันทึกบทลงโทษ"}
+              <PlusCircle className="h-4 w-4" />
+              <span>{isPending ? "กำลังบันทึก..." : "บันทึกบทลงโทษ"}</span>
             </button>
           </div>
         </section>
@@ -388,16 +399,17 @@ export default function DisciplinaryApp({
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 flex-grow flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-                <i className="fa-solid fa-clock-rotate-left text-rose-500"></i> ประวัติการลงโทษ
+                <History className="h-4 w-4 text-rose-500" />
+                <span>ประวัติการลงโทษ</span>
               </h2>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleExportExcel}
                   title="ดาวน์โหลด Excel"
-                  className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <i className="fa-solid fa-file-excel"></i>
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
                   <span>Excel</span>
                 </button>
                 <span className="text-xs font-medium text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full">
@@ -410,8 +422,8 @@ export default function DisciplinaryApp({
             <div className="space-y-3 overflow-y-auto custom-scrollbar flex-grow max-h-[500px] lg:max-h-[600px] pr-1">
               {records.length === 0 ? (
                 <div className="h-48 flex flex-col items-center justify-center text-slate-400 text-xs">
-                  <i className="fa-regular fa-folder-open text-3xl mb-2 text-slate-300"></i>
-                  ยังไม่มีประวัติการลงโทษ
+                  <FolderOpen className="h-8 w-8 mb-2 text-slate-300" />
+                  <span>ยังไม่มีประวัติการลงโทษ</span>
                 </div>
               ) : (
                 records.map((rec) => {
@@ -444,8 +456,10 @@ export default function DisciplinaryApp({
 
                       <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
                         <div className="font-semibold text-slate-700 flex items-center gap-1.5 mb-0.5">
-                          <i className="fa-solid fa-gavel text-rose-500"></i>
-                          บทลงโทษ: <span className={rule.textClass}>{rec.punishment}</span>
+                          <Gavel className="h-3.5 w-3.5 text-rose-500" />
+                          <span>
+                            บทลงโทษ: <span className={rule.textClass}>{rec.punishment}</span>
+                          </span>
                         </div>
                         <div className="text-slate-500 text-[11px]">
                           <span className="font-medium text-slate-600">สาเหตุ:</span>{" "}
@@ -454,16 +468,17 @@ export default function DisciplinaryApp({
                       </div>
 
                       <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-                        <span>
-                          <i className="fa-regular fa-clock mr-1"></i>
-                          {new Date(rec.created_at).toLocaleString("th-TH")}
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          <span>{new Date(rec.created_at).toLocaleString("th-TH")}</span>
                         </span>
                         <button
                           type="button"
                           onClick={() => handleDeleteRecord(rec.id)}
                           className="text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1 cursor-pointer"
                         >
-                          <i className="fa-solid fa-trash-can"></i> ลบ
+                          <Trash2 className="h-3 w-3" />
+                          <span>ลบ</span>
                         </button>
                       </div>
                     </div>
