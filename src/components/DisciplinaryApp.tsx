@@ -1,33 +1,74 @@
 "use client";
 
 import React, { useState, useTransition, useMemo } from "react";
-import {
-  Gavel,
-  Search,
-  CheckCircle2,
-  AlertTriangle,
-  Flame,
-  ShieldAlert,
-  Leaf,
-  PlusCircle,
-  Clock,
-  Trash2,
-  Users,
-  Activity,
-  History,
-  Check,
-  TrendingUp,
-  Download,
-} from "lucide-react";
 import * as XLSX from "xlsx";
-import { Student, PenaltyRecord, SeverityLevel, SEVERITY_RULES } from "@/types/penalty";
-import { Card, CardHeader, CardTitle, Badge, Button, MetricCard } from "@/components/ui";
+import { Student, PenaltyRecord, SeverityLevel } from "@/types/penalty";
 import { createPenaltyRecord, deletePenaltyRecord } from "@/app/actions";
 
 interface DisciplinaryAppProps {
   initialStudents: Student[];
   initialRecords: PenaltyRecord[];
 }
+
+const severityRules: Record<
+  SeverityLevel,
+  {
+    title: string;
+    punishment: string;
+    icon: string;
+    iconColor: string;
+    textClass: string;
+    borderClass: string;
+    activeBorder: string;
+    activeBg: string;
+    badgeBg: string;
+  }
+> = {
+  low: {
+    title: "รุนแรงน้อย",
+    punishment: "ทำเวร 1 วัน",
+    icon: "fa-solid fa-leaf",
+    iconColor: "text-emerald-500",
+    textClass: "text-emerald-700",
+    borderClass: "hover:border-emerald-400",
+    activeBorder: "border-emerald-500",
+    activeBg: "bg-emerald-50",
+    badgeBg: "bg-emerald-100",
+  },
+  medium: {
+    title: "รุนแรงกลาง",
+    punishment: "ทำเวร 1 อาทิตย์",
+    icon: "fa-solid fa-triangle-exclamation",
+    iconColor: "text-amber-500",
+    textClass: "text-amber-700",
+    borderClass: "hover:border-amber-400",
+    activeBorder: "border-amber-500",
+    activeBg: "bg-amber-50",
+    badgeBg: "bg-amber-100",
+  },
+  high: {
+    title: "รุนแรงมาก",
+    punishment: "ทำเวร 1 เดือน",
+    icon: "fa-solid fa-fire",
+    iconColor: "text-rose-500",
+    textClass: "text-rose-700",
+    borderClass: "hover:border-rose-400",
+    activeBorder: "border-rose-500",
+    activeBg: "bg-rose-50",
+    badgeBg: "bg-rose-100",
+  },
+  strict: {
+    title: "ปกครอง",
+    punishment: "ให้ใบปกครอง",
+    icon: "fa-solid fa-shield-cat",
+    iconColor: "text-purple-600",
+    textClass: "text-purple-700",
+    borderClass: "hover:border-purple-400",
+    activeBorder: "border-purple-600",
+    activeBg: "bg-purple-50",
+    badgeBg: "bg-purple-100",
+  },
+};
 
 export default function DisciplinaryApp({
   initialStudents,
@@ -36,59 +77,51 @@ export default function DisciplinaryApp({
   const [students] = useState<Student[]>(initialStudents);
   const [records, setRecords] = useState<PenaltyRecord[]>(initialRecords);
 
-  // Form states
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [incidentText, setIncidentText] = useState("");
+  const [incidentInput, setIncidentInput] = useState("");
   const [selectedSeverity, setSelectedSeverity] = useState<SeverityLevel>("medium");
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<"success" | "warning" | "info">("success");
 
   const [isPending, startTransition] = useTransition();
 
-  // Filtered students
+  const showToast = (message: string, type: "success" | "warning" | "info" = "success") => {
+    setToastMessage(message);
+    setToastType(type);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
+  };
+
+  // Filtered Students
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return students;
     const q = searchQuery.toLowerCase().trim();
     return students.filter(
       (s) =>
-        s.student_id.toLowerCase().includes(q) ||
-        s.student_no.toString().includes(q) ||
         s.first_name.toLowerCase().includes(q) ||
         s.last_name.toLowerCase().includes(q) ||
-        s.full_name.toLowerCase().includes(q) ||
+        s.student_id.includes(q) ||
+        s.student_no.toString() === q ||
         (s.nickname && s.nickname.toLowerCase().includes(q))
     );
   }, [students, searchQuery]);
 
-  // Analytics
-  const stats = useMemo(() => {
-    const total = records.length;
-    const severeCount = records.filter(
-      (r) => r.severity === "high" || r.severity === "strict"
-    ).length;
-    const studentsInvolved = new Set(records.map((r) => r.student_id)).size;
-    return { total, severeCount, studentsInvolved };
-  }, [records]);
-
-  // Toast helper
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
-  // Submit record
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Handle Save Record
+  const handleSaveRecord = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!selectedStudent) {
-      showToast("กรุณาเลือกลูกศิษย์ก่อนบันทึก");
+      showToast("กรุณาเลือกลูกศิษย์ก่อนบันทึก!", "warning");
       return;
     }
-    if (!incidentText.trim()) {
-      showToast("กรุณาระบุสาเหตุหรือพฤติกรรม");
+    if (!incidentInput.trim()) {
+      showToast("กรุณากรอกสาเหตุหรือพฤติกรรม!", "warning");
       return;
     }
 
-    const rule = SEVERITY_RULES[selectedSeverity];
+    const rule = severityRules[selectedSeverity];
 
     startTransition(async () => {
       const created = await createPenaltyRecord({
@@ -98,32 +131,33 @@ export default function DisciplinaryApp({
         student_nickname: selectedStudent.nickname,
         severity: selectedSeverity,
         severity_title: rule.title,
-        incident: incidentText.trim(),
+        incident: incidentInput.trim(),
         punishment: rule.punishment,
         status: "pending",
       });
 
       setRecords((prev) => [created, ...prev]);
-      setIncidentText("");
-      showToast(`บันทึกบทลงโทษ ${selectedStudent.first_name} สำเร็จแล้ว`);
+      setIncidentInput("");
+      showToast(
+        `บันทึกบทลงโทษ ${selectedStudent.prefix}${selectedStudent.first_name} เรียบร้อยแล้ว`,
+        "success"
+      );
     });
   };
 
-  // Delete record
-  const handleDelete = (id: string, name: string) => {
-    if (!confirm(`ต้องการลบรายการของ ${name} ใช่หรือไม่?`)) return;
-
+  // Handle Delete Record
+  const handleDeleteRecord = (id: string) => {
     startTransition(async () => {
       await deletePenaltyRecord(id);
       setRecords((prev) => prev.filter((r) => r.id !== id));
-      showToast("ลบรายการประวัติแล้ว");
+      showToast("ลบรายการประวัติแล้ว", "info");
     });
   };
 
-  // Export to Excel (.xlsx)
+  // Handle Export Excel
   const handleExportExcel = () => {
     if (records.length === 0) {
-      showToast("ยังไม่มีข้อมูลสำหรับส่งออกเป็น Excel");
+      showToast("ยังไม่มีประวัติสำหรับส่งออก Excel", "warning");
       return;
     }
 
@@ -131,376 +165,316 @@ export default function DisciplinaryApp({
       ลำดับ: idx + 1,
       รหัสนักเรียน: r.student_id,
       เลขที่: r.student_no,
-      ชื่อ_นามสกุล: r.student_name,
+      ชื่อ_สกุล: r.student_name,
       ชื่อเล่น: r.student_nickname || "-",
       ระดับความรุนแรง: r.severity_title,
-      สาเหตุ_พฤติกรรม: r.incident,
-      บทลงโทษที่ได้รับ: r.punishment,
-      สถานะ: r.status,
-      วันที่บันทึก: new Date(r.created_at).toLocaleString("th-TH"),
+      สาเหตุ: r.incident,
+      บทลงโทษ: r.punishment,
+      วันที่: new Date(r.created_at).toLocaleString("th-TH"),
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "บันทึกบทลงโทษ");
-
-    const todayStr = new Date().toISOString().split("T")[0];
-    XLSX.writeFile(workbook, `ohmjaa_penalties_${todayStr}.xlsx`);
-    showToast("ส่งออกไฟล์ Excel สำเร็จแล้ว");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "ประวัติการลงโทษ");
+    XLSX.writeFile(
+      workbook,
+      `ohmjaa_history_${new Date().toISOString().split("T")[0]}.xlsx`
+    );
+    showToast("ส่งออก Excel สำเร็จแล้ว", "success");
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl animate-fade-in">
-          <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+    <>
+      {/* Toast Notification เดิม */}
+      <div
+        className={`fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 transition-all duration-300 z-50 ${
+          toastMessage ? "translate-y-0 opacity-100" : "translate-y-20 opacity-0 pointer-events-none"
+        }`}
+      >
+        <i
+          className={
+            toastType === "success"
+              ? "fa-solid fa-circle-check text-emerald-400 text-lg"
+              : toastType === "warning"
+              ? "fa-solid fa-circle-exclamation text-amber-400 text-lg"
+              : "fa-solid fa-circle-info text-blue-400 text-lg"
+          }
+        ></i>
+        <span className="text-sm">{toastMessage}</span>
+      </div>
 
-      {/* Main Container */}
-      <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 flex-grow space-y-6">
+      {/* Main Container 12 Cols เดิม */}
+      <main className="max-w-5xl mx-auto px-4 py-6 flex-grow w-full grid grid-cols-1 lg:grid-cols-12 gap-6 font-sans">
         
-        {/* Tremor-style Analytics KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <MetricCard
-            title="บันทึกบทลงโทษทั้งหมด"
-            value={`${stats.total} ครั้ง`}
-            subtext="อัปเดตแบบเรียลไทม์"
-            icon={Activity}
-            colorClass="text-rose-500 bg-rose-50"
-          />
-          <MetricCard
-            title="นักเรียนที่มีบันทึกพฤติกรรม"
-            value={`${stats.studentsInvolved} คน`}
-            subtext={`จากทั้งหมด ${students.length} คนในห้อง ม.2/3`}
-            icon={Users}
-            colorClass="text-amber-600 bg-amber-50"
-          />
-          <MetricCard
-            title="เคสรุนแรง / เข้าห้องปกครอง"
-            value={`${stats.severeCount} เคส`}
-            subtext="ระดับสูงและส่งต่อฝ่ายปกครอง"
-            icon={TrendingUp}
-            colorClass="text-purple-600 bg-purple-50"
-          />
-        </div>
-
-        {/* Content Layout (7 cols Form / 5 cols History) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Student Selector & Penalty Form (7 cols) */}
+        <section className="lg:col-span-7 space-y-6">
           
-          {/* Left Column: Form (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            
-            {/* Step 1: Student Selection */}
-            <Card className="border-rose-100/80">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2.5">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-100 text-rose-600 text-sm font-bold">
-                    1
-                  </span>
-                  เลือกลูกศิษย์ ม.2/3
-                </CardTitle>
-                <Badge variant={selectedStudent ? "success" : "secondary"}>
-                  {selectedStudent
-                    ? `เลขที่ ${selectedStudent.student_no} ${selectedStudent.first_name}`
-                    : "ยังไม่ได้เลือก"}
-                </Badge>
-              </CardHeader>
+          {/* Step 1: Select Student */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 transition-all">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-sm font-bold">
+                  1
+                </span>
+                เลือกลูกศิษย์ ม.2/3
+              </h2>
+              <span
+                className={`text-xs px-2.5 py-1 rounded-full ${
+                  selectedStudent
+                    ? "font-medium text-rose-600 bg-rose-100"
+                    : "text-slate-500 bg-slate-100"
+                }`}
+              >
+                {selectedStudent
+                  ? `เลขที่ ${selectedStudent.student_no} - ${selectedStudent.first_name}`
+                  : "ยังไม่ได้เลือก"}
+              </span>
+            </div>
 
-              {/* Search Box */}
-              <div className="relative mb-3.5">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="ค้นหาตามชื่อ, ชื่อเล่น, นามสกุล หรือ เลขประจำตัว..."
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all"
-                />
-              </div>
+            {/* Search Input */}
+            <div className="relative mb-4">
+              <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ค้นหาตามชื่อ, นามสกุล หรือ เลขประจำตัว..."
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all"
+              />
+            </div>
 
-              {/* Student List */}
-              <div className="max-h-56 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                {filteredStudents.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-slate-400">
-                    ไม่พบข้อมูลนักเรียนที่ค้นหา
-                  </div>
-                ) : (
-                  filteredStudents.map((st) => {
-                    const isSelected = selectedStudent?.student_id === st.student_id;
-                    return (
-                      <button
-                        key={st.student_id}
-                        type="button"
-                        onClick={() => setSelectedStudent(st)}
-                        className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
-                          isSelected
-                            ? "bg-rose-50/90 border-rose-300 ring-2 ring-rose-400/30"
-                            : "bg-white hover:bg-slate-50 border-slate-200/80"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold ${
-                              isSelected
-                                ? "bg-rose-500 text-white"
-                                : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {st.student_no}
-                          </span>
-                          <div>
-                            <div className="text-sm font-semibold text-slate-800">
-                              {st.prefix}
-                              {st.first_name} {st.last_name}
-                              {st.nickname && (
-                                <span className="text-rose-600 ml-1.5 font-normal">
-                                  ({st.nickname})
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-slate-400">
-                              รหัสนักเรียน: {st.student_id}
-                            </div>
-                          </div>
+            {/* Student List Scrollable */}
+            <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+              {filteredStudents.length === 0 ? (
+                <div className="text-center py-6 text-slate-400 text-xs">
+                  ไม่พบข้อมูลนักเรียนที่ตรงกับคำค้นหา
+                </div>
+              ) : (
+                filteredStudents.map((st) => {
+                  const isSelected = selectedStudent?.student_id === st.student_id;
+                  return (
+                    <div
+                      key={st.student_id}
+                      onClick={() => setSelectedStudent(st)}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                        isSelected
+                          ? "border-rose-500 bg-rose-50/60 shadow-sm"
+                          : "border-slate-200/80 hover:border-rose-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                            isSelected
+                              ? "bg-rose-500 text-white"
+                              : "bg-slate-200 text-slate-600"
+                          }`}
+                        >
+                          {st.student_no}
                         </div>
-
-                        {isSelected && (
-                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white">
-                            <Check className="h-3.5 w-3.5 stroke-[3]" />
+                        <div>
+                          <div className="text-xs font-semibold text-slate-800">
+                            {st.prefix}
+                            {st.first_name} {st.last_name}
+                            {st.nickname && (
+                              <span className="text-rose-500 font-normal ml-1">
+                                ({st.nickname})
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </Card>
-
-            {/* Step 2: Severity & Reason */}
-            <Card className="border-rose-100/80">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2.5">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-100 text-rose-600 text-sm font-bold">
-                    2
-                  </span>
-                  ระบุความผิดและระดับความรุนแรง
-                </CardTitle>
-              </CardHeader>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Reason Input */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    สาเหตุ / รายละเอียดพฤติกรรม
-                  </label>
-                  <input
-                    type="text"
-                    value={incidentText}
-                    onChange={(e) => setIncidentText(e.target.value)}
-                    placeholder="เช่น มาสาย, ไม่ส่งงานวิชาคณิต, ส่งเสียงดังรบกวน, โดดเรียน"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all"
-                  />
-                </div>
-
-                {/* Severity Selection */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-2">
-                    ระดับความรุนแรง
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    {/* Low */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSeverity("low")}
-                      className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center text-center transition-all ${
-                        selectedSeverity === "low"
-                          ? "border-emerald-500 bg-emerald-50/80 ring-2 ring-emerald-200"
-                          : "border-slate-200 hover:border-emerald-300 bg-slate-50"
-                      }`}
-                    >
-                      <Leaf className="h-5 w-5 text-emerald-500 mb-1" />
-                      <span className="text-xs font-bold text-slate-700">รุนแรงน้อย</span>
-                    </button>
-
-                    {/* Medium */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSeverity("medium")}
-                      className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center text-center transition-all ${
-                        selectedSeverity === "medium"
-                          ? "border-amber-500 bg-amber-50/80 ring-2 ring-amber-200"
-                          : "border-slate-200 hover:border-amber-300 bg-slate-50"
-                      }`}
-                    >
-                      <AlertTriangle className="h-5 w-5 text-amber-500 mb-1" />
-                      <span className="text-xs font-bold text-slate-700">รุนแรงกลาง</span>
-                    </button>
-
-                    {/* High */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSeverity("high")}
-                      className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center text-center transition-all ${
-                        selectedSeverity === "high"
-                          ? "border-rose-500 bg-rose-50/80 ring-2 ring-rose-200"
-                          : "border-slate-200 hover:border-rose-300 bg-slate-50"
-                      }`}
-                    >
-                      <Flame className="h-5 w-5 text-rose-500 mb-1" />
-                      <span className="text-xs font-bold text-slate-700">รุนแรงมาก</span>
-                    </button>
-
-                    {/* Strict */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSeverity("strict")}
-                      className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center text-center transition-all ${
-                        selectedSeverity === "strict"
-                          ? "border-purple-600 bg-purple-50/80 ring-2 ring-purple-200"
-                          : "border-slate-200 hover:border-purple-300 bg-slate-50"
-                      }`}
-                    >
-                      <ShieldAlert className="h-5 w-5 text-purple-600 mb-1" />
-                      <span className="text-xs font-bold text-slate-700">ฝ่ายปกครอง</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Calculated Punishment Banner */}
-                <div className="rounded-xl border border-rose-200/60 bg-gradient-to-r from-rose-50 to-amber-50 p-4 flex items-center gap-3.5">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-rose-500 shadow-xs shrink-0">
-                    <Gavel className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      บทลงโทษอัตโนมัติตามกฎห้อง
-                    </div>
-                    <div className="text-sm sm:text-base font-bold text-slate-800">
-                      {SEVERITY_RULES[selectedSeverity].punishment}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Submit button */}
-                <Button
-                  type="submit"
-                  disabled={isPending || !selectedStudent}
-                  className="w-full h-12 text-sm gap-2"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  {isPending ? "กำลังบันทึกข้อมูล..." : "บันทึกบทลงโทษเข้าสู่ระบบ"}
-                </Button>
-              </form>
-            </Card>
-          </div>
-
-          {/* Right Column: History Log (5 cols) */}
-          <div className="lg:col-span-5 space-y-4">
-            <Card className="h-full flex flex-col">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5 text-rose-500" />
-                  ประวัติการลงโทษ
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleExportExcel}
-                    title="ดาวน์โหลดเป็นไฟล์ Excel"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    <span>Excel</span>
-                  </button>
-                  <Badge variant="destructive">{records.length} รายการ</Badge>
-                </div>
-              </CardHeader>
-
-              {/* Records List */}
-              <div className="space-y-3 overflow-y-auto max-h-[580px] pr-1 custom-scrollbar">
-                {records.length === 0 ? (
-                  <div className="py-16 text-center text-xs text-slate-400 flex flex-col items-center justify-center">
-                    <Clock className="h-8 w-8 text-slate-300 mb-2" />
-                    ยังไม่มีประวัติการลงโทษในระบบ
-                  </div>
-                ) : (
-                  records.map((rec) => {
-                    const rule = SEVERITY_RULES[rec.severity] || SEVERITY_RULES.medium;
-                    const dateFormatted = new Date(rec.created_at).toLocaleString("th-TH", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    });
-
-                    return (
-                      <div
-                        key={rec.id}
-                        className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs hover:border-slate-300 transition-all space-y-2.5"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="text-xs font-bold text-slate-800">
-                              เลขที่ {rec.student_no} {rec.student_name}
-                              {rec.student_nickname && (
-                                <span className="text-rose-500 ml-1">
-                                  ({rec.student_nickname})
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-slate-400">
-                              รหัส: {rec.student_id}
-                            </div>
+                          <div className="text-[11px] text-slate-400">
+                            เลขประจำตัว: {st.student_id}
                           </div>
-
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${rule.badgeBg}`}
-                          >
-                            {rec.severity_title}
-                          </span>
-                        </div>
-
-                        {/* Punishment Info */}
-                        <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-100 text-xs">
-                          <div className="font-semibold text-slate-700 flex items-center gap-1.5 mb-1">
-                            <Gavel className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                            <span>
-                              บทลงโทษ: <span className={rule.textClass}>{rec.punishment}</span>
-                            </span>
-                          </div>
-                          <div className="text-slate-500 text-[11px]">
-                            <span className="font-medium text-slate-600">สาเหตุ:</span>{" "}
-                            {rec.incident}
-                          </div>
-                        </div>
-
-                        {/* Footer Time & Delete */}
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {dateFormatted}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(rec.id, rec.student_name)}
-                            className="text-slate-400 hover:text-rose-600 transition-colors flex items-center gap-1 cursor-pointer"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            <span>ลบ</span>
-                          </button>
                         </div>
                       </div>
-                    );
-                  })
-                )}
-              </div>
-            </Card>
+                      {isSelected && (
+                        <i className="fa-solid fa-circle-check text-rose-500"></i>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
 
-        </div>
-      </div>
-    </div>
+          {/* Step 2: Select Severity & Rule */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 transition-all">
+            <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2 mb-4">
+              <span className="w-7 h-7 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-sm font-bold">
+                2
+              </span>
+              ระบุความผิดและระดับความรุนแรง
+            </h2>
+
+            {/* Reason / Incident */}
+            <div className="mb-4">
+              <label
+                htmlFor="incidentInput"
+                className="block text-xs font-medium text-slate-600 mb-1"
+              >
+                สาเหตุ / รายละเอียดพฤติกรรม
+              </label>
+              <input
+                type="text"
+                id="incidentInput"
+                value={incidentInput}
+                onChange={(e) => setIncidentInput(e.target.value)}
+                placeholder="เช่น มาสาย, ไม่ส่งการบ้าน, เสียงดังในห้อง"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all"
+              />
+            </div>
+
+            {/* Severity Level Grid Selection */}
+            <label className="block text-xs font-medium text-slate-600 mb-2">
+              ระดับความรุนแรง
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
+              {(["low", "medium", "high", "strict"] as SeverityLevel[]).map((key) => {
+                const item = severityRules[key];
+                const isActive = selectedSeverity === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setSelectedSeverity(key)}
+                    className={`severity-btn border-2 p-3 rounded-xl flex flex-col items-center justify-center text-center transition-all cursor-pointer ${
+                      isActive
+                        ? `${item.activeBorder} ${item.activeBg}`
+                        : `border-slate-200 ${item.borderClass} bg-slate-50`
+                    }`}
+                  >
+                    <i className={`${item.icon} ${item.iconColor} text-lg mb-1`}></i>
+                    <span className="text-xs font-bold text-slate-700">{item.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Automatic Punishment Display */}
+            <div className="bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200/60 rounded-xl p-4 flex items-center justify-between mb-5">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-rose-500 font-bold text-lg">
+                  <i className="fa-solid fa-gavel"></i>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">บทลงโทษที่ได้รับ (อัตโนมัติ)</div>
+                  <div className="font-bold text-slate-800 text-sm sm:text-base">
+                    <span className={severityRules[selectedSeverity].textClass}>
+                      {severityRules[selectedSeverity].punishment}
+                    </span>{" "}
+                    <span className="text-xs text-slate-400 font-normal">
+                      ({severityRules[selectedSeverity].title})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => handleSaveRecord()}
+              className="w-full py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white rounded-xl font-medium text-sm shadow-md hover:opacity-95 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            >
+              <i className="fa-solid fa-plus-circle"></i>{" "}
+              {isPending ? "กำลังบันทึก..." : "บันทึกบทลงโทษ"}
+            </button>
+          </div>
+        </section>
+
+        {/* Right Column: Penalty History (5 cols) */}
+        <section className="lg:col-span-5 flex flex-col space-y-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 flex-grow flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+                <i className="fa-solid fa-clock-rotate-left text-rose-500"></i> ประวัติการลงโทษ
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  title="ดาวน์โหลด Excel"
+                  className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <i className="fa-solid fa-file-excel"></i>
+                  <span>Excel</span>
+                </button>
+                <span className="text-xs font-medium text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full">
+                  {records.length} รายการ
+                </span>
+              </div>
+            </div>
+
+            {/* History List */}
+            <div className="space-y-3 overflow-y-auto custom-scrollbar flex-grow max-h-[500px] lg:max-h-[600px] pr-1">
+              {records.length === 0 ? (
+                <div className="h-48 flex flex-col items-center justify-center text-slate-400 text-xs">
+                  <i className="fa-regular fa-folder-open text-3xl mb-2 text-slate-300"></i>
+                  ยังไม่มีประวัติการลงโทษ
+                </div>
+              ) : (
+                records.map((rec) => {
+                  const rule = severityRules[rec.severity] || severityRules.medium;
+                  return (
+                    <div
+                      key={rec.id}
+                      className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-sm flex flex-col space-y-2 hover:border-slate-300 transition-all"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            เลขที่ {rec.student_no} {rec.student_name}
+                            {rec.student_nickname && (
+                              <span className="text-rose-500 ml-1">
+                                ({rec.student_nickname})
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            รหัส: {rec.student_id}
+                          </div>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${rule.badgeBg} ${rule.textClass}`}
+                        >
+                          {rec.severity_title}
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
+                        <div className="font-semibold text-slate-700 flex items-center gap-1.5 mb-0.5">
+                          <i className="fa-solid fa-gavel text-rose-500"></i>
+                          บทลงโทษ: <span className={rule.textClass}>{rec.punishment}</span>
+                        </div>
+                        <div className="text-slate-500 text-[11px]">
+                          <span className="font-medium text-slate-600">สาเหตุ:</span>{" "}
+                          {rec.incident}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                        <span>
+                          <i className="fa-regular fa-clock mr-1"></i>
+                          {new Date(rec.created_at).toLocaleString("th-TH")}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRecord(rec.id)}
+                          className="text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <i className="fa-solid fa-trash-can"></i> ลบ
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </>
   );
 }
-
