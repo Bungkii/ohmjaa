@@ -1,6 +1,7 @@
 import { getStudentsList, getPenaltyRecords } from "./actions";
 import DisciplinaryApp from "@/components/DisciplinaryApp";
 
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
