@@ -17,7 +17,9 @@ import {
   History,
   Check,
   TrendingUp,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Student, PenaltyRecord, SeverityLevel, SEVERITY_RULES } from "@/types/penalty";
 import { Card, CardHeader, CardTitle, Badge, Button, MetricCard } from "@/components/ui";
 import { createPenaltyRecord, deletePenaltyRecord } from "@/app/actions";
@@ -116,6 +118,35 @@ export default function DisciplinaryApp({
       setRecords((prev) => prev.filter((r) => r.id !== id));
       showToast("ลบรายการประวัติแล้ว");
     });
+  };
+
+  // Export to Excel (.xlsx)
+  const handleExportExcel = () => {
+    if (records.length === 0) {
+      showToast("ยังไม่มีข้อมูลสำหรับส่งออกเป็น Excel");
+      return;
+    }
+
+    const dataToExport = records.map((r, idx) => ({
+      ลำดับ: idx + 1,
+      รหัสนักเรียน: r.student_id,
+      เลขที่: r.student_no,
+      ชื่อ_นามสกุล: r.student_name,
+      ชื่อเล่น: r.student_nickname || "-",
+      ระดับความรุนแรง: r.severity_title,
+      สาเหตุ_พฤติกรรม: r.incident,
+      บทลงโทษที่ได้รับ: r.punishment,
+      สถานะ: r.status,
+      วันที่บันทึก: new Date(r.created_at).toLocaleString("th-TH"),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "บันทึกบทลงโทษ");
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    XLSX.writeFile(workbook, `ohmjaa_penalties_${todayStr}.xlsx`);
+    showToast("ส่งออกไฟล์ Excel สำเร็จแล้ว");
   };
 
   return (
@@ -374,7 +405,18 @@ export default function DisciplinaryApp({
                   <History className="h-5 w-5 text-rose-500" />
                   ประวัติการลงโทษ
                 </CardTitle>
-                <Badge variant="destructive">{records.length} รายการ</Badge>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    title="ดาวน์โหลดเป็นไฟล์ Excel"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Excel</span>
+                  </button>
+                  <Badge variant="destructive">{records.length} รายการ</Badge>
+                </div>
               </CardHeader>
 
               {/* Records List */}
