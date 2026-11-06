@@ -34,13 +34,16 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import { startOfDay, isBefore, isToday, isTomorrow, differenceInDays } from "date-fns";
 import { Student, PenaltyRecord, SeverityLevel, HomeworkTask, TaskCompletion } from "@/types/penalty";
-import { createPenaltyRecord, deletePenaltyRecord } from "@/app/actions";
+import { createPenaltyRecord, deletePenaltyRecord, updatePenaltyRecord, updateTaskCompletion, markTaskReviewed, getTeacherAudit, signOutTeacher, type TeacherAuditEntry, type TeacherTaskReview } from "@/app/teacherActions";
 
 interface DisciplinaryAppProps {
   initialStudents: Student[];
   initialRecords: PenaltyRecord[];
   initialTasks: HomeworkTask[];
   initialCompletions: TaskCompletion[];
+  initialAudit: TeacherAuditEntry[];
+  initialReviews: TeacherTaskReview[];
+  teacherEmail: string;
 }
 
 export function formatStudentFullName(student: Student): string {
@@ -128,13 +131,18 @@ export default function DisciplinaryApp({
   initialRecords,
   initialTasks,
   initialCompletions,
+  initialAudit,
+  initialReviews,
+  teacherEmail,
 }: DisciplinaryAppProps) {
   const [students] = useState<Student[]>(initialStudents);
   const [records, setRecords] = useState<PenaltyRecord[]>(initialRecords);
   const [tasks] = useState<HomeworkTask[]>(initialTasks);
-  const [completions] = useState<TaskCompletion[]>(initialCompletions);
+  const [completions, setCompletions] = useState<TaskCompletion[]>(initialCompletions);
+  const [audit, setAudit] = useState<TeacherAuditEntry[]>(initialAudit);
+  const [reviews, setReviews] = useState<TeacherTaskReview[]>(initialReviews);
 
-  const [activeView, setActiveView] = useState<"overview" | "assignments" | "disciplinary" | "history">("overview");
+  const [activeView, setActiveView] = useState<"overview" | "today" | "assignments" | "student" | "disciplinary" | "history" | "audit">("overview");
 
   // Selected Student for Persistent Tracking (Kanbann Parent Style)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -151,11 +159,18 @@ export default function DisciplinaryApp({
   const [penaltyStudent, setPenaltyStudent] = useState<Student | null>(null);
   const [penaltySearch, setPenaltySearch] = useState("");
   const [incidentText, setIncidentText] = useState("");
+  const [newRecordStatus, setNewRecordStatus] = useState<PenaltyRecord["status"]>("pending");
+  const [newRecordNote, setNewRecordNote] = useState("");
   const [selectedSeverity, setSelectedSeverity] = useState<SeverityLevel>("medium");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // History search
   const [historySearch, setHistorySearch] = useState("");
+  const [editingRecord, setEditingRecord] = useState<PenaltyRecord | null>(null);
+  const [editIncident, setEditIncident] = useState("");
+  const [editSeverity, setEditSeverity] = useState<SeverityLevel>("medium");
+  const [editStatus, setEditStatus] = useState<PenaltyRecord["status"]>("pending");
+  const [editNote, setEditNote] = useState("");
 
   // Map student completion
   const completionMap = useMemo(() => {
@@ -165,13 +180,15 @@ export default function DisciplinaryApp({
     });
     return map;
   }, [completions]);
+  const reviewedSet = useMemo(() => new Set(reviews.map((item) => `${item.student_id}_${item.task_id}`)), [reviews]);
+  const pendingReviews = useMemo(() => completions.filter((item) => item.status === "done" && !reviewedSet.has(`${item.student_id}_${item.task_id}`)), [completions, reviewedSet]);
 
   // Tasks with student-specific status applied
   const studentActiveTasks = useMemo(() => {
     return tasks.map((t) => {
       if (!selectedStudent) return t;
       const status = completionMap.get(`${selectedStudent.student_id}_${t.id}`);
-      return status ? { ...t, status } : t;
+      return { ...t, status: status ?? "todo" };
     });
   }, [tasks, selectedStudent, completionMap]);
 
@@ -259,22 +276,20 @@ export default function DisciplinaryApp({
     }
 
     setIsSubmitting(true);
-    const rule = severityConfig[selectedSeverity];
     try {
       const created = await createPenaltyRecord({
         student_id: penaltyStudent.student_id,
-        student_no: penaltyStudent.student_no,
-        student_name: `${penaltyStudent.prefix}${penaltyStudent.first_name} ${penaltyStudent.last_name}`,
-        student_nickname: penaltyStudent.nickname,
         severity: selectedSeverity,
-        severity_title: rule.title,
         incident: incidentText.trim(),
-        punishment: rule.punishment,
-        status: "pending",
+        status: newRecordStatus,
+        follow_up_note: newRecordNote,
       });
 
       setRecords((prev) => [created, ...prev]);
+      setAudit(await getTeacherAudit());
       setIncidentText("");
+      setNewRecordNote("");
+      setNewRecordStatus("pending");
       toast.success(`บันทึกข้อมูลของ ${penaltyStudent.first_name} แล้ว`);
     } catch (err) {
       toast.error("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
@@ -289,9 +304,56 @@ export default function DisciplinaryApp({
     try {
       await deletePenaltyRecord(id);
       setRecords((prev) => prev.filter((r) => r.id !== id));
+      setAudit(await getTeacherAudit());
       toast.success("ลบรายการประวัติแล้ว");
     } catch {
       toast.error("ไม่สามารถลบรายการได้");
+    }
+  };
+
+  const handleCompletionChange = async (studentId: string, taskId: string, status: TaskCompletion["status"]) => {
+    try {
+      const changed = await updateTaskCompletion(studentId, taskId, status);
+      setCompletions((current) => [...current.filter((item) => !(item.student_id === studentId && item.task_id === taskId)), changed]);
+      if (status !== "done") setReviews((current) => current.filter((item) => !(item.student_id === studentId && item.task_id === taskId)));
+      setAudit(await getTeacherAudit());
+      toast.success("อัปเดตสถานะงานแล้ว");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "บันทึกสถานะงานไม่สำเร็จ");
+    }
+  };
+
+  const handleMarkReviewed = async (studentId: string, taskId: string) => {
+    try {
+      const review = await markTaskReviewed(studentId, taskId);
+      setReviews((current) => [...current.filter((item) => !(item.student_id === studentId && item.task_id === taskId)), review]);
+      setAudit(await getTeacherAudit());
+      toast.success("บันทึกว่าตรวจแล้ว");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "บันทึกการตรวจไม่สำเร็จ");
+    }
+  };
+
+  const openRecordEditor = (record: PenaltyRecord) => {
+    setEditingRecord(record);
+    setEditIncident(record.incident);
+    setEditSeverity(record.severity);
+    setEditStatus(record.status);
+    setEditNote(record.follow_up_note ?? "");
+  };
+
+  const saveRecordEdit = async () => {
+    if (!editingRecord) return;
+    try {
+      const changed = await updatePenaltyRecord(editingRecord.id, {
+        incident: editIncident, severity: editSeverity, status: editStatus, follow_up_note: editNote,
+      });
+      setRecords((current) => current.map((item) => item.id === changed.id ? changed : item));
+      setAudit(await getTeacherAudit());
+      setEditingRecord(null);
+      toast.success("บันทึกการแก้ไขแล้ว");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "แก้ไขบันทึกไม่สำเร็จ");
     }
   };
 
@@ -371,6 +433,7 @@ export default function DisciplinaryApp({
             >
               ภาพรวม
             </button>
+            <button onClick={() => setActiveView("today")} className={`px-3 py-2 rounded-md transition-colors cursor-pointer ${activeView === "today" ? "bg-white text-[#16453d] shadow-sm" : "text-[#61706a] hover:text-[#16453d]"}`}>งานวันนี้</button>
             <button
               onClick={() => setActiveView("assignments")}
               className={`px-4 py-2 rounded-md transition-colors cursor-pointer ${
@@ -379,8 +442,9 @@ export default function DisciplinaryApp({
                   : "text-[#61706a] hover:text-[#16453d] hover:bg-white/50"
               }`}
             >
-              กระดานการบ้าน
+              การบ้าน
             </button>
+            <button onClick={() => setActiveView("student")} className={`px-3 py-2 rounded-md transition-colors cursor-pointer ${activeView === "student" ? "bg-white text-[#16453d] shadow-sm" : "text-[#61706a] hover:text-[#16453d]"}`}>นักเรียน</button>
             <button
               onClick={() => setActiveView("disciplinary")}
               className={`px-4 py-2 rounded-md transition-colors cursor-pointer ${
@@ -401,10 +465,13 @@ export default function DisciplinaryApp({
             >
               ประวัติ ({records.length})
             </button>
+            <button onClick={() => setActiveView("audit")} className={`px-3 py-2 rounded-md transition-colors cursor-pointer ${activeView === "audit" ? "bg-white text-[#16453d] shadow-sm" : "text-[#61706a] hover:text-[#16453d]"}`}>การแก้ไข</button>
           </nav>
 
           {/* Actions on Navbar Right */}
           <div className="flex items-center gap-2">
+            <span className="hidden xl:inline text-xs text-[#67736d] max-w-36 truncate" title={teacherEmail}>{teacherEmail}</span>
+            <button onClick={() => signOutTeacher().then(() => window.location.assign("/login"))} className="text-xs text-[#67736d] hover:text-[#16453d] cursor-pointer">ออกจากระบบ</button>
             <button
               onClick={handleExportCSV}
               className="inline-flex items-center gap-1.5 text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-2 rounded-lg transition-colors cursor-pointer"
@@ -437,10 +504,10 @@ export default function DisciplinaryApp({
           <div>
             <p className="text-[11px] font-bold tracking-[0.18em] text-[#527568] uppercase mb-2">ห้องเรียน ม.2/3</p>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#182422]">
-              {activeView === "overview" ? "ภาพรวมห้องเรียน" : activeView === "assignments" ? "กระดานการบ้าน" : activeView === "disciplinary" ? "บันทึกวินัย" : "ประวัติบันทึก"}
+              {activeView === "overview" ? "ภาพรวมห้องเรียน" : activeView === "today" ? "งานที่ต้องจัดการวันนี้" : activeView === "assignments" ? "กระดานการบ้าน" : activeView === "student" ? "ข้อมูลนักเรียน" : activeView === "disciplinary" ? "บันทึกวินัย" : activeView === "audit" ? "ประวัติการแก้ไข" : "ประวัติบันทึก"}
             </h1>
             <p className="text-sm text-[#67736d] mt-1">
-              {activeView === "overview" ? "งานที่ต้องติดตามและข้อมูลล่าสุดของห้อง ม.2/3" : activeView === "assignments" ? "ติดตามงานที่ต้องทำและกำหนดส่งของนักเรียน" : activeView === "disciplinary" ? "บันทึกเหตุการณ์และดูรายการล่าสุด" : "ค้นหาและส่งออกข้อมูลย้อนหลัง"}
+              {activeView === "overview" ? "งานที่ต้องติดตามและข้อมูลล่าสุดของห้อง ม.2/3" : activeView === "today" ? "งานใกล้กำหนดและบันทึกวินัยที่ยังไม่ปิด" : activeView === "assignments" ? "ดูผู้ที่ยังไม่ส่งและเปลี่ยนสถานะงาน" : activeView === "student" ? "การบ้านและประวัติวินัยในหน้าเดียว" : activeView === "disciplinary" ? "บันทึกเหตุการณ์และดูรายการล่าสุด" : activeView === "audit" ? "ตรวจสอบว่าใครแก้ข้อมูลและเมื่อไร" : "ค้นหาและส่งออกข้อมูลย้อนหลัง"}
             </p>
           </div>
           {activeView === "assignments" && <div className="text-sm text-[#67736d]">ทั้งหมด <span className="font-bold text-[#182422]">{tasks.length}</span> งาน</div>}
@@ -449,7 +516,7 @@ export default function DisciplinaryApp({
         {/* ------------------------------------------------------------------------- */}
         {/* STUDENT IDENTIFICATION BANNER (Kanbann Parent Banner)                     */}
         {/* ------------------------------------------------------------------------- */}
-        {activeView === "assignments" && (selectedStudent ? (
+        {(activeView === "assignments" || activeView === "student") && (selectedStudent ? (
           <div className="rounded-2xl p-5 sm:p-6 bg-[#173f37] text-white flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
               <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-xl bg-white/90 flex items-center justify-center shrink-0 p-2 overflow-hidden">
@@ -543,9 +610,9 @@ export default function DisciplinaryApp({
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {[
                 { label: "นักเรียน", value: students.length, detail: "คนในห้อง", icon: Users },
-                { label: "การบ้านทั้งหมด", value: tasks.length, detail: "งานที่บันทึกไว้", icon: BookOpen },
+                { label: "งานรอตรวจ", value: pendingReviews.length, detail: "นักเรียนส่งแล้ว", icon: BookOpen },
                 { label: "ต้องติดตาม", value: dueSoonCount, detail: "ใกล้ครบหรือเกินกำหนด", icon: Clock },
-                { label: "บันทึกวินัย", value: records.length, detail: "รายการทั้งหมด", icon: FileText },
+                { label: "วินัยรอติดตาม", value: records.filter((record) => record.status === "pending").length, detail: "เรื่องที่ยังไม่ปิด", icon: FileText },
               ].map(({ label, value, detail, icon: Icon }) => (
                 <div key={label} className="rounded-xl border border-[#e5e2db] bg-[#fdfcf9] p-4 sm:p-5">
                   <div className="flex items-start justify-between gap-3">
@@ -602,6 +669,7 @@ export default function DisciplinaryApp({
                       <span className="text-xs font-semibold">ค้นหานักเรียน</span>
                     </button>
                   </div>
+                  <div className="flex gap-4 mt-4 text-xs font-semibold text-[#16453d]"><button onClick={() => setActiveView("today")} className="hover:underline cursor-pointer">งานวันนี้</button><button onClick={() => setActiveView("history")} className="hover:underline cursor-pointer">ประวัติวินัย</button><button onClick={() => setActiveView("audit")} className="hover:underline cursor-pointer">ประวัติการแก้ไข</button></div>
                 </section>
 
                 <section className="rounded-xl border border-[#e5e2db] bg-[#fdfcf9] overflow-hidden">
@@ -618,6 +686,88 @@ export default function DisciplinaryApp({
                 </section>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeView === "today" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <section className="rounded-xl border border-[#e5e2db] bg-white p-5">
+              <h2 className="font-bold text-[#182422]">การบ้านใกล้หรือเกินกำหนด</h2>
+              <p className="text-xs text-[#7a857d] mt-1">กดที่งานเพื่อดูรายชื่อนักเรียนและอัปเดตสถานะ</p>
+              <div className="mt-4 divide-y divide-[#eeece6]">
+                {openTasks.filter((task) => ["critical", "warning"].includes(getUrgency(task)?.level ?? "")).map((task) => {
+                  const pending = students.filter((student) => completionMap.get(`${student.student_id}_${task.id}`) !== "done").length;
+                  return <button key={task.id} onClick={() => setSelectedTask(task)} className="w-full flex items-center justify-between gap-3 py-3 text-left hover:bg-[#f7f7f2] cursor-pointer">
+                    <span><span className="block text-sm font-semibold">{task.subject}</span><span className="text-xs text-[#7a857d]">กำหนด {task.due_date}</span></span>
+                    <span className="text-xs font-semibold text-[#9a5c2e] shrink-0">ยังไม่ส่ง {pending} คน</span>
+                  </button>;
+                })}
+                {dueSoonCount === 0 && <p className="py-8 text-center text-sm text-[#7a857d]">ไม่มีงานใกล้กำหนด</p>}
+              </div>
+            </section>
+            <section className="rounded-xl border border-[#e5e2db] bg-white p-5">
+              <h2 className="font-bold text-[#182422]">งานที่รอตรวจ</h2>
+              <p className="text-xs text-[#7a857d] mt-1">นักเรียนส่งแล้ว แต่ครูยังไม่ได้ทำเครื่องหมายว่าตรวจ</p>
+              <div className="mt-4 divide-y divide-[#eeece6] max-h-[480px] overflow-y-auto">
+                {pendingReviews.slice(0, 20).map((completion) => {
+                  const student = students.find((item) => item.student_id === completion.student_id);
+                  const task = tasks.find((item) => item.id === completion.task_id);
+                  if (!student || !task) return null;
+                  return <div key={`${completion.student_id}_${completion.task_id}`} className="flex items-center justify-between gap-2 py-3 text-xs">
+                    <div className="min-w-0"><div className="font-semibold truncate">{student.first_name} {student.last_name}</div><div className="text-[#7a857d] truncate">{task.subject}</div></div>
+                    <button onClick={() => handleMarkReviewed(student.student_id, task.id)} className="text-[#16453d] font-semibold shrink-0 hover:underline cursor-pointer">ตรวจแล้ว</button>
+                  </div>;
+                })}
+                {!pendingReviews.length && <p className="py-8 text-center text-sm text-[#7a857d]">ไม่มีงานรอตรวจ</p>}
+              </div>
+            </section>
+            <section className="rounded-xl border border-[#e5e2db] bg-white p-5">
+              <h2 className="font-bold text-[#182422]">วินัยที่รอติดตาม</h2>
+              <p className="text-xs text-[#7a857d] mt-1">บันทึกที่ยังไม่ปิดเรื่อง</p>
+              <div className="mt-4 divide-y divide-[#eeece6]">
+                {records.filter((record) => record.status === "pending").map((record) => <button key={record.id} onClick={() => openRecordEditor(record)} className="w-full flex items-center justify-between gap-3 py-3 text-left hover:bg-[#f7f7f2] cursor-pointer">
+                  <span className="min-w-0"><span className="block text-sm font-semibold truncate">{record.student_name}</span><span className="block text-xs text-[#7a857d] truncate">{record.incident}</span></span>
+                  <span className="text-xs text-[#7a857d] shrink-0">{new Date(record.created_at).toLocaleDateString("th-TH")}</span>
+                </button>)}
+                {!records.some((record) => record.status === "pending") && <p className="py-8 text-center text-sm text-[#7a857d]">ไม่มีเรื่องที่รอติดตาม</p>}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {activeView === "student" && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-[#e5e2db] bg-white p-5">
+              <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-bold">รายชื่อนักเรียน</h2><span className="text-xs text-[#7a857d]">{students.length} คน</span></div>
+              <div className="flex flex-wrap gap-2 mt-4 max-h-40 overflow-y-auto">
+                {students.map((student) => <button key={student.student_id} onClick={() => setSelectedStudent(student)} className={`px-3 py-2 rounded-lg border text-xs cursor-pointer ${selectedStudent?.student_id === student.student_id ? "bg-[#16453d] border-[#16453d] text-white" : "border-[#e5e2db] hover:border-[#8ca99a]"}`}>{student.student_no}. {student.first_name}</button>)}
+              </div>
+            </div>
+            {selectedStudent && <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <section className="rounded-xl border border-[#e5e2db] bg-white p-5">
+                <h2 className="text-sm font-bold">การบ้าน · ส่งแล้ว {studentStats.done}/{studentStats.total}</h2>
+                <div className="mt-4 divide-y divide-[#eeece6] max-h-[440px] overflow-y-auto">
+                  {tasks.map((task) => <div key={task.id} className="flex items-center justify-between gap-3 py-3">
+                    <div className="min-w-0"><div className="text-sm font-semibold truncate">{task.subject}</div><div className="text-xs text-[#7a857d]">กำหนด {task.due_date}</div></div>
+                    <select aria-label={`สถานะงาน ${task.subject}`} value={completionMap.get(`${selectedStudent.student_id}_${task.id}`) ?? "todo"} onChange={(event) => handleCompletionChange(selectedStudent.student_id, task.id, event.target.value as TaskCompletion["status"])} className="text-xs border border-[#d9ddd5] rounded-lg p-2 bg-white cursor-pointer">
+                      <option value="todo">ยังไม่ส่ง</option><option value="in_progress">กำลังทำ</option><option value="done">ส่งแล้ว</option>
+                    </select>
+                  </div>)}
+                  {!tasks.length && <p className="py-8 text-center text-xs text-[#7a857d]">ยังไม่มีการบ้าน</p>}
+                </div>
+              </section>
+              <section className="rounded-xl border border-[#e5e2db] bg-white p-5">
+                <h2 className="text-sm font-bold">ประวัติวินัย</h2>
+                <div className="mt-4 divide-y divide-[#eeece6]">
+                  {records.filter((record) => record.student_id === selectedStudent.student_id).map((record) => <button key={record.id} onClick={() => openRecordEditor(record)} className="w-full py-3 text-left hover:bg-[#f7f7f2] cursor-pointer">
+                    <div className="flex justify-between gap-2 text-xs"><span className="font-semibold">{record.severity_title}</span><span className="text-[#7a857d]">{record.status === "pending" ? "รอติดตาม" : record.status === "completed" ? "เสร็จสิ้น" : "ยกเว้น"}</span></div>
+                    <p className="text-xs text-[#67736d] mt-1">{record.incident}</p>
+                    {record.follow_up_note && <p className="text-xs text-[#7a857d] mt-1">ติดตาม: {record.follow_up_note}</p>}
+                  </button>)}
+                  {!records.some((record) => record.student_id === selectedStudent.student_id) && <p className="py-8 text-center text-xs text-[#7a857d]">ยังไม่มีบันทึกวินัย</p>}
+                </div>
+              </section>
+            </div>}
           </div>
         )}
 
@@ -868,6 +1018,18 @@ export default function DisciplinaryApp({
                   />
                 </div>
 
+                {/* Follow-up status */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block text-xs font-bold text-slate-700">สถานะ
+                    <select value={newRecordStatus} onChange={(event) => setNewRecordStatus(event.target.value as PenaltyRecord["status"])} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                      <option value="pending">รอติดตาม</option><option value="completed">เสร็จสิ้น</option><option value="forgiven">ยกเว้น</option>
+                    </select>
+                  </label>
+                  <label className="block text-xs font-bold text-slate-700">หมายเหตุการติดตาม
+                    <input value={newRecordNote} onChange={(event) => setNewRecordNote(event.target.value)} placeholder="เช่น นัดพูดคุยวันศุกร์" className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs" />
+                  </label>
+                </div>
+
                 {/* Severity Picker */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-2">
@@ -963,6 +1125,7 @@ export default function DisciplinaryApp({
                             {r.punishment}
                           </td>
                           <td className="py-2.5 px-2 text-right">
+                            <button onClick={() => openRecordEditor(r)} className="px-2 py-1 text-[#16453d] hover:underline cursor-pointer">แก้ไข</button>
                             <button
                               onClick={() => handleDeleteRecord(r.id, r.student_name)}
                               className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
@@ -1033,6 +1196,7 @@ export default function DisciplinaryApp({
                     <th className="py-2.5 px-3 font-bold">เลขที่</th>
                     <th className="py-2.5 px-3 font-bold">ชื่อ-สกุล</th>
                     <th className="py-2.5 px-3 font-bold">ระดับ</th>
+                    <th className="py-2.5 px-3 font-bold">สถานะ</th>
                     <th className="py-2.5 px-3 font-bold">สาเหตุ</th>
                     <th className="py-2.5 px-3 font-bold">บทลงโทษ</th>
                     <th className="py-2.5 px-3 font-bold text-right">จัดการ</th>
@@ -1071,6 +1235,7 @@ export default function DisciplinaryApp({
                               {conf.title}
                             </span>
                           </td>
+                          <td className="py-2.5 px-3 text-[#58665f]">{r.status === "pending" ? "รอติดตาม" : r.status === "completed" ? "เสร็จสิ้น" : "ยกเว้น"}</td>
                           <td className="py-2.5 px-3 text-slate-700 max-w-[200px] truncate" title={r.incident}>
                             {r.incident}
                           </td>
@@ -1078,6 +1243,7 @@ export default function DisciplinaryApp({
                             {r.punishment}
                           </td>
                           <td className="py-2.5 px-3 text-right">
+                            <button onClick={() => openRecordEditor(r)} className="px-2 py-1 text-[#16453d] hover:underline cursor-pointer">แก้ไข</button>
                             <button
                               onClick={() => handleDeleteRecord(r.id, r.student_name)}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
@@ -1095,6 +1261,19 @@ export default function DisciplinaryApp({
           </div>
         )}
 
+        {activeView === "audit" && <section className="rounded-xl border border-[#e5e2db] bg-white overflow-hidden">
+          <div className="px-5 py-4 border-b border-[#e5e2db]"><h2 className="text-sm font-bold">การเปลี่ยนแปลงล่าสุด</h2><p className="text-xs text-[#7a857d] mt-1">บันทึกจากฐานข้อมูล สูงสุด 100 รายการ</p></div>
+          <div className="divide-y divide-[#eeece6]">
+            {audit.map((entry) => {
+              const student = students.find((item) => item.student_id === entry.student_id);
+              return <div key={entry.id} className="flex items-center justify-between gap-3 px-5 py-3 text-xs">
+                <div><span className="font-semibold">{entry.action === "insert" ? "เพิ่ม" : entry.action === "update" ? "แก้ไข" : "ลบ"}</span> {entry.entity === "ohmjaa_penalties" ? "บันทึกวินัย" : entry.entity === "teacher_task_reviews" ? "การตรวจงาน" : "สถานะการบ้าน"} · {student ? formatStudentFullName(student) : entry.student_id}</div>
+                <div className="text-[#7a857d] text-right shrink-0"><div>{new Date(entry.created_at).toLocaleString("th-TH")}</div><div>ผู้แก้ไข {entry.actor_email}</div></div>
+              </div>;
+            })}
+            {!audit.length && <p className="px-5 py-10 text-center text-xs text-[#7a857d]">ยังไม่มีประวัติการแก้ไข</p>}
+          </div>
+        </section>}
       </main>
 
       {/* ========================================================================= */}
@@ -1134,6 +1313,7 @@ export default function DisciplinaryApp({
                   key={s.student_id}
                   onClick={() => {
                     setSelectedStudent(s);
+                    setActiveView("student");
                     setIsSearchOpen(false);
                     toast.success(`เลือก ${s.first_name} แล้ว`);
                   }}
@@ -1166,7 +1346,7 @@ export default function DisciplinaryApp({
       {/* ========================================================================= */}
       {selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl border border-slate-200 space-y-4">
             <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-semibold text-slate-900">
@@ -1212,6 +1392,18 @@ export default function DisciplinaryApp({
               )}
             </div>
 
+            <div className="border-t border-[#e5e2db] pt-4">
+              <div className="flex items-center justify-between"><h4 className="text-sm font-bold">สถานะรายนักเรียน</h4><span className="text-xs text-[#7a857d]">ส่งแล้ว {students.filter((student) => completionMap.get(`${student.student_id}_${selectedTask.id}`) === "done").length}/{students.length}</span></div>
+              <div className="mt-3 max-h-52 overflow-y-auto divide-y divide-[#eeece6]">
+                {students.map((student) => <div key={student.student_id} className="flex items-center justify-between gap-2 py-2 text-xs">
+                  <span className="truncate">{student.student_no}. {student.first_name} {student.last_name}</span>
+                  <select aria-label={`สถานะงานของ ${student.first_name}`} value={completionMap.get(`${student.student_id}_${selectedTask.id}`) ?? "todo"} onChange={(event) => handleCompletionChange(student.student_id, selectedTask.id, event.target.value as TaskCompletion["status"])} className="border border-[#d9ddd5] rounded-lg px-2 py-1.5 bg-white cursor-pointer shrink-0">
+                    <option value="todo">ยังไม่ส่ง</option><option value="in_progress">กำลังทำ</option><option value="done">ส่งแล้ว</option>
+                  </select>
+                </div>)}
+              </div>
+            </div>
+
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setSelectedTask(null)}
@@ -1223,6 +1415,17 @@ export default function DisciplinaryApp({
           </div>
         </div>
       )}
+
+      {editingRecord && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+        <div className="bg-white rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl space-y-4">
+          <div className="flex items-center justify-between"><h2 className="font-bold">แก้ไขบันทึกวินัย · {editingRecord.student_name}</h2><button onClick={() => setEditingRecord(null)} aria-label="ปิด" className="cursor-pointer"><X size={18} /></button></div>
+          <label className="block text-xs font-semibold">เหตุการณ์<textarea value={editIncident} onChange={(event) => setEditIncident(event.target.value)} rows={3} className="mt-1 w-full border border-[#d9ddd5] rounded-lg p-2 text-sm" /></label>
+          <label className="block text-xs font-semibold">ระดับ<select value={editSeverity} onChange={(event) => setEditSeverity(event.target.value as SeverityLevel)} className="mt-1 w-full border border-[#d9ddd5] rounded-lg p-2 text-sm bg-white">{(Object.keys(severityConfig) as SeverityLevel[]).map((level) => <option key={level} value={level}>{severityConfig[level].title}</option>)}</select></label>
+          <label className="block text-xs font-semibold">สถานะ<select value={editStatus} onChange={(event) => setEditStatus(event.target.value as PenaltyRecord["status"])} className="mt-1 w-full border border-[#d9ddd5] rounded-lg p-2 text-sm bg-white"><option value="pending">รอติดตาม</option><option value="completed">เสร็จสิ้น</option><option value="forgiven">ยกเว้น</option></select></label>
+          <label className="block text-xs font-semibold">หมายเหตุการติดตาม<textarea value={editNote} onChange={(event) => setEditNote(event.target.value)} rows={3} className="mt-1 w-full border border-[#d9ddd5] rounded-lg p-2 text-sm" /></label>
+          <div className="flex justify-end gap-2"><button onClick={() => setEditingRecord(null)} className="px-4 py-2 text-sm cursor-pointer">ยกเลิก</button><button onClick={saveRecordEdit} className="px-4 py-2 text-sm rounded-lg bg-[#16453d] text-white cursor-pointer">บันทึกการแก้ไข</button></div>
+        </div>
+      </div>}
 
       {/* ========================================================================= */}
       {/* 5. MOBILE BOTTOM NAVIGATION (Kanbann Mobile Style)                        */}
@@ -1237,6 +1440,7 @@ export default function DisciplinaryApp({
           <LayoutDashboard size={18} />
           <span>ภาพรวม</span>
         </button>
+        <button onClick={() => setActiveView("today")} className={`flex flex-col items-center gap-1 text-[11px] font-bold cursor-pointer ${activeView === "today" ? "text-[#16453d]" : "text-[#7b8980]"}`}><Clock size={18} /><span>วันนี้</span></button>
         <button
           onClick={() => setActiveView("assignments")}
           className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer ${
@@ -1248,11 +1452,11 @@ export default function DisciplinaryApp({
         </button>
 
         <button
-          onClick={() => setIsSearchOpen(true)}
+          onClick={() => setActiveView("student")}
           className="flex flex-col items-center gap-1 text-[11px] font-bold text-[#7b8980] hover:text-[#16453d] transition-colors cursor-pointer"
         >
           <Users size={18} />
-          <span>เลือกนักเรียน</span>
+          <span>นักเรียน</span>
         </button>
 
         <button
@@ -1265,15 +1469,6 @@ export default function DisciplinaryApp({
           <span>วินัย</span>
         </button>
 
-        <button
-          onClick={() => setActiveView("history")}
-          className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer ${
-            activeView === "history" ? "text-[#16453d]" : "text-[#7b8980] hover:text-[#16453d]"
-          }`}
-        >
-          <Clock size={18} />
-          <span>ประวัติ</span>
-        </button>
 
       </nav>
 

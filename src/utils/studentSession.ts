@@ -9,7 +9,7 @@
  */
 
 import crypto from 'crypto';
-import { StudentRole } from './studentTypes';
+import { StudentRole } from '@/types/studentTypes';
 
 const SESSION_SECRET =
   process.env.STUDENT_SESSION_SECRET || 'primja_super_secret_session_key_2026_m23';

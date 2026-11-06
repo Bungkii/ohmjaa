@@ -33,6 +33,9 @@ export interface PenaltyRecord {
   incident: string;
   punishment: string;
   status: 'pending' | 'completed' | 'forgiven';
+  follow_up_note?: string;
+  updated_at?: string;
+  updated_by?: string;
   created_at: string;
 }
 
