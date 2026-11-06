@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โอมจ๋า - แอปจัดการบทลงโทษ ม.2/3</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Prompt -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Prompt', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#fff1f2',
+                            100: '#ffe4e6',
+                            500: '#f43f5e',
+                            600: '#e11d48',
+                            700: '#be123c',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header / Navbar -->
+    <header class="bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white/20 p-2.5 rounded-2xl backdrop-blur-md">
+                    <i class="fa-solid fa-gavel text-2xl text-yellow-200"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight flex items-center gap-2">
+                        โอมจ๋า <span class="text-xs bg-white/20 px-2.5 py-0.5 rounded-full font-normal">ม.2/3</span>
+                    </h1>
+                    <p class="text-xs text-rose-100">ระบบบันทึกและจัดการบทลงโทษนักเรียน</p>
+                </div>
+            </div>
+            <div class="hidden sm:flex items-center text-xs bg-black/10 px-3 py-1.5 rounded-lg border border-white/10">
+                <i class="fa-regular fa-user-circle mr-1.5"></i> คุณครูผู้ดูแลห้อง ม.2/3
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-5xl mx-auto px-4 py-6 flex-grow w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left Column: Student Selector & Penalty Form (7 cols) -->
+        <section class="lg:col-span-7 space-y-6">
+            
+            <!-- Step 1: Select Student -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 transition-all">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                        <span class="w-7 h-7 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-sm font-bold">1</span>
+                        เลือกลูกศิษย์ ม.2/3
+                    </h2>
+                    <span id="selectedCount" class="text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">ยังไม่ได้เลือก</span>
+                </div>
+
+                <!-- Search Input -->
+                <div class="relative mb-4">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="searchInput" placeholder="ค้นหาตามชื่อ, นามสกุล หรือ เลขประจำตัว..." 
+                        class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all">
+                </div>
+
+                <!-- Student List Scrollable -->
+                <div id="studentList" class="max-h-56 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                    <!-- Dynamic rendering via JS -->
+                </div>
+            </div>
+
+            <!-- Step 2: Select Severity & Rule -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 transition-all">
+                <h2 class="text-base font-semibold text-slate-800 flex items-center gap-2 mb-4">
+                    <span class="w-7 h-7 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-sm font-bold">2</span>
+                    ระบุความผิดและระดับความรุนแรง
+                </h2>
+
+                <!-- Reason / Incident -->
+                <div class="mb-4">
+                    <label for="incidentInput" class="block text-xs font-medium text-slate-600 mb-1">สาเหตุ / รายละเอียดพฤติกรรม</label>
+                    <input type="text" id="incidentInput" placeholder="เช่น มาสาย, ไม่ส่งการบ้าน, เสียงดังในห้อง" 
+                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all">
+                </div>
+
+                <!-- Severity Level Grid Selection -->
+                <label class="block text-xs font-medium text-slate-600 mb-2">ระดับความรุนแรง</label>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
+                    <!-- Low -->
+                    <button type="button" onclick="selectSeverity('low')" id="btn-low" 
+                        class="severity-btn border-2 border-slate-200 hover:border-emerald-400 p-3 rounded-xl flex flex-col items-center justify-center text-center transition-all bg-slate-50">
+                        <i class="fa-solid fa-leaf text-emerald-500 text-lg mb-1"></i>
+                        <span class="text-xs font-bold text-slate-700">รุนแรงน้อย</span>
+                    </button>
+                    <!-- Medium -->
+                    <button type="button" onclick="selectSeverity('medium')" id="btn-medium" 
+                        class="severity-btn border-2 border-slate-200 hover:border-amber-400 p-3 rounded-xl flex flex-col items-center justify-center text-center transition-all bg-slate-50">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-500 text-lg mb-1"></i>
+                        <span class="text-xs font-bold text-slate-700">รุนแรงกลาง</span>
+                    </button>
+                    <!-- High -->
+                    <button type="button" onclick="selectSeverity('high')" id="btn-high" 
+                        class="severity-btn border-2 border-slate-200 hover:border-rose-400 p-3 rounded-xl flex flex-col items-center justify-center text-center transition-all bg-slate-50">
+                        <i class="fa-solid fa-fire text-rose-500 text-lg mb-1"></i>
+                        <span class="text-xs font-bold text-slate-700">รุนแรงมาก</span>
+                    </button>
+                    <!-- Strict -->
+                    <button type="button" onclick="selectSeverity('strict')" id="btn-strict" 
+                        class="severity-btn border-2 border-slate-200 hover:border-purple-400 p-3 rounded-xl flex flex-col items-center justify-center text-center transition-all bg-slate-50">
+                        <i class="fa-solid fa-shield-cat text-purple-600 text-lg mb-1"></i>
+                        <span class="text-xs font-bold text-slate-700">ปกครอง</span>
+                    </button>
+                </div>
+
+                <!-- Automatic Punishment Display -->
+                <div class="bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200/60 rounded-xl p-4 flex items-center justify-between mb-5">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-rose-500 font-bold text-lg">
+                            <i class="fa-solid fa-gavel"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-500">บทลงโทษที่ได้รับ (อัตโนมัติ)</div>
+                            <div id="punishmentResult" class="font-bold text-slate-800 text-sm sm:text-base">กรุณาเลือกระดับความรุนแรง...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="button" onclick="saveRecord()" 
+                    class="w-full py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white rounded-xl font-medium text-sm shadow-md hover:opacity-95 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus-circle"></i> บันทึกบทลงโทษ
+                </button>
+            </div>
+        </section>
+
+        <!-- Right Column: Penalty History (5 cols) -->
+        <section class="lg:col-span-5 flex flex-col space-y-4">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 flex-grow flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-rose-500"></i> ประวัติการลงโทษ
+                    </h2>
+                    <span id="historyCount" class="text-xs font-medium text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full">0 รายการ</span>
+                </div>
+
+                <!-- History List -->
+                <div id="historyList" class="space-y-3 overflow-y-auto custom-scrollbar flex-grow max-h-[500px] lg:max-h-[600px] pr-1">
+                    <!-- Dynamic rendering -->
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-100 border-t border-slate-200 text-slate-500 py-4 text-center text-xs mt-auto">
+        แอปพลิเคชันโอมจ๋า &copy; ห้อง ม.2/3 | พัฒนาขึ้นสำหรับการจัดการระเบียบวินัยในชั้นเรียน
+    </footer>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toastMessage" class="text-sm">ข้อความแจ้งเตือน</span>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // นักเรียนชั้น ม.2/3 ทั้ง 50 คน
+        const studentsData = [
+            { id: 1, code: "30233", title: "ด.ญ.", firstname: "กัญญาวีร์", lastname: "สินสมบูรณ์", en: "Kanyavee S." },
+            { id: 2, code: "30260", title: "ด.ช.", firstname: "ปัณณพัฒน์", lastname: "สมสี", en: "Pannapat S." },
+            { id: 3, code: "30292", title: "ด.ช.", firstname: "สาทร", lastname: "รอดสำราญ", en: "Satorn R." },
+            { id: 4, code: "30314", title: "ด.ญ.", firstname: "พิชามญชุ์", lastname: "ลลิตกุลธร", en: "Pichamon L." },
+            { id: 5, code: "30320", title: "ด.ช.", firstname: "วริทธิ์ธร", lastname: "เจนจิราจิรโชติ", en: "Waritthorn J." },
+            { id: 6, code: "30340", title: "ด.ญ.", firstname: "รัญชนา", lastname: "รงควิลิต", en: "Ranchana R." },
+            { id: 7, code: "30372", title: "ด.ช.", firstname: "ปุญญะพัชญ์", lastname: "โพธิ์ผลิ", en: "Poonyaphat P." },
+            { id: 8, code: "30384", title: "ด.ญ.", firstname: "เปมิกา", lastname: "กำลังเสือ", en: "Pemika K." },
+            { id: 9, code: "30388", title: "ด.ญ.", firstname: "อัยย์รดา", lastname: "โกสวัสดิ์", en: "Airada K." },
+            { id: 10, code: "30391", title: "ด.ช.", firstname: "โปรดปราน", lastname: "ห้องสินหลาก", en: "Prodpran H." },
+            { id: 11, code: "30397", title: "ด.ช.", firstname: "กรพัฒน์", lastname: "นันทวิจารณ์", en: "Korrapat N." },
+            { id: 12, code: "30412", title: "ด.ช.", firstname: "พาทิศ", lastname: "พวันนา", en: "Pathit P." },
+            { id: 13, code: "30419", title: "ด.ช.", firstname: "รณกร", lastname: "แก้วนวล", en: "Ronnakorn K." },
+            { id: 14, code: "30429", title: "ด.ช.", firstname: "ปภังกร", lastname: "จิตต์สมัย", en: "Pabhangkorn J." },
+            { id: 15, code: "30437", title: "ด.ช.", firstname: "พัฒนวงษ์", lastname: "แซ่ลี่", en: "Pathanawong S." },
+            { id: 16, code: "30453", title: "ด.ช.", firstname: "นิพัฐพนธ์", lastname: "ตัณฑ์เจริญ", en: "Nipatphon T." },
+            { id: 17, code: "30456", title: "ด.ญ.", firstname: "ปุณยนุช", lastname: "กีรติกสิกร", en: "Punyanuch K." },
+            { id: 18, code: "30462", title: "ด.ช.", firstname: "ฐานพัฒน์", lastname: "กิจนพเกียรติ", en: "Thanaphat K." },
+            { id: 19, code: "30465", title: "ด.ช.", firstname: "ปิติ", lastname: "ญาณทัศนกิจ", en: "Pete Y." },
+            { id: 20, code: "30469", title: "ด.ญ.", firstname: "วริษฐา", lastname: "ชิดยางกรุวงศ์", en: "Varitha T." },
+            { id: 21, code: "30470", title: "ด.ญ.", firstname: "อุรัสยา", lastname: "เหรียญประพันธ์", en: "Urassaya R." },
+            { id: 22, code: "30496", title: "ด.ช.", firstname: "โปรดปลื้ม", lastname: "พูลทรัพย์เจริญ", en: "Prodpluem P." },
+            { id: 23, code: "30502", title: "ด.ช.", firstname: "องศา", lastname: "แถวเที่ยง", en: "Ongsa T." },
+            { id: 24, code: "30549", title: "ด.ช.", firstname: "ชินภัทร", lastname: "ชวเลิศสกุล", en: "Chinapat C." },
+            { id: 25, code: "30585", title: "ด.ช.", firstname: "ชวกร", lastname: "เทอดกตัญญวงศ์", en: "Chavakorn T." },
+            { id: 26, code: "30617", title: "ด.ญ.", firstname: "ธัญญวรัตน์", lastname: "อัศวฤทธิรงค์", en: "Thanyawarat A." },
+            { id: 27, code: "30629", title: "ด.ช.", firstname: "รณกฤต", lastname: "เขียวคำรพ", en: "Ronnakrit K." },
+            { id: 28, code: "30655", title: "ด.ญ.", firstname: "มารีลิน", lastname: "คงศักดิ์ศรีสกุล", en: "Marilyn K." },
+            { id: 29, code: "30786", title: "ด.ญ.", firstname: "นิษฐ์ภิญญา", lastname: "เหลืองวิไล", en: "Nitpinya L." },
+            { id: 30, code: "30848", title: "ด.ญ.", firstname: "นันทรัตน์", lastname: "จิตติเรืองวิชัย", en: "Nuntharat J." },
+            { id: 31, code: "30849", title: "ด.ช.", firstname: "ภูผา", lastname: "เสรีประยูร", en: "Phupha S." },
+            { id: 32, code: "30972", title: "ด.ช.", firstname: "กิตติศักดิ์", lastname: "หัตถมณฑล", en: "Kittisak H." },
+            { id: 33, code: "31868", title: "ด.ญ.", firstname: "วรวลัญช์", lastname: "สอนเฉลิม", en: "Warawarun S." },
+            { id: 34, code: "32416", title: "ด.ญ.", firstname: "อติศา", lastname: "อภิมนสิริ", en: "Adisa A." },
+            { id: 35, code: "32510", title: "ด.ช.", firstname: "วชิระ", lastname: "ตั้งอมรรัตน์", en: "Wachira T." },
+            { id: 36, code: "33011", title: "ด.ช.", firstname: "พัชรากร", lastname: "พลัดพริ้ง", en: "Pacharakorn P." },
+            { id: 37, code: "33885", title: "ด.ช.", firstname: "ธนดิษ", lastname: "พรธนเกษม", en: "Thanadit P." },
+            { id: 38, code: "34026", title: "ด.ญ.", firstname: "นนทพร", lastname: "แซ่โล้ว", en: "Nontaporn S." },
+            { id: 39, code: "34962", title: "ด.ช.", firstname: "สิรภพ", lastname: "ทะประสพ", en: "Sirapob T." },
+            { id: 40, code: "35048", title: "ด.ญ.", firstname: "ณัฐฐธร", lastname: "ฉ่ำช้าง", en: "Nattathorn C." },
+            { id: 41, code: "35126", title: "ด.ช.", firstname: "พุธภพ", lastname: "อัลภาชน์", en: "Bhudtapop A." },
+            { id: 42, code: "35283", title: "ด.ช.", firstname: "ธีรภัทร", lastname: "ลิ้มสงวน", en: "Theeraphat L." },
+            { id: 43, code: "36007", title: "ด.ช.", firstname: "ภัคพล", lastname: "วงศาริยวานิช", en: "Pakkapol W." },
+            { id: 44, code: "36011", title: "ด.ช.", firstname: "อริยภัทร", lastname: "นุชจิระสุวรรณ", en: "Ariyapat N." },
+            { id: 45, code: "36020", title: "ด.ญ.", firstname: "พัทธ์ธีรา", lastname: "ปินสุวรรณบุตร", en: "Phatteera P." },
+            { id: 46, code: "36021", title: "ด.ช.", firstname: "ปูรณ์", lastname: "ปินสุวรรณบุตร", en: "Poon P." },
+            { id: 47, code: "36045", title: "ด.ช.", firstname: "นพดล", lastname: "เสมโมกข์สม", en: "Noppadol S." },
+            { id: 48, code: "36126", title: "ด.ช.", firstname: "ศิขรินทร์", lastname: "พุ่มผล", en: "Sikarin P." },
+            { id: 49, code: "36138", title: "ด.ช.", firstname: "ภูรี", lastname: "สมประสงค์", en: "Phuree S." },
+            { id: 50, code: "36300", title: "ด.ญ.", firstname: "จิรัชญา", lastname: "ศิริสิทธิธงไชย", en: "Jiratchaya S." }
+        ];
+
+        // Rules Mapping
+        const severityRules = {
+            low: {
+                title: "รุนแรงน้อย",
+                punishment: "ทำเวร 1 วัน",
+                bgClass: "bg-emerald-500",
+                textClass: "text-emerald-700",
+                borderClass: "border-emerald-400",
+                badgeBg: "bg-emerald-100"
+            },
+            medium: {
+                title: "รุนแรงกลาง",
+                punishment: "ทำเวร 1 อาทิตย์",
+                bgClass: "bg-amber-500",
+                textClass: "text-amber-700",
+                borderClass: "border-amber-400",
+                badgeBg: "bg-amber-100"
+            },
+            high: {
+                title: "รุนแรงมาก",
+                punishment: "ทำเวร 1 เดือน",
+                bgClass: "bg-rose-500",
+                textClass: "text-rose-700",
+                borderClass: "border-rose-400",
+                badgeBg: "bg-rose-100"
+            },
+            strict: {
+                title: "ปกครอง",
+                punishment: "ให้ใบปกครอง",
+                bgClass: "bg-purple-600",
+                textClass: "text-purple-700",
+                borderClass: "border-purple-400",
+                badgeBg: "bg-purple-100"
+            }
+        };
+
+        // Application State
+        let selectedStudent = null;
+        let selectedSeverityKey = null;
+        let historyRecords = [];
+
+        // DOM Elements
+        const studentListEl = document.getElementById('studentList');
+        const searchInputEl = document.getElementById('searchInput');
+        const selectedCountEl = document.getElementById('selectedCount');
+        const incidentInputEl = document.getElementById('incidentInput');
+        const punishmentResultEl = document.getElementById('punishmentResult');
+        const historyListEl = document.getElementById('historyList');
+        const historyCountEl = document.getElementById('historyCount');
+
+        // Initial Load
+        window.onload = function() {
+            renderStudentList(studentsData);
+            loadHistoryFromLocalStorage();
+            renderHistory();
+        };
+
+        // Render Student Items
+        function renderStudentList(list) {
+            studentListEl.innerHTML = '';
+            if(list.length === 0) {
+                studentListEl.innerHTML = `
+                    <div class="text-center py-6 text-slate-400 text-xs">
+                        ไม่พบข้อมูลนักเรียนที่ตรงกับคำค้นหา
+                    </div>
+                `;
+                return;
+            }
+
+            list.forEach(student => {
+                const isSelected = selectedStudent && selectedStudent.id === student.id;
+                const item = document.createElement('div');
+                item.className = `p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                    isSelected 
+                        ? 'border-rose-500 bg-rose-50/60 shadow-sm' 
+                        : 'border-slate-200/80 hover:border-rose-200 hover:bg-slate-50'
+                }`;
+                item.onclick = () => selectStudent(student);
+
+                item.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-full ${isSelected ? 'bg-rose-500 text-white' : 'bg-slate-200 text-slate-600'} flex items-center justify-center font-bold text-xs">
+                            ${student.id}
+                        </div>
+                        <div>
+                            <div class="text-xs font-semibold text-slate-800">
+                                ${student.title}${student.firstname} ${student.lastname}
+                            </div>
+                            <div class="text-[11px] text-slate-400">
+                                เลขประจำตัว: ${student.code} (${student.en})
+                            </div>
+                        </div>
+                    </div>
+                    ${isSelected ? '<i class="fa-solid fa-circle-check text-rose-500 text-base"></i>' : ''}
+                `;
+                studentListEl.appendChild(item);
+            });
+        }
+
+        // Search Filter
+        searchInputEl.addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase().trim();
+            const filtered = studentsData.filter(s => 
+                s.firstname.toLowerCase().includes(query) ||
+                s.lastname.toLowerCase().includes(query) ||
+                s.code.includes(query) ||
+                s.id.toString() === query ||
+                s.en.toLowerCase().includes(query)
+            );
+            renderStudentList(filtered);
+        });
+
+        // Select Student Action
+        function selectStudent(student) {
+            selectedStudent = student;
+            selectedCountEl.textContent = `เลขที่ ${student.id} - ${student.firstname}`;
+            selectedCountEl.className = "text-xs font-medium text-rose-600 bg-rose-100 px-2.5 py-1 rounded-full";
+            renderStudentList(getCurrentFilteredList());
+        }
+
+        function getCurrentFilteredList() {
+            const query = searchInputEl.value.toLowerCase().trim();
+            return studentsData.filter(s => 
+                s.firstname.toLowerCase().includes(query) ||
+                s.lastname.toLowerCase().includes(query) ||
+                s.code.includes(query) ||
+                s.id.toString() === query ||
+                s.en.toLowerCase().includes(query)
+            );
+        }
+
+        // Select Severity Action
+        function selectSeverity(key) {
+            selectedSeverityKey = key;
+            const rule = severityRules[key];
+
+            // Reset borders
+            document.querySelectorAll('.severity-btn').forEach(btn => {
+                btn.classList.remove('border-emerald-500', 'border-amber-500', 'border-rose-500', 'border-purple-600', 'bg-emerald-50', 'bg-amber-50', 'bg-rose-50', 'bg-purple-50');
+                btn.classList.add('border-slate-200', 'bg-slate-50');
+            });
+
+            // Highlight active button
+            const activeBtn = document.getElementById(`btn-${key}`);
+            activeBtn.classList.remove('border-slate-200', 'bg-slate-50');
+
+            if(key === 'low') activeBtn.classList.add('border-emerald-500', 'bg-emerald-50');
+            if(key === 'medium') activeBtn.classList.add('border-amber-500', 'bg-amber-50');
+            if(key === 'high') activeBtn.classList.add('border-rose-500', 'bg-rose-50');
+            if(key === 'strict') activeBtn.classList.add('border-purple-600', 'bg-purple-50');
+
+            // Show Punishment Result
+            punishmentResultEl.innerHTML = `<span class="${rule.textClass}">${rule.punishment}</span> <span class="text-xs text-slate-400 font-normal">(${rule.title})</span>`;
+        }
+
+        // Save Record
+        function saveRecord() {
+            if(!selectedStudent) {
+                showToast("กรุณาเลือกลูกศิษย์ก่อนบันทึก!", "warning");
+                return;
+            }
+            if(!selectedSeverityKey) {
+                showToast("กรุณาเลือกระดับความรุนแรง!", "warning");
+                return;
+            }
+
+            const incidentText = incidentInputEl.value.trim() || "ไม่ได้ระบุรายละเอียด";
+            const rule = severityRules[selectedSeverityKey];
+            const now = new Date();
+            const timeStr = now.toLocaleDateString('th-TH', { 
+                day: 'numeric', 
+                month: 'short', 
+                year: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const newRecord = {
+                id: Date.now(),
+                student: selectedStudent,
+                severityKey: selectedSeverityKey,
+                severityTitle: rule.title,
+                punishment: rule.punishment,
+                incident: incidentText,
+                timestamp: timeStr
+            };
+
+            historyRecords.unshift(newRecord);
+            saveHistoryToLocalStorage();
+            renderHistory();
+
+            // Reset form
+            incidentInputEl.value = '';
+            showToast(`บันทึกบทลงโทษ ${selectedStudent.firstname} เรียบร้อยแล้ว`, "success");
+        }
+
+        // Render History List
+        function renderHistory() {
+            historyCountEl.textContent = `${historyRecords.length} รายการ`;
+            historyListEl.innerHTML = '';
+
+            if(historyRecords.length === 0) {
+                historyListEl.innerHTML = `
+                    <div class="h-48 flex flex-col items-center justify-center text-slate-400 text-xs">
+                        <i class="fa-regular fa-folder-open text-3xl mb-2 text-slate-300"></i>
+                        ยังไม่มีประวัติการลงโทษ
+                    </div>
+                `;
+                return;
+            }
+
+            historyRecords.forEach(rec => {
+                const rule = severityRules[rec.severityKey];
+                const card = document.createElement('div');
+                card.className = `p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-sm flex flex-col space-y-2 hover:border-slate-300 transition-all`;
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-800">
+                                เลขที่ ${rec.student.id} ${rec.student.title}${rec.student.firstname} ${rec.student.lastname}
+                            </div>
+                            <div class="text-[11px] text-slate-400">รหัส: ${rec.student.code}</div>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${rule.badgeBg} ${rule.textClass}">
+                            ${rec.severityTitle}
+                        </span>
+                    </div>
+
+                    <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
+                        <div class="font-semibold text-slate-700 flex items-center gap-1.5 mb-0.5">
+                            <i class="fa-solid fa-gavel text-rose-500"></i>
+                            บทลงโทษ: <span class="${rule.textClass}">${rec.punishment}</span>
+                        </div>
+                        <div class="text-slate-500 text-[11px]">
+                            <span class="font-medium text-slate-600">สาเหตุ:</span> ${rec.incident}
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                        <span><i class="fa-regular fa-clock mr-1"></i>${rec.timestamp}</span>
+                        <button onclick="deleteRecord(${rec.id})" class="text-slate-400 hover:text-rose-500 transition-colors">
+                            <i class="fa-solid fa-trash-can"></i> ลบ
+                        </button>
+                    </div>
+                `;
+                historyListEl.appendChild(card);
+            });
+        }
+
+        // Delete History Record
+        function deleteRecord(id) {
+            historyRecords = historyRecords.filter(r => r.id !== id);
+            saveHistoryToLocalStorage();
+            renderHistory();
+            showToast("ลบรายการประวัติแล้ว", "info");
+        }
+
+        // LocalStorage Sync
+        function saveHistoryToLocalStorage() {
+            try {
+                localStorage.setItem('ohmjaa_history', JSON.stringify(historyRecords));
+            } catch(e) {
+                console.error("Failed to save to localStorage", e);
+            }
+        }
+
+        function loadHistoryFromLocalStorage() {
+            try {
+                const data = localStorage.getItem('ohmjaa_history');
+                if(data) {
+                    historyRecords = JSON.parse(data);
+                }
+            } catch(e) {
+                historyRecords = [];
+            }
+        }
+
+        // Custom Toast Notification
+        function showToast(message, type = "success") {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.textContent = message;
+
+            if(type === 'success') {
+                toastIcon.className = "fa-solid fa-circle-check text-emerald-400 text-lg";
+            } else if(type === 'warning') {
+                toastIcon.className = "fa-solid fa-circle-exclamation text-amber-400 text-lg";
+            } else {
+                toastIcon.className = "fa-solid fa-circle-info text-blue-400 text-lg";
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
