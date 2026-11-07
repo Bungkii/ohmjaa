@@ -30,6 +30,15 @@ import {
   CalendarDays,
   AlertCircle,
   TrendingUp,
+  Dumbbell,
+  MessageCircle,
+  FileX,
+  Sun,
+  SunMedium,
+  Timer,
+  Shirt,
+  MoreHorizontal,
+  Brush,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { startOfDay, isBefore, isToday, isTomorrow, differenceInDays } from "date-fns";
@@ -154,50 +163,50 @@ const BEHAVIOR_PRESETS = [
   {
     id: "sports",
     label: "เล่นกีฬาในห้อง",
-    iconText: "⚽",
-    circleColor: "border-orange-300 text-orange-600 bg-orange-50",
+    sub: "เล่นกีฬาในห้องเรียน",
+    icon: Dumbbell,
   },
   {
     id: "talking",
     label: "พูดคุย",
-    iconText: "💬",
-    circleColor: "border-amber-300 text-amber-700 bg-amber-50",
+    sub: "คุยเสียงดังในห้อง",
+    icon: MessageCircle,
   },
   {
     id: "no_homework",
     label: "ไม่ส่งงาน",
-    iconText: "📝",
-    circleColor: "border-rose-300 text-rose-600 bg-rose-50",
+    sub: "ค้างส่งการบ้าน/งาน",
+    icon: FileX,
   },
   {
     id: "late_morning",
-    label: "☀️ สายเช้า",
-    iconText: "☀️",
-    circleColor: "border-amber-400 text-amber-500 bg-amber-50",
+    label: "สายเช้า",
+    sub: "มาไม่ทันช่วงเช้า",
+    icon: Sun,
   },
   {
     id: "late_noon",
-    label: "🔆 สายเที่ยง",
-    iconText: "🔆",
-    circleColor: "border-sky-300 text-sky-500 bg-sky-50",
+    label: "สายเที่ยง",
+    sub: "เข้าแถวเที่ยงช้า",
+    icon: SunMedium,
   },
   {
     id: "late_break10",
-    label: "🏃 สายพัก 10",
-    iconText: "🏃",
-    circleColor: "border-purple-300 text-purple-600 bg-purple-50",
+    label: "สายพัก 10",
+    sub: "กลับจากพักช้า",
+    icon: Timer,
   },
   {
     id: "uniform",
-    label: "👕 เครื่องแต่งกาย",
-    iconText: "👕",
-    circleColor: "border-emerald-300 text-emerald-600 bg-emerald-50",
+    label: "เครื่องแต่งกาย",
+    sub: "ตรวจระเบียบ/ชุด",
+    icon: Shirt,
   },
   {
     id: "other",
-    label: "••• อื่น ๆ",
-    iconText: "•••",
-    circleColor: "border-slate-300 text-slate-500 bg-slate-50",
+    label: "อื่น ๆ",
+    sub: "ระบุหมายเหตุ",
+    icon: MoreHorizontal,
   },
 ];
 
@@ -387,8 +396,8 @@ export default function DisciplinaryApp({
 
   const getCombinedIncident = (): string => {
     const list = [...selectedBehaviors];
-    if (list.includes("••• อื่น ๆ") && otherBehaviorText.trim()) {
-      const idx = list.indexOf("••• อื่น ๆ");
+    if (list.includes("อื่น ๆ") && otherBehaviorText.trim()) {
+      const idx = list.indexOf("อื่น ๆ");
       list[idx] = `อื่น ๆ: ${otherBehaviorText.trim()}`;
     }
     if (list.length === 0 && otherBehaviorText.trim()) {
@@ -1172,38 +1181,38 @@ export default function DisciplinaryApp({
         {activeView === "disciplinary" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
-            {/* Form Column (Left 6 cols for comfortable spacing) */}
-            <div className="lg:col-span-6 bg-[#fdfcf9] rounded-2xl border border-[#e5e2db] p-5 sm:p-6 space-y-5 shadow-xs">
+            {/* Form Column (Left 6 cols) */}
+            <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-5 shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-[#e5eee7] text-[#16453d] flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-2xl bg-[#16453d] text-white flex items-center justify-center shrink-0 shadow-xs">
                     <Gavel size={20} />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-[#182422]">
+                    <h2 className="text-base font-bold text-slate-900">
                       เพิ่มบันทึกวินัย
                     </h2>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-500">
                       ระบุพฤติกรรมและการดำเนินการ
                     </p>
                   </div>
                 </div>
 
-                {/* Image 2: Mode Toggle Pill "👥 กลุ่ม" */}
+                {/* Mode Toggle Pill "กลุ่ม" */}
                 <button
                   type="button"
                   onClick={toggleGroupMode}
                   className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border ${
                     isGroupMode
-                      ? "bg-[#e1f7ea] text-[#1f7d54] border-[#a2e3be] shadow-xs ring-2 ring-[#a2e3be]/40"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                      ? "bg-[#16453d] text-white border-[#16453d] shadow-sm ring-2 ring-[#16453d]/20"
+                      : "bg-white text-slate-700 border-slate-200 hover:border-[#16453d]/40 hover:bg-slate-50"
                   }`}
                   title={isGroupMode ? "โหมดกลุ่มเปิดอยู่ (เลือกได้หลายคน)" : "เปิดโหมดเลือกเป็นกลุ่ม"}
                 >
-                  <Users size={16} className={isGroupMode ? "text-[#1f7d54]" : "text-slate-500"} />
+                  <Users size={15} className={isGroupMode ? "text-white" : "text-[#16453d]"} />
                   <span>กลุ่ม</span>
                   {isGroupMode && (
-                    <span className="w-2 h-2 rounded-full bg-[#1f7d54]"></span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-300"></span>
                   )}
                 </button>
               </div>
@@ -1212,7 +1221,7 @@ export default function DisciplinaryApp({
                 {/* 1. Select Student(s) */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-slate-700">
+                    <label className="block text-xs font-bold text-slate-800">
                       {isGroupMode ? "นักเรียนในกลุ่ม (เลือกได้หลายคน)" : "นักเรียน"} <span className="text-rose-600">*</span>
                     </label>
                     {isGroupMode ? (
@@ -1220,7 +1229,7 @@ export default function DisciplinaryApp({
                         <button
                           type="button"
                           onClick={selectAllStudentsInGroup}
-                          className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+                          className="text-[11px] font-bold text-[#16453d] hover:underline cursor-pointer"
                         >
                           เลือกทุกคน ({students.length})
                         </button>
@@ -1253,7 +1262,7 @@ export default function DisciplinaryApp({
                       value={penaltySearch}
                       onChange={(e) => setPenaltySearch(e.target.value)}
                       placeholder="พิมพ์ค้นหาชื่อ หรือเลขที่..."
-                      className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-600 focus:bg-white"
+                      className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#16453d] focus:border-[#16453d]"
                     />
                   </div>
 
@@ -1276,7 +1285,7 @@ export default function DisciplinaryApp({
                           className={`px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${
                             isSelected
                               ? "bg-[#16453d] text-white font-bold shadow-xs scale-102"
-                              : "bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-100"
+                              : "bg-white text-slate-700 border border-slate-200/90 hover:border-[#16453d]/40 hover:bg-slate-50"
                           }`}
                         >
                           <span className="font-mono text-[10px] opacity-70">#{s.student_no}</span>
@@ -1289,13 +1298,13 @@ export default function DisciplinaryApp({
 
                   {/* Selected summary */}
                   {isGroupMode ? (
-                    <div className="mt-2 p-2.5 rounded-xl bg-[#eef7f2] border border-[#cbe4d5] text-xs flex items-center justify-between">
+                    <div className="mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Users size={15} className="text-[#1f7d54]" />
-                        <span className="font-bold text-[#13613c]">
+                        <Users size={15} className="text-[#16453d]" />
+                        <span className="font-bold text-[#16453d]">
                           เลือกแล้ว {selectedGroupStudents.size} คน
                         </span>
-                        <span className="text-[11px] text-[#2c7750] truncate max-w-[220px]">
+                        <span className="text-[11px] text-slate-600 truncate max-w-[220px]">
                           ({Array.from(selectedGroupStudents).map(id => {
                             const st = students.find(s => s.student_id === id);
                             return st ? `#${st.student_no} ${st.first_name}` : id;
@@ -1327,10 +1336,10 @@ export default function DisciplinaryApp({
                   ) : null}
                 </div>
 
-                {/* 2. Behaviors (Capsule Pills - Image 1 Style) */}
+                {/* 2. Behaviors (Capsule Pills - Lucide Icons, White background + Dark Green contrast) */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-bold text-slate-700">
+                    <label className="block text-xs font-bold text-slate-800">
                       พฤติกรรม / เหตุการณ์ <span className="text-rose-600">*</span>
                     </label>
                     <span className="text-[11px] font-semibold text-slate-400">
@@ -1341,53 +1350,57 @@ export default function DisciplinaryApp({
                   <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
                     {BEHAVIOR_PRESETS.map((item) => {
                       const isSelected = selectedBehaviors.includes(item.label);
+                      const Icon = item.icon;
                       return (
                         <button
                           type="button"
                           key={item.id}
                           onClick={() => toggleBehavior(item.label)}
-                          className={`flex items-center gap-2 sm:gap-2.5 px-3 py-2 rounded-full border transition-all cursor-pointer text-left ${
+                          className={`min-h-[48px] rounded-full border px-3.5 py-2 flex items-center gap-2.5 transition-all cursor-pointer text-left ${
                             isSelected
-                              ? "border-emerald-600 bg-[#eef7f2] shadow-xs ring-2 ring-emerald-500/20"
-                              : "border-slate-200/90 bg-white/95 hover:border-slate-300 hover:bg-slate-50/60"
+                              ? "bg-[#16453d] border-[#16453d] text-white shadow-md ring-2 ring-[#16453d]/20 scale-[1.01]"
+                              : "bg-white border-slate-200 text-slate-800 hover:border-[#16453d]/40 hover:bg-slate-50/70 shadow-xs"
                           }`}
                         >
                           <div
-                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border text-xs sm:text-sm font-bold ${item.circleColor}`}
-                          >
-                            {item.iconText}
-                          </div>
-                          <span
-                            className={`text-xs font-bold flex-1 truncate ${
-                              isSelected ? "text-emerald-950 font-extrabold" : "text-slate-700"
+                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border transition-colors ${
+                              isSelected
+                                ? "bg-white/20 border-white/30 text-white"
+                                : "bg-slate-50 border-slate-200 text-[#16453d]"
                             }`}
                           >
-                            {item.label}
-                          </span>
-                          {isSelected && (
-                            <Check size={14} className="text-emerald-600 shrink-0" />
-                          )}
+                            <Icon size={15} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-xs sm:text-sm font-bold truncate leading-tight ${isSelected ? "text-white" : "text-slate-800"}`}>
+                              {item.label}
+                            </div>
+                            <div className={`text-[10px] truncate leading-tight mt-0.5 ${isSelected ? "text-emerald-100" : "text-slate-400"}`}>
+                              {item.sub}
+                            </div>
+                          </div>
+                          {isSelected && <Check size={14} className="text-white shrink-0 ml-0.5" />}
                         </button>
                       );
                     })}
                   </div>
 
                   {/* Expandable Other Text Field */}
-                  {selectedBehaviors.includes("••• อื่น ๆ") && (
+                  {selectedBehaviors.includes("อื่น ๆ") && (
                     <div className="mt-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
                       <input
                         type="text"
                         value={otherBehaviorText}
                         onChange={(e) => setOtherBehaviorText(e.target.value)}
-                        placeholder="ระบุพฤติกรรมอื่น ๆ..."
-                        className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                        placeholder="ระบุพฤติกรรมอื่น ๆ เช่น ลุกออกจากห้อง, นำขนมมาทานในคาบ..."
+                        className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#16453d]"
                         autoFocus
                       />
                     </div>
                   )}
                 </div>
 
-                {/* 3. Actions / Sanctions (Image 1 Style) */}
+                {/* 3. Actions / Sanctions (เลือกตักเตือน, ทำเวร, ปกครอง1-3) */}
                 <div>
                   <p className="text-xs font-semibold text-slate-600 mb-2">
                     การดำเนินการ: ตักเตือนเลือกเดี่ยวได้ หรือคู่กับปกครองได้ 1 ระดับ
@@ -1398,146 +1411,203 @@ export default function DisciplinaryApp({
                     <button
                       type="button"
                       onClick={() => setIsWarningSelected((prev) => !prev)}
-                      className={`flex items-center gap-2 sm:gap-2.5 px-3 py-2 rounded-full border transition-all cursor-pointer text-left ${
+                      className={`min-h-[48px] rounded-full border px-3.5 py-2 flex items-center gap-2.5 transition-all cursor-pointer text-left ${
                         isWarningSelected
-                          ? "border-amber-500 bg-amber-50/90 shadow-xs ring-2 ring-amber-400/25"
-                          : "border-slate-200/90 bg-white/95 hover:border-amber-200 hover:bg-amber-50/30"
+                          ? "bg-[#16453d] border-[#16453d] text-white shadow-md ring-2 ring-[#16453d]/20 scale-[1.01]"
+                          : "bg-white border-slate-200 text-slate-800 hover:border-[#16453d]/40 hover:bg-slate-50/70 shadow-xs"
                       }`}
                     >
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border border-amber-300 text-amber-600 bg-amber-50 font-bold text-xs sm:text-sm">
-                        !
+                      <div
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border transition-colors ${
+                          isWarningSelected
+                            ? "bg-white/20 border-white/30 text-white"
+                            : "bg-slate-50 border-slate-200 text-[#16453d]"
+                        }`}
+                      >
+                        <AlertCircle size={15} />
                       </div>
-                      <span className="text-xs sm:text-sm font-bold text-amber-800 flex-1">
-                        ตักเตือน
-                      </span>
-                      {isWarningSelected && <Check size={14} className="text-amber-600 shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-xs sm:text-sm font-bold truncate leading-tight ${isWarningSelected ? "text-white" : "text-slate-800"}`}>
+                          ตักเตือน
+                        </div>
+                        <div className={`text-[10px] truncate leading-tight mt-0.5 ${isWarningSelected ? "text-emerald-100" : "text-slate-400"}`}>
+                          เลือกเดี่ยวหรือคู่กับปกครอง
+                        </div>
+                      </div>
+                      {isWarningSelected && <Check size={14} className="text-white shrink-0 ml-0.5" />}
+                    </button>
+
+                    {/* ทำเวร (เลือกทำเวรได้ด้วย) */}
+                    <button
+                      type="button"
+                      onClick={() => setIsChoreSelected((prev) => !prev)}
+                      className={`min-h-[48px] rounded-full border px-3.5 py-2 flex items-center gap-2.5 transition-all cursor-pointer text-left ${
+                        isChoreSelected
+                          ? "bg-[#16453d] border-[#16453d] text-white shadow-md ring-2 ring-[#16453d]/20 scale-[1.01]"
+                          : "bg-white border-slate-200 text-slate-800 hover:border-[#16453d]/40 hover:bg-slate-50/70 shadow-xs"
+                      }`}
+                    >
+                      <div
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border transition-colors ${
+                          isChoreSelected
+                            ? "bg-white/20 border-white/30 text-white"
+                            : "bg-slate-50 border-slate-200 text-[#16453d]"
+                        }`}
+                      >
+                        <Brush size={15} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-xs sm:text-sm font-bold truncate leading-tight ${isChoreSelected ? "text-white" : "text-slate-800"}`}>
+                          ทำเวร
+                        </div>
+                        <div className={`text-[10px] truncate leading-tight mt-0.5 ${isChoreSelected ? "text-emerald-100" : "text-slate-400"}`}>
+                          {isChoreSelected ? selectedChoreDuration : "กดเพื่อเลือกระยะเวลา"}
+                        </div>
+                      </div>
+                      {isChoreSelected && <Check size={14} className="text-white shrink-0 ml-0.5" />}
                     </button>
 
                     {/* ปกครอง1 */}
                     <button
                       type="button"
                       onClick={() => selectPokkrong(1)}
-                      className={`flex items-center gap-2 sm:gap-2.5 px-3 py-2 rounded-full border transition-all cursor-pointer text-left ${
+                      className={`min-h-[48px] rounded-full border px-3.5 py-2 flex items-center gap-2.5 transition-all cursor-pointer text-left ${
                         selectedPokkrongLevel === 1
-                          ? "border-sky-500 bg-sky-50/90 shadow-xs ring-2 ring-sky-400/25"
-                          : "border-slate-200/90 bg-white/95 hover:border-sky-200 hover:bg-sky-50/30"
+                          ? "bg-[#16453d] border-[#16453d] text-white shadow-md ring-2 ring-[#16453d]/20 scale-[1.01]"
+                          : "bg-white border-slate-200 text-slate-800 hover:border-[#16453d]/40 hover:bg-slate-50/70 shadow-xs"
                       }`}
                     >
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border border-sky-300 text-sky-600 bg-sky-50 font-bold text-xs sm:text-sm">
+                      <div
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border font-bold text-xs sm:text-sm transition-colors ${
+                          selectedPokkrongLevel === 1
+                            ? "bg-white/20 border-white/30 text-white"
+                            : "bg-slate-50 border-slate-200 text-[#16453d]"
+                        }`}
+                      >
                         1
                       </div>
-                      <span className="text-xs sm:text-sm font-bold text-sky-800 flex-1">
-                        ปกครอง1
-                      </span>
-                      {selectedPokkrongLevel === 1 && <Check size={14} className="text-sky-600 shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-xs sm:text-sm font-bold truncate leading-tight ${selectedPokkrongLevel === 1 ? "text-white" : "text-slate-800"}`}>
+                          ปกครอง1
+                        </div>
+                        <div className={`text-[10px] truncate leading-tight mt-0.5 ${selectedPokkrongLevel === 1 ? "text-emerald-100" : "text-slate-400"}`}>
+                          เลือกได้หนึ่งระดับ
+                        </div>
+                      </div>
+                      {selectedPokkrongLevel === 1 && <Check size={14} className="text-white shrink-0 ml-0.5" />}
                     </button>
 
                     {/* ปกครอง2 */}
                     <button
                       type="button"
                       onClick={() => selectPokkrong(2)}
-                      className={`flex items-center gap-2 sm:gap-2.5 px-3 py-2 rounded-full border transition-all cursor-pointer text-left ${
+                      className={`min-h-[48px] rounded-full border px-3.5 py-2 flex items-center gap-2.5 transition-all cursor-pointer text-left ${
                         selectedPokkrongLevel === 2
-                          ? "border-purple-500 bg-purple-50/90 shadow-xs ring-2 ring-purple-400/25"
-                          : "border-slate-200/90 bg-white/95 hover:border-purple-200 hover:bg-purple-50/30"
+                          ? "bg-[#16453d] border-[#16453d] text-white shadow-md ring-2 ring-[#16453d]/20 scale-[1.01]"
+                          : "bg-white border-slate-200 text-slate-800 hover:border-[#16453d]/40 hover:bg-slate-50/70 shadow-xs"
                       }`}
                     >
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border border-purple-300 text-purple-600 bg-purple-50 font-bold text-xs sm:text-sm">
+                      <div
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border font-bold text-xs sm:text-sm transition-colors ${
+                          selectedPokkrongLevel === 2
+                            ? "bg-white/20 border-white/30 text-white"
+                            : "bg-slate-50 border-slate-200 text-[#16453d]"
+                        }`}
+                      >
                         2
                       </div>
-                      <span className="text-xs sm:text-sm font-bold text-purple-800 flex-1">
-                        ปกครอง2
-                      </span>
-                      {selectedPokkrongLevel === 2 && <Check size={14} className="text-purple-600 shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-xs sm:text-sm font-bold truncate leading-tight ${selectedPokkrongLevel === 2 ? "text-white" : "text-slate-800"}`}>
+                          ปกครอง2
+                        </div>
+                        <div className={`text-[10px] truncate leading-tight mt-0.5 ${selectedPokkrongLevel === 2 ? "text-emerald-100" : "text-slate-400"}`}>
+                          เลือกได้หนึ่งระดับ
+                        </div>
+                      </div>
+                      {selectedPokkrongLevel === 2 && <Check size={14} className="text-white shrink-0 ml-0.5" />}
                     </button>
 
-                    {/* ปกครอง3 */}
+                    {/* ปกครอง3 (spans full width across 2 columns) */}
                     <button
                       type="button"
                       onClick={() => selectPokkrong(3)}
-                      className={`flex items-center gap-2 sm:gap-2.5 px-3 py-2 rounded-full border transition-all cursor-pointer text-left ${
+                      className={`col-span-2 min-h-[48px] rounded-full border px-3.5 py-2 flex items-center gap-2.5 transition-all cursor-pointer text-left ${
                         selectedPokkrongLevel === 3
-                          ? "border-rose-500 bg-rose-50/90 shadow-xs ring-2 ring-rose-400/25"
-                          : "border-slate-200/90 bg-white/95 hover:border-rose-200 hover:bg-rose-50/30"
+                          ? "bg-[#16453d] border-[#16453d] text-white shadow-md ring-2 ring-[#16453d]/20 scale-[1.01]"
+                          : "bg-white border-slate-200 text-slate-800 hover:border-[#16453d]/40 hover:bg-slate-50/70 shadow-xs"
                       }`}
                     >
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border border-rose-300 text-rose-600 bg-rose-50 font-bold text-xs sm:text-sm">
+                      <div
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border font-bold text-xs sm:text-sm transition-colors ${
+                          selectedPokkrongLevel === 3
+                            ? "bg-white/20 border-white/30 text-white"
+                            : "bg-slate-50 border-slate-200 text-[#16453d]"
+                        }`}
+                      >
                         3
                       </div>
-                      <span className="text-xs sm:text-sm font-bold text-rose-800 flex-1">
-                        ปกครอง3
-                      </span>
-                      {selectedPokkrongLevel === 3 && <Check size={14} className="text-rose-600 shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-xs sm:text-sm font-bold truncate leading-tight ${selectedPokkrongLevel === 3 ? "text-white" : "text-slate-800"}`}>
+                          ปกครอง3
+                        </div>
+                        <div className={`text-[10px] truncate leading-tight mt-0.5 ${selectedPokkrongLevel === 3 ? "text-emerald-100" : "text-slate-400"}`}>
+                          เลือกได้หนึ่งระดับ (ส่งต่อฝ่ายปกครอง)
+                        </div>
+                      </div>
+                      {selectedPokkrongLevel === 3 && <Check size={14} className="text-white shrink-0 ml-0.5" />}
                     </button>
                   </div>
 
-                  {/* 4. ทำเวร (With Fade-In Duration Choices) */}
-                  <div className="mt-3 pt-3 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => setIsChoreSelected((prev) => !prev)}
-                        className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${
-                          isChoreSelected
-                            ? "border-teal-500 bg-teal-50 text-teal-800 ring-2 ring-teal-500/20 shadow-xs"
-                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        <span className="text-sm">🧹</span>
-                        <span>ทำเวร</span>
-                        {isChoreSelected && <Check size={13} className="text-teal-600" />}
-                      </button>
-                      {isChoreSelected && (
-                        <span className="text-[11px] font-semibold text-teal-700">
-                          เลือกระยะเวลาทำเวร:
-                        </span>
-                      )}
+                  {/* Fading duration container for ทำเวร */}
+                  <div
+                    className={`transition-all duration-300 ease-out overflow-hidden ${
+                      isChoreSelected
+                        ? "opacity-100 max-h-40 mt-3 pt-3 border-t border-slate-100"
+                        : "opacity-0 max-h-0 pointer-events-none"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-[#16453d] flex items-center gap-1.5">
+                        <Brush size={13} />
+                        <span>เลือกระยะเวลาทำเวร:</span>
+                      </span>
                     </div>
 
-                    {/* Fading duration container */}
-                    <div
-                      className={`transition-all duration-300 ease-out overflow-hidden ${
-                        isChoreSelected
-                          ? "opacity-100 max-h-40 mt-2.5 pt-1.5"
-                          : "opacity-0 max-h-0 pointer-events-none"
-                      }`}
-                    >
-                      <div className="flex flex-wrap gap-1.5">
-                        {CHORE_DURATIONS.map((dur) => {
-                          const isDurSelected = selectedChoreDuration === dur;
-                          return (
-                            <button
-                              type="button"
-                              key={dur}
-                              onClick={() => setSelectedChoreDuration(dur)}
-                              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                                isDurSelected
-                                  ? "bg-teal-700 text-white shadow-xs scale-102"
-                                  : "bg-white text-slate-700 border border-slate-200 hover:bg-teal-50"
-                              }`}
-                            >
-                              {dur}
-                            </button>
-                          );
-                        })}
+                    <div className="flex flex-wrap gap-1.5">
+                      {CHORE_DURATIONS.map((dur) => {
+                        const isDurSelected = selectedChoreDuration === dur;
+                        return (
+                          <button
+                            type="button"
+                            key={dur}
+                            onClick={() => setSelectedChoreDuration(dur)}
+                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                              isDurSelected
+                                ? "bg-[#16453d] text-white shadow-xs scale-102"
+                                : "bg-white text-slate-700 border border-slate-200 hover:border-[#16453d]/40 hover:bg-slate-50"
+                            }`}
+                          >
+                            {dur}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedChoreDuration === "อื่นๆ" && (
+                      <div className="mt-2 animate-in fade-in duration-150">
+                        <input
+                          type="text"
+                          value={customChoreDuration}
+                          onChange={(e) => setCustomChoreDuration(e.target.value)}
+                          placeholder="ระบุระยะเวลาทำเวร เช่น 3 วัน, 2 สัปดาห์..."
+                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#16453d]"
+                        />
                       </div>
-
-                      {selectedChoreDuration === "อื่นๆ" && (
-                        <div className="mt-2 animate-in fade-in duration-150">
-                          <input
-                            type="text"
-                            value={customChoreDuration}
-                            onChange={(e) => setCustomChoreDuration(e.target.value)}
-                            placeholder="ระบุระยะเวลาทำเวร เช่น 3 วัน, 2 สัปดาห์..."
-                            className="w-full px-3 py-1.5 text-xs bg-white border border-teal-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-teal-500"
-                          />
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
 
-                {/* 5. Follow-up status & Note */}
+                {/* 4. Follow-up status & Note */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <label className="block text-xs font-bold text-slate-700">
                     สถานะ
@@ -1562,11 +1632,11 @@ export default function DisciplinaryApp({
                   </label>
                 </div>
 
-                {/* 6. Live Summary Banner & Submit */}
-                <div className="p-4 rounded-2xl bg-[#e8eee7] border border-[#d3ded2] text-[#182422] space-y-2">
+                {/* 5. Live Summary Banner & Submit */}
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 text-slate-800 space-y-2 shadow-xs">
                   <div className="text-xs space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[#67736d] font-semibold">นักเรียน:</span>
+                      <span className="text-slate-500 font-semibold">นักเรียน:</span>
                       <span className="font-bold text-[#16453d] truncate max-w-[220px]">
                         {isGroupMode
                           ? selectedGroupStudents.size > 0
@@ -1578,7 +1648,7 @@ export default function DisciplinaryApp({
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[#67736d] font-semibold">พฤติกรรม:</span>
+                      <span className="text-slate-500 font-semibold">พฤติกรรม:</span>
                       <span className="font-bold text-slate-800 truncate max-w-[220px]">
                         {selectedBehaviors.length > 0
                           ? selectedBehaviors.join(", ")
@@ -1587,10 +1657,10 @@ export default function DisciplinaryApp({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#d3ded2]">
+                  <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
                     <div>
-                      <div className="text-[11px] text-[#67736d] font-semibold">
-                        บทลงโทษ / การดำเนินการ:
+                      <div className="text-[11px] text-slate-500 font-semibold">
+                        การดำเนินการ:
                       </div>
                       <div className="text-sm font-bold text-[#16453d]">
                         {getCombinedPunishment()}
@@ -1599,7 +1669,7 @@ export default function DisciplinaryApp({
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#16453d] hover:bg-[#0f352e] text-white px-4 py-2.5 rounded-xl transition-all cursor-pointer disabled:opacity-50 shrink-0 shadow-sm hover:shadow"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#16453d] hover:bg-[#0f352e] text-white px-5 py-2.5 rounded-xl transition-all cursor-pointer disabled:opacity-50 shrink-0 shadow-sm hover:shadow"
                     >
                       <Send size={14} />
                       <span>
@@ -1616,7 +1686,7 @@ export default function DisciplinaryApp({
             </div>
 
             {/* Recent Penalties Table (Right 6 cols) */}
-            <div className="lg:col-span-6 bg-[#fdfcf9] rounded-2xl border border-[#e5e2db] p-5 sm:p-6 space-y-4 shadow-xs">
+            <div className="lg:col-span-6 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="font-bold text-[#182422] text-sm">
                   บันทึกล่าสุด ({records.length})
