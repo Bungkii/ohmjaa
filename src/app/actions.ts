@@ -274,3 +274,23 @@ export async function updateTaskCompletion(
 
   return completion;
 }
+
+/**
+ * Remove task completion for a student (reset to none / no color)
+ */
+export async function deleteTaskCompletion(
+  studentId: string,
+  taskId: string
+): Promise<boolean> {
+  try {
+    const supabase = createClient();
+    await supabase
+      .from('student_task_completions')
+      .delete()
+      .eq('student_id', studentId)
+      .eq('task_id', taskId);
+  } catch (err) {
+    console.warn('Supabase deleteTaskCompletion error:', err);
+  }
+  return true;
+}
