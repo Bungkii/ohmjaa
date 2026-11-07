@@ -34,16 +34,40 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import { startOfDay, isBefore, isToday, isTomorrow, differenceInDays } from "date-fns";
 import { Student, PenaltyRecord, SeverityLevel, HomeworkTask, TaskCompletion } from "@/types/penalty";
-import { createPenaltyRecord, deletePenaltyRecord, updatePenaltyRecord, updateTaskCompletion, markTaskReviewed, getTeacherAudit, signOutTeacher, type TeacherAuditEntry, type TeacherTaskReview } from "@/app/teacherActions";
+import {
+  createPenaltyRecord,
+  createPenaltyRecordsBulk,
+  deletePenaltyRecord,
+  updatePenaltyRecord,
+  updateTaskCompletion,
+} from "@/app/actions";
+
+export interface TeacherAuditEntry {
+  id: number;
+  teacher_id: string;
+  actor_email: string;
+  action: string;
+  entity: string;
+  entity_id: string;
+  student_id: string;
+  created_at: string;
+}
+
+export interface TeacherTaskReview {
+  teacher_id: string;
+  student_id: string;
+  task_id: string;
+  reviewed_at: string;
+}
 
 interface DisciplinaryAppProps {
   initialStudents: Student[];
   initialRecords: PenaltyRecord[];
   initialTasks: HomeworkTask[];
   initialCompletions: TaskCompletion[];
-  initialAudit: TeacherAuditEntry[];
-  initialReviews: TeacherTaskReview[];
-  teacherEmail: string;
+  initialAudit?: TeacherAuditEntry[];
+  initialReviews?: TeacherTaskReview[];
+  teacherEmail?: string;
 }
 
 export function formatStudentFullName(student: Student): string {
@@ -126,6 +150,59 @@ const severityConfig: Record<
   },
 };
 
+const BEHAVIOR_PRESETS = [
+  {
+    id: "sports",
+    label: "เล่นกีฬาในห้อง",
+    iconText: "⚽",
+    circleColor: "border-orange-300 text-orange-600 bg-orange-50",
+  },
+  {
+    id: "talking",
+    label: "พูดคุย",
+    iconText: "💬",
+    circleColor: "border-amber-300 text-amber-700 bg-amber-50",
+  },
+  {
+    id: "no_homework",
+    label: "ไม่ส่งงาน",
+    iconText: "📝",
+    circleColor: "border-rose-300 text-rose-600 bg-rose-50",
+  },
+  {
+    id: "late_morning",
+    label: "☀️ สายเช้า",
+    iconText: "☀️",
+    circleColor: "border-amber-400 text-amber-500 bg-amber-50",
+  },
+  {
+    id: "late_noon",
+    label: "🔆 สายเที่ยง",
+    iconText: "🔆",
+    circleColor: "border-sky-300 text-sky-500 bg-sky-50",
+  },
+  {
+    id: "late_break10",
+    label: "🏃 สายพัก 10",
+    iconText: "🏃",
+    circleColor: "border-purple-300 text-purple-600 bg-purple-50",
+  },
+  {
+    id: "uniform",
+    label: "👕 เครื่องแต่งกาย",
+    iconText: "👕",
+    circleColor: "border-emerald-300 text-emerald-600 bg-emerald-50",
+  },
+  {
+    id: "other",
+    label: "••• อื่น ๆ",
+    iconText: "•••",
+    circleColor: "border-slate-300 text-slate-500 bg-slate-50",
+  },
+];
+
+const CHORE_DURATIONS = ["1 วัน", "1 สัปดาห์", "1 เดือน", "1 ปีการศึกษา", "อื่นๆ"];
+
 export default function DisciplinaryApp({
   initialStudents,
   initialRecords,
@@ -139,8 +216,8 @@ export default function DisciplinaryApp({
   const [records, setRecords] = useState<PenaltyRecord[]>(initialRecords);
   const [tasks] = useState<HomeworkTask[]>(initialTasks);
   const [completions, setCompletions] = useState<TaskCompletion[]>(initialCompletions);
-  const [audit, setAudit] = useState<TeacherAuditEntry[]>(initialAudit);
-  const [reviews, setReviews] = useState<TeacherTaskReview[]>(initialReviews);
+  const [audit, setAudit] = useState<TeacherAuditEntry[]>(initialAudit ?? []);
+  const [reviews, setReviews] = useState<TeacherTaskReview[]>(initialReviews ?? []);
 
   const [activeView, setActiveView] = useState<"overview" | "today" | "assignments" | "student" | "disciplinary" | "history" | "audit">("overview");
 
@@ -155,13 +232,20 @@ export default function DisciplinaryApp({
   const [filterSubject, setFilterSubject] = useState<string>("all");
   const [selectedTask, setSelectedTask] = useState<HomeworkTask | null>(null);
 
-  // Disciplinary form
+  // Disciplinary form state
+  const [isGroupMode, setIsGroupMode] = useState<boolean>(false);
+  const [selectedGroupStudents, setSelectedGroupStudents] = useState<Set<string>>(new Set());
   const [penaltyStudent, setPenaltyStudent] = useState<Student | null>(null);
   const [penaltySearch, setPenaltySearch] = useState("");
-  const [incidentText, setIncidentText] = useState("");
+  const [selectedBehaviors, setSelectedBehaviors] = useState<string[]>([]);
+  const [otherBehaviorText, setOtherBehaviorText] = useState("");
+  const [isWarningSelected, setIsWarningSelected] = useState<boolean>(true);
+  const [selectedPokkrongLevel, setSelectedPokkrongLevel] = useState<1 | 2 | 3 | null>(null);
+  const [isChoreSelected, setIsChoreSelected] = useState<boolean>(false);
+  const [selectedChoreDuration, setSelectedChoreDuration] = useState<string>("1 วัน");
+  const [customChoreDuration, setCustomChoreDuration] = useState<string>("");
   const [newRecordStatus, setNewRecordStatus] = useState<PenaltyRecord["status"]>("pending");
   const [newRecordNote, setNewRecordNote] = useState("");
-  const [selectedSeverity, setSelectedSeverity] = useState<SeverityLevel>("medium");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // History search
@@ -263,34 +347,183 @@ export default function DisciplinaryApp({
     );
   }, [students, penaltySearch]);
 
-  // Handle Penalty Submit
+  // Helper methods for disciplinary actions
+  const toggleBehavior = (label: string) => {
+    setSelectedBehaviors((prev) =>
+      prev.includes(label) ? prev.filter((b) => b !== label) : [...prev, label]
+    );
+  };
+
+  const selectPokkrong = (level: 1 | 2 | 3) => {
+    setSelectedPokkrongLevel((prev) => (prev === level ? null : level));
+  };
+
+  const toggleGroupMode = () => {
+    setIsGroupMode((prev) => {
+      const next = !prev;
+      if (next && penaltyStudent) {
+        setSelectedGroupStudents(new Set([penaltyStudent.student_id]));
+      }
+      return next;
+    });
+  };
+
+  const toggleGroupStudent = (id: string) => {
+    setSelectedGroupStudents((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllStudentsInGroup = () => {
+    setSelectedGroupStudents(new Set(students.map((s) => s.student_id)));
+  };
+
+  const clearGroupSelection = () => {
+    setSelectedGroupStudents(new Set());
+  };
+
+  const getCombinedIncident = (): string => {
+    const list = [...selectedBehaviors];
+    if (list.includes("••• อื่น ๆ") && otherBehaviorText.trim()) {
+      const idx = list.indexOf("••• อื่น ๆ");
+      list[idx] = `อื่น ๆ: ${otherBehaviorText.trim()}`;
+    }
+    if (list.length === 0 && otherBehaviorText.trim()) {
+      list.push(otherBehaviorText.trim());
+    }
+    return list.join(", ");
+  };
+
+  const getCombinedPunishment = (): string => {
+    const parts: string[] = [];
+    if (isWarningSelected) {
+      parts.push("ตักเตือน");
+    }
+    if (selectedPokkrongLevel !== null) {
+      parts.push(`ปกครอง${selectedPokkrongLevel}`);
+    }
+    if (isChoreSelected) {
+      const dur = selectedChoreDuration === "อื่นๆ"
+        ? (customChoreDuration.trim() || "อื่นๆ")
+        : selectedChoreDuration;
+      parts.push(`ทำเวร ${dur}`);
+    }
+    return parts.length > 0 ? parts.join(" + ") : "ตักเตือน";
+  };
+
+  const getSeverityLevel = (): SeverityLevel => {
+    if (selectedPokkrongLevel === 3) return "strict";
+    if (selectedPokkrongLevel === 2) return "high";
+    if (selectedPokkrongLevel === 1) return "medium";
+    if (isChoreSelected) {
+      if (selectedChoreDuration === "1 ปีการศึกษา" || selectedChoreDuration === "1 เดือน") return "high";
+      if (selectedChoreDuration === "1 สัปดาห์") return "medium";
+      return "low";
+    }
+    return "low";
+  };
+
+  const getSeverityTitle = (): string => {
+    if (selectedPokkrongLevel !== null) return `ปกครอง${selectedPokkrongLevel}`;
+    if (isChoreSelected) {
+      const dur = selectedChoreDuration === "อื่นๆ"
+        ? (customChoreDuration.trim() || "อื่นๆ")
+        : selectedChoreDuration;
+      return `ทำเวร ${dur}`;
+    }
+    if (isWarningSelected) return "ตักเตือน";
+    return "ตักเตือน";
+  };
+
+  const addAuditEntry = (action: string, entity: string, entityId: string, studentId: string) => {
+    const newEntry: TeacherAuditEntry = {
+      id: Date.now(),
+      teacher_id: "teacher",
+      actor_email: "ครูประจำชั้น ม.2/3",
+      action,
+      entity,
+      entity_id: entityId,
+      student_id: studentId,
+      created_at: new Date().toISOString(),
+    };
+    setAudit((prev) => [newEntry, ...(prev ?? []).slice(0, 99)]);
+  };
+
+  // Handle Penalty Submit (Supports Single & Group Mode)
   const handlePenaltySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!penaltyStudent) {
-      toast.error("กรุณาเลือกลูกศิษย์ก่อนบันทึก!");
+
+    const targetStudents: Student[] = isGroupMode
+      ? students.filter((s) => selectedGroupStudents.has(s.student_id))
+      : penaltyStudent
+      ? [penaltyStudent]
+      : [];
+
+    if (targetStudents.length === 0) {
+      toast.error(isGroupMode ? "กรุณาเลือกนักเรียนในกลุ่มอย่างน้อย 1 คน!" : "กรุณาเลือกลูกศิษย์ก่อนบันทึก!");
       return;
     }
-    if (!incidentText.trim()) {
-      toast.error("กรุณาระบุพฤติกรรมหรือสาเหตุ!");
+
+    const incident = getCombinedIncident();
+    if (!incident.trim()) {
+      toast.error("กรุณาเลือกพฤติกรรมหรือระบุเหตุการณ์!");
       return;
     }
+
+    const punishment = getCombinedPunishment();
+    const severity = getSeverityLevel();
+    const severity_title = getSeverityTitle();
 
     setIsSubmitting(true);
     try {
-      const created = await createPenaltyRecord({
-        student_id: penaltyStudent.student_id,
-        severity: selectedSeverity,
-        incident: incidentText.trim(),
-        status: newRecordStatus,
-        follow_up_note: newRecordNote,
-      });
+      if (targetStudents.length === 1) {
+        const s = targetStudents[0];
+        const created = await createPenaltyRecord({
+          student_id: s.student_id,
+          student_no: s.student_no,
+          student_name: `${s.prefix}${s.first_name} ${s.last_name}`,
+          student_nickname: s.nickname,
+          severity,
+          severity_title,
+          incident,
+          punishment,
+          status: newRecordStatus,
+          follow_up_note: newRecordNote.trim() || undefined,
+        });
 
-      setRecords((prev) => [created, ...prev]);
-      setAudit(await getTeacherAudit());
-      setIncidentText("");
+        setRecords((prev) => [created, ...prev]);
+        addAuditEntry("insert", "ohmjaa_penalties", created.id, s.student_id);
+        toast.success(`บันทึกข้อมูลของ ${s.first_name} เรียบร้อยแล้ว`);
+      } else {
+        const items = targetStudents.map((s) => ({
+          student_id: s.student_id,
+          student_no: s.student_no,
+          student_name: `${s.prefix}${s.first_name} ${s.last_name}`,
+          student_nickname: s.nickname,
+          severity,
+          severity_title,
+          incident,
+          punishment,
+          status: newRecordStatus,
+          follow_up_note: newRecordNote.trim() || undefined,
+        }));
+
+        const createdList = await createPenaltyRecordsBulk(items);
+        setRecords((prev) => [...createdList, ...prev]);
+        createdList.forEach((c) => addAuditEntry("insert", "ohmjaa_penalties", c.id, c.student_id));
+        toast.success(`บันทึกข้อมูลกลุ่มนักเรียน ${targetStudents.length} คน เรียบร้อยแล้ว`);
+      }
+
+      // Reset incident inputs
+      setSelectedBehaviors([]);
+      setOtherBehaviorText("");
       setNewRecordNote("");
-      setNewRecordStatus("pending");
-      toast.success(`บันทึกข้อมูลของ ${penaltyStudent.first_name} แล้ว`);
+      if (!isGroupMode) {
+        setPenaltyStudent(null);
+      }
     } catch (err) {
       toast.error("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
     } finally {
@@ -304,7 +537,7 @@ export default function DisciplinaryApp({
     try {
       await deletePenaltyRecord(id);
       setRecords((prev) => prev.filter((r) => r.id !== id));
-      setAudit(await getTeacherAudit());
+      addAuditEntry("delete", "ohmjaa_penalties", id, "");
       toast.success("ลบรายการประวัติแล้ว");
     } catch {
       toast.error("ไม่สามารถลบรายการได้");
@@ -315,8 +548,8 @@ export default function DisciplinaryApp({
     try {
       const changed = await updateTaskCompletion(studentId, taskId, status);
       setCompletions((current) => [...current.filter((item) => !(item.student_id === studentId && item.task_id === taskId)), changed]);
-      if (status !== "done") setReviews((current) => current.filter((item) => !(item.student_id === studentId && item.task_id === taskId)));
-      setAudit(await getTeacherAudit());
+      if (status !== "done") setReviews((current) => (current ?? []).filter((item) => !(item.student_id === studentId && item.task_id === taskId)));
+      addAuditEntry("update", "student_task_completions", taskId, studentId);
       toast.success("อัปเดตสถานะงานแล้ว");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "บันทึกสถานะงานไม่สำเร็จ");
@@ -325,12 +558,17 @@ export default function DisciplinaryApp({
 
   const handleMarkReviewed = async (studentId: string, taskId: string) => {
     try {
-      const review = await markTaskReviewed(studentId, taskId);
-      setReviews((current) => [...current.filter((item) => !(item.student_id === studentId && item.task_id === taskId)), review]);
-      setAudit(await getTeacherAudit());
+      const review: TeacherTaskReview = {
+        teacher_id: "teacher",
+        student_id: studentId,
+        task_id: taskId,
+        reviewed_at: new Date().toISOString(),
+      };
+      setReviews((current) => [...(current ?? []).filter((item) => !(item.student_id === studentId && item.task_id === taskId)), review]);
+      addAuditEntry("update", "teacher_task_reviews", taskId, studentId);
       toast.success("บันทึกว่าตรวจแล้ว");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "บันทึกการตรวจไม่สำเร็จ");
+      toast.error("บันทึกการตรวจไม่สำเร็จ");
     }
   };
 
@@ -346,10 +584,15 @@ export default function DisciplinaryApp({
     if (!editingRecord) return;
     try {
       const changed = await updatePenaltyRecord(editingRecord.id, {
-        incident: editIncident, severity: editSeverity, status: editStatus, follow_up_note: editNote,
+        incident: editIncident,
+        severity: editSeverity,
+        status: editStatus,
+        follow_up_note: editNote,
       });
-      setRecords((current) => current.map((item) => item.id === changed.id ? changed : item));
-      setAudit(await getTeacherAudit());
+      if (changed) {
+        setRecords((current) => current.map((item) => (item.id === changed.id ? changed : item)));
+        addAuditEntry("update", "ohmjaa_penalties", changed.id, changed.student_id);
+      }
       setEditingRecord(null);
       toast.success("บันทึกการแก้ไขแล้ว");
     } catch (error) {
@@ -470,8 +713,11 @@ export default function DisciplinaryApp({
 
           {/* Actions on Navbar Right */}
           <div className="flex items-center gap-2">
-            <span className="hidden xl:inline text-xs text-[#67736d] max-w-36 truncate" title={teacherEmail}>{teacherEmail}</span>
-            <button onClick={() => signOutTeacher().then(() => window.location.assign("/login"))} className="text-xs text-[#67736d] hover:text-[#16453d] cursor-pointer">ออกจากระบบ</button>
+            <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#e5eee7] text-[#16453d] text-xs font-semibold">
+              <span>ห้อง ม.2/3</span>
+              <span className="opacity-40">•</span>
+              <span>{students.length} คน</span>
+            </div>
             <button
               onClick={handleExportCSV}
               className="inline-flex items-center gap-1.5 text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-2 rounded-lg transition-colors cursor-pointer"
@@ -926,28 +1172,79 @@ export default function DisciplinaryApp({
         {activeView === "disciplinary" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
-            {/* Form Column (Left 5 cols) */}
-            <div className="lg:col-span-5 bg-[#fdfcf9] rounded-xl border border-[#e5e2db] p-6 space-y-5">
-              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <div className="w-10 h-10 rounded-xl bg-[#e5eee7] text-[#16453d] flex items-center justify-center">
-                  <Gavel size={20} />
+            {/* Form Column (Left 6 cols for comfortable spacing) */}
+            <div className="lg:col-span-6 bg-[#fdfcf9] rounded-2xl border border-[#e5e2db] p-5 sm:p-6 space-y-5 shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#e5eee7] text-[#16453d] flex items-center justify-center shrink-0">
+                    <Gavel size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-[#182422]">
+                      เพิ่มบันทึกวินัย
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      ระบุพฤติกรรมและการดำเนินการ
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-base font-bold text-[#182422]">
-                    เพิ่มบันทึกวินัย
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    เลือกนักเรียน ระบุเหตุการณ์ และตรวจสอบบทลงโทษ
-                  </p>
-                </div>
+
+                {/* Image 2: Mode Toggle Pill "👥 กลุ่ม" */}
+                <button
+                  type="button"
+                  onClick={toggleGroupMode}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border ${
+                    isGroupMode
+                      ? "bg-[#e1f7ea] text-[#1f7d54] border-[#a2e3be] shadow-xs ring-2 ring-[#a2e3be]/40"
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  }`}
+                  title={isGroupMode ? "โหมดกลุ่มเปิดอยู่ (เลือกได้หลายคน)" : "เปิดโหมดเลือกเป็นกลุ่ม"}
+                >
+                  <Users size={16} className={isGroupMode ? "text-[#1f7d54]" : "text-slate-500"} />
+                  <span>กลุ่ม</span>
+                  {isGroupMode && (
+                    <span className="w-2 h-2 rounded-full bg-[#1f7d54]"></span>
+                  )}
+                </button>
               </div>
 
-              <form onSubmit={handlePenaltySubmit} className="space-y-4">
-                {/* Select Student */}
+              <form onSubmit={handlePenaltySubmit} className="space-y-5">
+                {/* 1. Select Student(s) */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    นักเรียน <span className="text-rose-600">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      {isGroupMode ? "นักเรียนในกลุ่ม (เลือกได้หลายคน)" : "นักเรียน"} <span className="text-rose-600">*</span>
+                    </label>
+                    {isGroupMode ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={selectAllStudentsInGroup}
+                          className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+                        >
+                          เลือกทุกคน ({students.length})
+                        </button>
+                        <span className="text-slate-300">•</span>
+                        <button
+                          type="button"
+                          onClick={clearGroupSelection}
+                          className="text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                        >
+                          ล้าง ({selectedGroupStudents.size})
+                        </button>
+                      </div>
+                    ) : (
+                      penaltyStudent && (
+                        <button
+                          type="button"
+                          onClick={() => setPenaltyStudent(null)}
+                          className="text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                        >
+                          เปลี่ยนคน
+                        </button>
+                      )
+                    )}
+                  </div>
                   
                   <div className="relative">
                     <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
@@ -956,34 +1253,60 @@ export default function DisciplinaryApp({
                       value={penaltySearch}
                       onChange={(e) => setPenaltySearch(e.target.value)}
                       placeholder="พิมพ์ค้นหาชื่อ หรือเลขที่..."
-                      className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-slate-900 focus:bg-white"
+                      className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-600 focus:bg-white"
                     />
                   </div>
 
                   <div className="mt-2 max-h-36 overflow-y-auto border border-slate-100 rounded-xl p-1.5 bg-slate-50/50 flex flex-wrap gap-1">
                     {penaltyStudentResults.map((s) => {
-                      const isSelected = penaltyStudent?.student_id === s.student_id;
+                      const isSelected = isGroupMode
+                        ? selectedGroupStudents.has(s.student_id)
+                        : penaltyStudent?.student_id === s.student_id;
                       return (
                         <button
                           type="button"
                           key={s.student_id}
-                          onClick={() => setPenaltyStudent(s)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                          onClick={() => {
+                            if (isGroupMode) {
+                              toggleGroupStudent(s.student_id);
+                            } else {
+                              setPenaltyStudent(s);
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${
                             isSelected
-                              ? "bg-slate-900 text-white font-bold"
+                              ? "bg-[#16453d] text-white font-bold shadow-xs scale-102"
                               : "bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-100"
                           }`}
                         >
-                          <span className="font-mono text-[10px] opacity-70">#{s.student_no}</span> {s.first_name}
+                          <span className="font-mono text-[10px] opacity-70">#{s.student_no}</span>
+                          <span>{s.first_name}</span>
+                          {isSelected && <Check size={12} className="ml-0.5" />}
                         </button>
                       );
                     })}
                   </div>
 
-                  {penaltyStudent && (
+                  {/* Selected summary */}
+                  {isGroupMode ? (
+                    <div className="mt-2 p-2.5 rounded-xl bg-[#eef7f2] border border-[#cbe4d5] text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users size={15} className="text-[#1f7d54]" />
+                        <span className="font-bold text-[#13613c]">
+                          เลือกแล้ว {selectedGroupStudents.size} คน
+                        </span>
+                        <span className="text-[11px] text-[#2c7750] truncate max-w-[220px]">
+                          ({Array.from(selectedGroupStudents).map(id => {
+                            const st = students.find(s => s.student_id === id);
+                            return st ? `#${st.student_no} ${st.first_name}` : id;
+                          }).join(", ")})
+                        </span>
+                      </div>
+                    </div>
+                  ) : penaltyStudent ? (
                     <div className="mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-mono text-[10px] flex items-center justify-center font-bold">
+                        <div className="w-6 h-6 rounded-full bg-[#16453d] text-white font-mono text-[10px] flex items-center justify-center font-bold">
                           {penaltyStudent.student_no}
                         </div>
                         <span className="font-bold text-slate-800">
@@ -1001,92 +1324,299 @@ export default function DisciplinaryApp({
                         <X size={14} />
                       </button>
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
-                {/* Incident Text */}
+                {/* 2. Behaviors (Capsule Pills - Image 1 Style) */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    รายละเอียดเหตุการณ์ <span className="text-rose-600">*</span>
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={incidentText}
-                    onChange={(e) => setIncidentText(e.target.value)}
-                    placeholder="เช่น คุยเสียงดังในคาบ, เล่นเกม, ไม่ส่งการบ้าน..."
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-slate-900 focus:bg-white resize-none"
-                  />
-                </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-slate-700">
+                      พฤติกรรม / เหตุการณ์ <span className="text-rose-600">*</span>
+                    </label>
+                    <span className="text-[11px] font-semibold text-slate-400">
+                      เลือกได้มากกว่า 1 รายการ
+                    </span>
+                  </div>
 
-                {/* Follow-up status */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="block text-xs font-bold text-slate-700">สถานะ
-                    <select value={newRecordStatus} onChange={(event) => setNewRecordStatus(event.target.value as PenaltyRecord["status"])} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
-                      <option value="pending">รอติดตาม</option><option value="completed">เสร็จสิ้น</option><option value="forgiven">ยกเว้น</option>
-                    </select>
-                  </label>
-                  <label className="block text-xs font-bold text-slate-700">หมายเหตุการติดตาม
-                    <input value={newRecordNote} onChange={(event) => setNewRecordNote(event.target.value)} placeholder="เช่น นัดพูดคุยวันศุกร์" className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs" />
-                  </label>
-                </div>
-
-                {/* Severity Picker */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-2">
-                    ระดับความรุนแรง <span className="text-rose-600">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(Object.keys(severityConfig) as SeverityLevel[]).map((level) => {
-                      const conf = severityConfig[level];
-                      const Icon = conf.icon;
-                      const isSelected = selectedSeverity === level;
-
+                  <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+                    {BEHAVIOR_PRESETS.map((item) => {
+                      const isSelected = selectedBehaviors.includes(item.label);
                       return (
                         <button
                           type="button"
-                          key={level}
-                          onClick={() => setSelectedSeverity(level)}
-                          className={`p-3 rounded-lg border text-left transition-colors cursor-pointer flex flex-col justify-between ${
+                          key={item.id}
+                          onClick={() => toggleBehavior(item.label)}
+                          className={`flex items-center gap-2 sm:gap-2.5 px-3 py-2 rounded-full border transition-all cursor-pointer text-left ${
                             isSelected
-                              ? `${conf.activeBorder} ${conf.activeBg}`
-                              : `${conf.border} bg-white`
+                              ? "border-emerald-600 bg-[#eef7f2] shadow-xs ring-2 ring-emerald-500/20"
+                              : "border-slate-200/90 bg-white/95 hover:border-slate-300 hover:bg-slate-50/60"
                           }`}
                         >
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <Icon size={14} className={conf.color} />
-                            <span className="text-xs font-bold text-slate-800">{conf.title}</span>
+                          <div
+                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border text-xs sm:text-sm font-bold ${item.circleColor}`}
+                          >
+                            {item.iconText}
                           </div>
-                          <div className="text-[11px] text-slate-500">{conf.punishment}</div>
+                          <span
+                            className={`text-xs font-bold flex-1 truncate ${
+                              isSelected ? "text-emerald-950 font-extrabold" : "text-slate-700"
+                            }`}
+                          >
+                            {item.label}
+                          </span>
+                          {isSelected && (
+                            <Check size={14} className="text-emerald-600 shrink-0" />
+                          )}
                         </button>
                       );
                     })}
                   </div>
+
+                  {/* Expandable Other Text Field */}
+                  {selectedBehaviors.includes("••• อื่น ๆ") && (
+                    <div className="mt-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <input
+                        type="text"
+                        value={otherBehaviorText}
+                        onChange={(e) => setOtherBehaviorText(e.target.value)}
+                        placeholder="ระบุพฤติกรรมอื่น ๆ..."
+                        className="w-full px-3.5 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                        autoFocus
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Submit Banner */}
-                <div className="p-4 rounded-xl bg-[#e8eee7] text-[#182422] flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] text-[#67736d] font-medium">
-                      บทลงโทษตามระดับที่เลือก
+                {/* 3. Actions / Sanctions (Image 1 Style) */}
+                <div>
+                  <p className="text-xs font-semibold text-slate-600 mb-2">
+                    การดำเนินการ: ตักเตือนเลือกเดี่ยวได้ หรือคู่กับปกครองได้ 1 ระดับ
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+                    {/* ตักเตือน */}
+                    <button
+                      type="button"
+                      onClick={() => setIsWarningSelected((prev) => !prev)}
+                      className={`flex items-center gap-2 sm:gap-2.5 px-3 py-2 rounded-full border transition-all cursor-pointer text-left ${
+                        isWarningSelected
+                          ? "border-amber-500 bg-amber-50/90 shadow-xs ring-2 ring-amber-400/25"
+                          : "border-slate-200/90 bg-white/95 hover:border-amber-200 hover:bg-amber-50/30"
+                      }`}
+                    >
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border border-amber-300 text-amber-600 bg-amber-50 font-bold text-xs sm:text-sm">
+                        !
+                      </div>
+                      <span className="text-xs sm:text-sm font-bold text-amber-800 flex-1">
+                        ตักเตือน
+                      </span>
+                      {isWarningSelected && <Check size={14} className="text-amber-600 shrink-0" />}
+                    </button>
+
+                    {/* ปกครอง1 */}
+                    <button
+                      type="button"
+                      onClick={() => selectPokkrong(1)}
+                      className={`flex items-center gap-2 sm:gap-2.5 px-3 py-2 rounded-full border transition-all cursor-pointer text-left ${
+                        selectedPokkrongLevel === 1
+                          ? "border-sky-500 bg-sky-50/90 shadow-xs ring-2 ring-sky-400/25"
+                          : "border-slate-200/90 bg-white/95 hover:border-sky-200 hover:bg-sky-50/30"
+                      }`}
+                    >
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border border-sky-300 text-sky-600 bg-sky-50 font-bold text-xs sm:text-sm">
+                        1
+                      </div>
+                      <span className="text-xs sm:text-sm font-bold text-sky-800 flex-1">
+                        ปกครอง1
+                      </span>
+                      {selectedPokkrongLevel === 1 && <Check size={14} className="text-sky-600 shrink-0" />}
+                    </button>
+
+                    {/* ปกครอง2 */}
+                    <button
+                      type="button"
+                      onClick={() => selectPokkrong(2)}
+                      className={`flex items-center gap-2 sm:gap-2.5 px-3 py-2 rounded-full border transition-all cursor-pointer text-left ${
+                        selectedPokkrongLevel === 2
+                          ? "border-purple-500 bg-purple-50/90 shadow-xs ring-2 ring-purple-400/25"
+                          : "border-slate-200/90 bg-white/95 hover:border-purple-200 hover:bg-purple-50/30"
+                      }`}
+                    >
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border border-purple-300 text-purple-600 bg-purple-50 font-bold text-xs sm:text-sm">
+                        2
+                      </div>
+                      <span className="text-xs sm:text-sm font-bold text-purple-800 flex-1">
+                        ปกครอง2
+                      </span>
+                      {selectedPokkrongLevel === 2 && <Check size={14} className="text-purple-600 shrink-0" />}
+                    </button>
+
+                    {/* ปกครอง3 */}
+                    <button
+                      type="button"
+                      onClick={() => selectPokkrong(3)}
+                      className={`flex items-center gap-2 sm:gap-2.5 px-3 py-2 rounded-full border transition-all cursor-pointer text-left ${
+                        selectedPokkrongLevel === 3
+                          ? "border-rose-500 bg-rose-50/90 shadow-xs ring-2 ring-rose-400/25"
+                          : "border-slate-200/90 bg-white/95 hover:border-rose-200 hover:bg-rose-50/30"
+                      }`}
+                    >
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 border border-rose-300 text-rose-600 bg-rose-50 font-bold text-xs sm:text-sm">
+                        3
+                      </div>
+                      <span className="text-xs sm:text-sm font-bold text-rose-800 flex-1">
+                        ปกครอง3
+                      </span>
+                      {selectedPokkrongLevel === 3 && <Check size={14} className="text-rose-600 shrink-0" />}
+                    </button>
+                  </div>
+
+                  {/* 4. ทำเวร (With Fade-In Duration Choices) */}
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setIsChoreSelected((prev) => !prev)}
+                        className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${
+                          isChoreSelected
+                            ? "border-teal-500 bg-teal-50 text-teal-800 ring-2 ring-teal-500/20 shadow-xs"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="text-sm">🧹</span>
+                        <span>ทำเวร</span>
+                        {isChoreSelected && <Check size={13} className="text-teal-600" />}
+                      </button>
+                      {isChoreSelected && (
+                        <span className="text-[11px] font-semibold text-teal-700">
+                          เลือกระยะเวลาทำเวร:
+                        </span>
+                      )}
                     </div>
-                    <div className="text-sm font-bold text-[#16453d] mt-0.5">
-                      {severityConfig[selectedSeverity].punishment}
+
+                    {/* Fading duration container */}
+                    <div
+                      className={`transition-all duration-300 ease-out overflow-hidden ${
+                        isChoreSelected
+                          ? "opacity-100 max-h-40 mt-2.5 pt-1.5"
+                          : "opacity-0 max-h-0 pointer-events-none"
+                      }`}
+                    >
+                      <div className="flex flex-wrap gap-1.5">
+                        {CHORE_DURATIONS.map((dur) => {
+                          const isDurSelected = selectedChoreDuration === dur;
+                          return (
+                            <button
+                              type="button"
+                              key={dur}
+                              onClick={() => setSelectedChoreDuration(dur)}
+                              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                                isDurSelected
+                                  ? "bg-teal-700 text-white shadow-xs scale-102"
+                                  : "bg-white text-slate-700 border border-slate-200 hover:bg-teal-50"
+                              }`}
+                            >
+                              {dur}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {selectedChoreDuration === "อื่นๆ" && (
+                        <div className="mt-2 animate-in fade-in duration-150">
+                          <input
+                            type="text"
+                            value={customChoreDuration}
+                            onChange={(e) => setCustomChoreDuration(e.target.value)}
+                            placeholder="ระบุระยะเวลาทำเวร เช่น 3 วัน, 2 สัปดาห์..."
+                            className="w-full px-3 py-1.5 text-xs bg-white border border-teal-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-teal-500"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#16453d] hover:bg-[#0f352e] text-white px-4 py-2.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-                  >
-                    <Send size={14} />
-                    <span>{isSubmitting ? "กำลังบันทึก..." : "บันทึกข้อมูล"}</span>
-                  </button>
+                </div>
+
+                {/* 5. Follow-up status & Note */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    สถานะ
+                    <select
+                      value={newRecordStatus}
+                      onChange={(e) => setNewRecordStatus(e.target.value as PenaltyRecord["status"])}
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+                    >
+                      <option value="pending">รอติดตาม</option>
+                      <option value="completed">เสร็จสิ้น</option>
+                      <option value="forgiven">ยกเว้น</option>
+                    </select>
+                  </label>
+                  <label className="block text-xs font-bold text-slate-700">
+                    หมายเหตุเพิ่มเติม (ถ้ามี)
+                    <input
+                      value={newRecordNote}
+                      onChange={(e) => setNewRecordNote(e.target.value)}
+                      placeholder="เช่น นัดพูดคุย, แจ้งผู้ปกครอง..."
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+                    />
+                  </label>
+                </div>
+
+                {/* 6. Live Summary Banner & Submit */}
+                <div className="p-4 rounded-2xl bg-[#e8eee7] border border-[#d3ded2] text-[#182422] space-y-2">
+                  <div className="text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#67736d] font-semibold">นักเรียน:</span>
+                      <span className="font-bold text-[#16453d] truncate max-w-[220px]">
+                        {isGroupMode
+                          ? selectedGroupStudents.size > 0
+                            ? `กลุ่ม ${selectedGroupStudents.size} คน`
+                            : "ยังไม่ได้เลือก"
+                          : penaltyStudent
+                          ? `#${penaltyStudent.student_no} ${penaltyStudent.first_name}`
+                          : "ยังไม่ได้เลือก"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#67736d] font-semibold">พฤติกรรม:</span>
+                      <span className="font-bold text-slate-800 truncate max-w-[220px]">
+                        {selectedBehaviors.length > 0
+                          ? selectedBehaviors.join(", ")
+                          : "ยังไม่ได้เลือก"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#d3ded2]">
+                    <div>
+                      <div className="text-[11px] text-[#67736d] font-semibold">
+                        บทลงโทษ / การดำเนินการ:
+                      </div>
+                      <div className="text-sm font-bold text-[#16453d]">
+                        {getCombinedPunishment()}
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#16453d] hover:bg-[#0f352e] text-white px-4 py-2.5 rounded-xl transition-all cursor-pointer disabled:opacity-50 shrink-0 shadow-sm hover:shadow"
+                    >
+                      <Send size={14} />
+                      <span>
+                        {isSubmitting
+                          ? "กำลังบันทึก..."
+                          : isGroupMode && selectedGroupStudents.size > 1
+                          ? `บันทึกกลุ่ม (${selectedGroupStudents.size} คน)`
+                          : "บันทึกข้อมูล"}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
 
-            {/* Recent Penalties Table (Right 7 cols) */}
-            <div className="lg:col-span-7 bg-[#fdfcf9] rounded-xl border border-[#e5e2db] p-6 space-y-4">
+            {/* Recent Penalties Table (Right 6 cols) */}
+            <div className="lg:col-span-6 bg-[#fdfcf9] rounded-2xl border border-[#e5e2db] p-5 sm:p-6 space-y-4 shadow-xs">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="font-bold text-[#182422] text-sm">
                   บันทึกล่าสุด ({records.length})

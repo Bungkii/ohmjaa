@@ -96,7 +96,7 @@ export async function getPenaltyRecords(): Promise<PenaltyRecord[]> {
 }
 
 /**
- * Save new penalty record into Supabase + local cache
+ * Save single penalty record into Supabase + local cache
  */
 export async function createPenaltyRecord(
   data: Omit<PenaltyRecord, 'id' | 'created_at'>
@@ -126,6 +126,91 @@ export async function createPenaltyRecord(
 }
 
 /**
+ * Save multiple penalty records into Supabase + local cache (Group mode)
+ */
+export async function createPenaltyRecordsBulk(
+  items: Omit<PenaltyRecord, 'id' | 'created_at'>[]
+): Promise<PenaltyRecord[]> {
+  const newRecords: PenaltyRecord[] = items.map((data, idx) => ({
+    ...data,
+    id: `pen_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
+    created_at: new Date(Date.now() + idx).toISOString(),
+  }));
+
+  try {
+    const supabase = createClient();
+    await supabase.from('ohmjaa_penalties').insert(newRecords);
+  } catch (err) {
+    console.warn('Could not bulk insert to Supabase:', err);
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      const existing: PenaltyRecord[] = saved ? JSON.parse(saved) : [];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...newRecords, ...existing]));
+    } catch {}
+  }
+
+  return newRecords;
+}
+
+/**
+ * Update an existing penalty record
+ */
+export async function updatePenaltyRecord(
+  id: string,
+  changes: Partial<PenaltyRecord>
+): Promise<PenaltyRecord | null> {
+  const payload = {
+    ...changes,
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('ohmjaa_penalties')
+      .update(payload)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (!error && data) {
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            const list: PenaltyRecord[] = JSON.parse(saved);
+            localStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify(list.map((r) => (r.id === id ? { ...r, ...data } : r)))
+            );
+          }
+        } catch {}
+      }
+      return data as PenaltyRecord;
+    }
+  } catch (err) {
+    console.warn('Supabase update error:', err);
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const list: PenaltyRecord[] = JSON.parse(saved);
+        const updated = list.map((r) => (r.id === id ? { ...r, ...payload } : r));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        return (updated.find((r) => r.id === id) as PenaltyRecord) ?? null;
+      }
+    } catch {}
+  }
+
+  return null;
+}
+
+/**
  * Delete a penalty record
  */
 export async function deletePenaltyRecord(id: string): Promise<boolean> {
@@ -145,4 +230,47 @@ export async function deletePenaltyRecord(id: string): Promise<boolean> {
   }
 
   return true;
+}
+
+/**
+ * Update task completion for a student
+ */
+export async function updateTaskCompletion(
+  studentId: string,
+  taskId: string,
+  status: 'todo' | 'in_progress' | 'done'
+): Promise<TaskCompletion> {
+  const completion: TaskCompletion = {
+    student_id: studentId,
+    task_id: taskId,
+    status,
+  };
+
+  try {
+    const supabase = createClient();
+    // Check if exists
+    const { data: existing } = await supabase
+      .from('student_task_completions')
+      .select('student_id')
+      .eq('student_id', studentId)
+      .eq('task_id', taskId)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from('student_task_completions')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('student_id', studentId)
+        .eq('task_id', taskId);
+    } else {
+      await supabase
+        .from('student_task_completions')
+        .insert({ student_id: studentId, task_id: taskId, status });
+    }
+  } catch (err) {
+    console.warn('Supabase updateTaskCompletion error:', err);
+  }
+
+  return completion;
 }

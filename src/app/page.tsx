@@ -1,15 +1,51 @@
-import { redirect } from "next/navigation";
-import { getTeacherDashboard, signOutTeacher } from "./teacherActions";
 import { createClient } from "@/utils/supabase/server";
 import DisciplinaryApp from "@/components/DisciplinaryApp";
+import fallbackStudents from "@/data/students.json";
+import type { Student, PenaltyRecord, HomeworkTask, TaskCompletion } from "@/types/penalty";
+
+export const revalidate = 0;
 
 export default async function HomePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const { data: access, error: accessError } = await supabase.from("teacher_student_access").select("student_id").eq("teacher_id", user.id).limit(1);
-  if (accessError || !access?.length) return <main className="min-h-screen bg-[#f5f3ef] flex items-center justify-center p-4"><div className="max-w-md rounded-xl bg-white border border-[#e5e2db] p-7"><h1 className="text-xl font-bold">ยังไม่มีสิทธิ์เข้าถึงข้อมูลนักเรียน</h1><p className="mt-2 text-sm text-[#67736d]">ติดต่อผู้ดูแลระบบเพื่อเพิ่มบัญชีครูและรายชื่อนักเรียนที่รับผิดชอบ</p><form action={signOutTeacher} className="mt-5"><button className="text-sm font-semibold text-[#16453d] cursor-pointer">ออกจากระบบ</button></form></div></main>;
-  const { students, records, tasks, completions, audit, reviews } = await getTeacherDashboard();
+  let students: Student[] = (fallbackStudents as unknown) as Student[];
+  let records: PenaltyRecord[] = [];
+  let tasks: HomeworkTask[] = [];
+  let completions: TaskCompletion[] = [];
+
+  try {
+    const supabase = await createClient();
+    const [studentsRes, recordsRes, tasksRes, completionsRes] = await Promise.all([
+      supabase
+        .from("student_accounts")
+        .select("student_id, student_no, prefix, first_name, last_name, nickname, full_name")
+        .order("student_no", { ascending: true }),
+      supabase
+        .from("ohmjaa_penalties")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("homework_tasks")
+        .select("*")
+        .order("due_date", { ascending: true }),
+      supabase
+        .from("student_task_completions")
+        .select("student_id, task_id, status"),
+    ]);
+
+    if (studentsRes.data && studentsRes.data.length > 0) {
+      students = studentsRes.data as Student[];
+    }
+    if (recordsRes.data) {
+      records = recordsRes.data as PenaltyRecord[];
+    }
+    if (tasksRes.data) {
+      tasks = tasksRes.data as HomeworkTask[];
+    }
+    if (completionsRes.data) {
+      completions = completionsRes.data as TaskCompletion[];
+    }
+  } catch (err) {
+    console.warn("Could not fetch from Supabase on server, using fallback:", err);
+  }
 
   return (
     <DisciplinaryApp
@@ -17,9 +53,9 @@ export default async function HomePage() {
       initialRecords={records}
       initialTasks={tasks}
       initialCompletions={completions}
-      initialAudit={audit}
-      initialReviews={reviews}
-      teacherEmail={user.email ?? "ครู"}
+      initialAudit={[]}
+      initialReviews={[]}
+      teacherEmail="ครูประจำชั้น ม.2/3"
     />
   );
 }
