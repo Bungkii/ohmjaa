@@ -1879,7 +1879,7 @@
       <section class="print-sheets" id="printSheets"></section>
     </section>
     <div class="preview-actions">
-      <button type="button" id="downloadPdf">ดาวน์โหลด PDF</button>
+      <button type="button" id="downloadPdf">พิมพ์ / บันทึกเป็น PDF</button>
     </div>
   </div>
 
@@ -2033,8 +2033,6 @@
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyW1CSi9Qczw9HQAYYsdIRVwXwjZfLcOSh9DitnCaIZT7C4cVH7EuNQuzI-pEC-iH3O/exec";
     const DASHBOARD_GAS_URL = GAS_URL;
@@ -2165,155 +2163,10 @@
       document.body.classList.remove("preview-open");
     }
 
-    function safeFilePart(value) {
-      return String(value || "")
-        .trim()
-        .replace(/[\\/:*?"<>|]+/g, "-")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "");
-    }
-
-    function pdfFileName() {
-      const target = selectedMode === "room"
-        ? (selectedReportRoom || "ม2-3")
-        : (selectedStudent?.fullName || selectedStudent?.studentId || document.getElementById("studentName").value || "รายบุคคล");
-      const date = localIsoDate();
-      return `m2-3-report-${safeFilePart(target) || "document"}-${date}.pdf`;
-    }
-
-    function setExportStyle(el, styles) {
-      Object.keys(styles).forEach((key) => {
-        el.style[key] = styles[key];
-      });
-    }
-
-    async function downloadPdfDocument() {
-      const button = document.getElementById("downloadPdf");
+    function printReportDocument() {
       const sheets = document.getElementById("printSheets");
       if (!sheets || !sheets.children.length) return;
-
-      const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
-      if (!window.html2canvas || !jsPDFCtor) {
-        alert("ยังโหลดเครื่องมือดาวน์โหลด PDF ไม่สำเร็จ กรุณาต่ออินเทอร์เน็ตแล้วลองใหม่อีกครั้ง");
-        return;
-      }
-
-      const originalText = button.textContent;
-      button.disabled = true;
-      button.textContent = "กำลังทำไฟล์ PDF...";
-
-      let exportLayer = null;
-
-      try {
-        if (document.fonts?.ready) await document.fonts.ready;
-
-        // สร้างเอกสารสำหรับ export แยกจาก preview โดยใช้ px คงที่ของ A4
-        // เพื่อเลี่ยงปัญหา mm/zoom ของ browser ที่ทำให้ภาพแตก ซ้อน หรือ crop
-        exportLayer = document.createElement("div");
-        exportLayer.id = "pdfExportLayer";
-        exportLayer.setAttribute("aria-hidden", "true");
-        setExportStyle(exportLayer, {
-          position: "absolute",
-          left: "0",
-          top: "0",
-          width: "794px",
-          background: "#ffffff",
-          overflow: "visible",
-          pointerEvents: "none",
-          zIndex: "-1"
-        });
-
-        const clone = sheets.cloneNode(true);
-        clone.id = "pdfExportSheets";
-        setExportStyle(clone, {
-          display: "block",
-          width: "794px",
-          background: "#ffffff",
-          overflow: "visible"
-        });
-
-        const exportSheets = Array.from(clone.querySelectorAll(".print-sheet"));
-        exportSheets.forEach((sheet, index) => {
-          setExportStyle(sheet, {
-            display: "block",
-            width: "794px",
-            height: "1123px",
-            minHeight: "1123px",
-            maxHeight: "1123px",
-            margin: "0",
-            padding: "60px 68px 68px",
-            boxSizing: "border-box",
-            boxShadow: "none",
-            background: "#ffffff",
-            color: "#000000",
-            overflow: "hidden",
-            transform: "none",
-            zoom: "1",
-            pageBreakAfter: index === exportSheets.length - 1 ? "auto" : "always",
-            breakAfter: index === exportSheets.length - 1 ? "auto" : "page"
-          });
-        });
-
-        exportLayer.appendChild(clone);
-        document.body.appendChild(exportLayer);
-
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        await new Promise(resolve => setTimeout(resolve, 250));
-
-        const pdf = new jsPDFCtor({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
-        const pageElements = Array.from(exportLayer.querySelectorAll(".print-sheet"));
-
-        // Shield from modern CSS lab/oklch colors
-        const origGPV = CSSStyleDeclaration.prototype.getPropertyValue;
-        CSSStyleDeclaration.prototype.getPropertyValue = function(prop) {
-          const val = origGPV.call(this, prop);
-          if (val && (val.includes("lab(") || val.includes("oklch(") || val.includes("color("))) {
-            return prop.includes("background") ? "rgb(255, 255, 255)" : "rgb(0, 0, 0)";
-          }
-          return val;
-        };
-
-        const scale = 2; // Optimal high-res without crashing iOS/Android mobile memory
-
-        for (let i = 0; i < pageElements.length; i += 1) {
-          const page = pageElements[i];
-          const canvas = await window.html2canvas(page, {
-            scale,
-            useCORS: true,
-            allowTaint: false,
-            backgroundColor: "#ffffff",
-            logging: false,
-            scrollX: 0,
-            scrollY: 0,
-            width: 794,
-            height: 1123,
-            windowWidth: 794,
-            windowHeight: 1123,
-            removeContainer: true
-          });
-
-          if (!canvas.width || !canvas.height) {
-            throw new Error("จับภาพหน้าเอกสารไม่สำเร็จ");
-          }
-
-          const imageData = canvas.toDataURL("image/png");
-          if (i > 0) pdf.addPage("a4", "portrait");
-          pdf.addImage(imageData, "PNG", 0, 0, 210, 297, undefined, "SLOW");
-        }
-
-        pdf.save(pdfFileName());
-        playTapTone("success");
-        vibrateFor("success");
-      } catch (error) {
-        playTapTone("error");
-        vibrateFor("error");
-        alert("ดาวน์โหลด PDF ไม่สำเร็จ: " + (error.message || String(error)));
-      } finally {
-        if (exportLayer) exportLayer.remove();
-        button.disabled = false;
-        button.textContent = originalText;
-      }
+      window.print();
     }
 
     function playTapTone(kind = "tap") {
@@ -3924,7 +3777,7 @@
     });
 
     document.getElementById("downloadPdf").addEventListener("click", () => {
-      downloadPdfDocument();
+      printReportDocument();
     });
 
     document.getElementById("closePreview").addEventListener("click", () => {

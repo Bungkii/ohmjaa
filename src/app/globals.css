@@ -86,3 +86,41 @@ button, a, input, select, textarea {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #cbd5e1;
 }
+
+.report-print-layer {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  body:has(.report-print-layer) > :not(.report-print-layer) {
+    display: none !important;
+  }
+
+  .report-print-layer {
+    display: block !important;
+    width: 210mm;
+    margin: 0;
+    padding: 0;
+  }
+
+  .report-print-layer > div {
+    width: 210mm !important;
+    min-width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 12mm 15mm !important;
+    transform: none !important;
+    scale: 1 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    color: #000 !important;
+    background: #fff !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

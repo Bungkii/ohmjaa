@@ -56,6 +56,7 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import { startOfDay, isBefore, isToday, isTomorrow, differenceInDays } from "date-fns";
 import { Student, PenaltyRecord, SeverityLevel, HomeworkTask, TaskCompletion } from "@/types/penalty";
+import { getChoreSchedule, parseHolidayDates } from "@/lib/choreSchedule";
 import {
   createPenaltyRecord,
   createPenaltyRecordsBulk,
@@ -273,12 +274,24 @@ export default function DisciplinaryApp({
   const [reportStudentId, setReportStudentId] = useState<string>(students[0]?.student_id || "30233");
   const [reportStudentSearch, setReportStudentSearch] = useState<string>("");
   const [reportNote, setReportNote] = useState<string>("");
+  const [schoolHolidays, setSchoolHolidays] = useState<string>("");
+  const [holidaysLoaded, setHolidaysLoaded] = useState(false);
   const [isNoteSectionOpen, setIsNoteSectionOpen] = useState<boolean>(false);
   const [isFieldsSectionOpen, setIsFieldsSectionOpen] = useState<boolean>(false);
   const [isGeneratingDoc, setIsGeneratingDoc] = useState<boolean>(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState<boolean>(false);
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
   const reportPrintRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setSchoolHolidays(localStorage.getItem("ohmjaa_school_holidays") ?? "");
+    setHolidaysLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!holidaysLoaded) return;
+    if (schoolHolidays) localStorage.setItem("ohmjaa_school_holidays", schoolHolidays);
+    else localStorage.removeItem("ohmjaa_school_holidays");
+  }, [schoolHolidays, holidaysLoaded]);
 
   // Fallback homework tasks if none returned from database
   const DEFAULT_HOMEWORK_TASKS: HomeworkTask[] = useMemo(() => [
@@ -425,6 +438,25 @@ export default function DisciplinaryApp({
     return groups;
   }, [studentReportRecords]);
 
+  const choreSummary = useMemo(() => {
+    const holidays = parseHolidayDates(schoolHolidays);
+    const byStudent = new Map<string, { name: string; no: number; days: number; start: string; end: string | null; uncounted: number }>();
+    for (const record of studentReportRecords) {
+      const schedule = getChoreSchedule(record, holidays);
+      if (!schedule) continue;
+      const current = byStudent.get(record.student_id) ?? {
+        name: record.student_name, no: record.student_no, days: 0,
+        start: schedule.start, end: null, uncounted: 0,
+      };
+      current.days += schedule.days ?? 0;
+      if (schedule.days === null) current.uncounted++;
+      if (schedule.start < current.start) current.start = schedule.start;
+      if (schedule.end && (!current.end || schedule.end > current.end)) current.end = schedule.end;
+      byStudent.set(record.student_id, current);
+    }
+    return [...byStudent.values()].sort((a, b) => a.no - b.no);
+  }, [studentReportRecords, schoolHolidays]);
+
   const handleGenerateReport = async () => {
     setIsGeneratingDoc(true);
     await new Promise((r) => setTimeout(r, 350));
@@ -432,272 +464,20 @@ export default function DisciplinaryApp({
     setIsPreviewModalOpen(true);
   };
 
-  const handleDownloadPdf = async () => {
+  const handlePrintReport = () => {
     if (!reportPrintRef.current) return;
-    setIsDownloadingPdf(true);
-    const loadingToast = toast.loading("กำลังจัดทำไฟล์ PDF คุณภาพสูงสำหรับโทรศัพท์...");
 
-    let exportLayer: HTMLDivElement | null = null;
-    const origWindowGCS = window.getComputedStyle;
-    const origCSSProtoGetPropertyValue = CSSStyleDeclaration.prototype.getPropertyValue;
+    const printLayer = document.createElement("div");
+    printLayer.className = "report-print-layer";
+    printLayer.appendChild(reportPrintRef.current.cloneNode(true));
+    document.body.appendChild(printLayer);
 
-    try {
-      // 1. Dynamic imports with fallback resolution for Turbopack & mobile
-      const html2canvasMod = await import("html2canvas");
-      const html2canvas = html2canvasMod.default || html2canvasMod;
-      const jspdfMod = await import("jspdf");
-      const jsPDF = jspdfMod.jsPDF || (jspdfMod as any).default?.jsPDF || (jspdfMod as any).default;
-
-      if (!html2canvas || !jsPDF) {
-        throw new Error("ไม่สามารถโหลดไลบรารีสร้าง PDF ได้");
-      }
-
-      if (document.fonts?.ready) {
-        await document.fonts.ready;
-      }
-
-      // Helper canvas using raw 8-bit framebuffer read (getImageData) to guarantee sRGB rgba(...)
-      const helperCanvas = document.createElement("canvas");
-      helperCanvas.width = 1;
-      helperCanvas.height = 1;
-      const helperCtx = helperCanvas.getContext("2d", { willReadFrequently: true });
-
-      const sanitizeColor = (val: string, fallback: string): string => {
-        if (!val || typeof val !== "string") return fallback;
-        if (!val.includes("lab") && !val.includes("oklch") && !val.includes("color(") && !val.includes("color-mix(")) {
-          return val;
-        }
-        if (helperCtx) {
-          try {
-            helperCtx.clearRect(0, 0, 1, 1);
-            helperCtx.fillStyle = val;
-            helperCtx.fillRect(0, 0, 1, 1);
-            const [r, g, b, a] = helperCtx.getImageData(0, 0, 1, 1).data;
-            return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(2)})`;
-          } catch {}
-        }
-        return fallback;
-      };
-
-      // 2. Globally patch CSSStyleDeclaration.prototype.getPropertyValue & window.getComputedStyle
-      // This completely shields html2canvas from ANY "lab" or "oklch" color strings
-      CSSStyleDeclaration.prototype.getPropertyValue = function (name: string) {
-        const raw = origCSSProtoGetPropertyValue.call(this, name);
-        if (raw && (raw.includes("lab") || raw.includes("oklch") || raw.includes("color("))) {
-          if (name.includes("shadow")) return "none";
-          if (name.includes("background")) return sanitizeColor(raw, "rgb(255, 255, 255)");
-          if (name.includes("border")) return sanitizeColor(raw, "rgb(226, 232, 240)");
-          return sanitizeColor(raw, "rgb(21, 27, 46)");
-        }
-        return raw;
-      };
-
-      window.getComputedStyle = function (el: Element, pseudo?: string | null) {
-        const style = origWindowGCS.call(window, el, pseudo);
-        return new Proxy(style, {
-          get(target, prop: string) {
-            if (prop === "getPropertyValue") {
-              return (name: string) => {
-                const raw = target.getPropertyValue(name);
-                if (raw && (raw.includes("lab") || raw.includes("oklch") || raw.includes("color("))) {
-                  if (name.includes("background")) return sanitizeColor(raw, "rgb(255, 255, 255)");
-                  if (name.includes("shadow")) return "none";
-                  if (name.includes("border")) return sanitizeColor(raw, "rgb(226, 232, 240)");
-                  return sanitizeColor(raw, "rgb(21, 27, 46)");
-                }
-                return raw;
-              };
-            }
-            const val = (target as any)[prop];
-            if (typeof val === "string" && (val.includes("lab") || val.includes("oklch") || val.includes("color("))) {
-              if (prop.includes("background") || prop.includes("Background")) return sanitizeColor(val, "rgb(255, 255, 255)");
-              if (prop.includes("shadow") || prop.includes("Shadow")) return "none";
-              if (prop.includes("border") || prop.includes("Border")) return sanitizeColor(val, "rgb(226, 232, 240)");
-              return sanitizeColor(val, "rgb(21, 27, 46)");
-            }
-            if (typeof val === "function") return val.bind(target);
-            return val;
-          },
-        });
-      };
-
-      // 3. Create dedicated offscreen container with exact fixed A4 width (794px)
-      exportLayer = document.createElement("div");
-      exportLayer.id = "pdf-export-layer";
-      exportLayer.style.position = "fixed";
-      exportLayer.style.left = "-9999px";
-      exportLayer.style.top = "0";
-      exportLayer.style.width = "794px";
-      exportLayer.style.background = "#ffffff";
-      exportLayer.style.overflow = "visible";
-      exportLayer.style.pointerEvents = "none";
-      exportLayer.style.zIndex = "-9999";
-
-      // 4. Clone target sheet and force standard hex styles
-      const clone = reportPrintRef.current.cloneNode(true) as HTMLElement;
-      clone.style.width = "794px";
-      clone.style.minHeight = "1123px";
-      clone.style.maxWidth = "794px";
-      clone.style.margin = "0";
-      clone.style.padding = "48px 56px";
-      clone.style.boxSizing = "border-box";
-      clone.style.transform = "none";
-      clone.style.zoom = "1";
-      clone.style.boxShadow = "none";
-      clone.style.border = "none";
-      clone.style.backgroundColor = "#ffffff";
-      clone.style.color = "#000000";
-
-      // Sanitize all inline styles in clone
-      const allCloned = clone.querySelectorAll("*");
-      allCloned.forEach((node) => {
-        const el = node as HTMLElement;
-        el.style.boxShadow = "none";
-        el.style.textShadow = "none";
-        if (el.style.color && (el.style.color.includes("lab") || el.style.color.includes("oklch"))) {
-          el.style.color = sanitizeColor(el.style.color, "rgb(0,0,0)");
-        }
-        if (el.style.backgroundColor && (el.style.backgroundColor.includes("lab") || el.style.backgroundColor.includes("oklch"))) {
-          el.style.backgroundColor = sanitizeColor(el.style.backgroundColor, "rgb(255,255,255)");
-        }
-        if (el.style.borderColor && (el.style.borderColor.includes("lab") || el.style.borderColor.includes("oklch"))) {
-          el.style.borderColor = sanitizeColor(el.style.borderColor, "rgb(51,51,51)");
-        }
-      });
-
-      exportLayer.appendChild(clone);
-      document.body.appendChild(exportLayer);
-
-      // Wait 2 animation frames and short timeout for font & DOM settlement
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      await new Promise((r) => setTimeout(r, 220));
-
-      // 5. Capture with html2canvas and sanitize iframe environment
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: "#ffffff",
-        logging: false,
-        width: 794,
-        height: 1123,
-        windowWidth: 794,
-        windowHeight: 1123,
-        onclone: (clonedDoc) => {
-          // Remove all stylesheets that may define lab/oklch colors in Tailwind
-          const styles = Array.from(clonedDoc.querySelectorAll("style, link[rel='stylesheet']"));
-          styles.forEach((s) => s.remove());
-
-          // Inject safe print stylesheet with standard sRGB hex colors
-          const safeStyle = clonedDoc.createElement("style");
-          safeStyle.textContent = `
-            * {
-              box-sizing: border-box !important;
-              font-family: 'LINE Seed Sans TH', 'Sarabun', Arial, sans-serif !important;
-              box-shadow: none !important;
-              text-shadow: none !important;
-            }
-            body, html {
-              background: #ffffff !important;
-              color: #000000 !important;
-              margin: 0 !important;
-              padding: 0 !important;
-            }
-          `;
-          clonedDoc.head.appendChild(safeStyle);
-
-          // Proxy getComputedStyle inside the iframe
-          if (clonedDoc.defaultView) {
-            const win = clonedDoc.defaultView;
-            const origIframeGCS = win.getComputedStyle.bind(win);
-            win.getComputedStyle = function (targetEl: Element, pseudo?: string | null) {
-              const res = origIframeGCS(targetEl, pseudo);
-              return new Proxy(res, {
-                get(target, prop: string) {
-                  if (prop === "getPropertyValue") {
-                    return (name: string) => {
-                      const raw = target.getPropertyValue(name);
-                      if (raw && (raw.includes("lab(") || raw.includes("oklch(") || raw.includes("color("))) {
-                        if (name.includes("background")) return sanitizeColor(raw, "rgb(255, 255, 255)");
-                        if (name.includes("shadow")) return "none";
-                        if (name.includes("border")) return sanitizeColor(raw, "rgb(51, 51, 51)");
-                        return sanitizeColor(raw, "rgb(0, 0, 0)");
-                      }
-                      return raw;
-                    };
-                  }
-                  const val = (target as any)[prop];
-                  if (typeof val === "string" && (val.includes("lab(") || val.includes("oklch(") || val.includes("color("))) {
-                    if (prop.includes("background") || prop.includes("Background")) return sanitizeColor(val, "rgb(255, 255, 255)");
-                    if (prop.includes("shadow") || prop.includes("Shadow")) return "none";
-                    if (prop.includes("border") || prop.includes("Border")) return sanitizeColor(val, "rgb(51, 51, 51)");
-                    return sanitizeColor(val, "rgb(0, 0, 0)");
-                  }
-                  if (typeof val === "function") return val.bind(target);
-                  return val;
-                },
-              });
-            };
-          }
-        },
-      });
-
-      if (!canvas || !canvas.width || !canvas.height) {
-        throw new Error("ไม่สามารถจับภาพหน้าเอกสารได้");
-      }
-
-      const imgData = canvas.toDataURL("image/png");
-      if (!imgData || imgData === "data:,") {
-        throw new Error("ข้อมูลรูปภาพเอกสารไม่ถูกต้อง");
-      }
-
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-        compress: true,
-      });
-
-      pdf.addImage(imgData, "PNG", 0, 0, 210, 297, undefined, "FAST");
-
-      const fileName =
-        reportMode === "person" && currentReportStudent
-          ? `รายงานวินัย_ม2-3_เลขที่${currentReportStudent.student_no}_${currentReportStudent.first_name}.pdf`
-          : `รายงานวินัย_ห้องม2-3.pdf`;
-
-      // 6. Universal cross-device download (iOS Safari, Android Chrome, Desktop)
-      const pdfBlob = pdf.output("blob");
-      const blobUrl = URL.createObjectURL(pdfBlob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = fileName;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      document.body.appendChild(link);
-      link.click();
-
-      setTimeout(() => {
-        if (document.body.contains(link)) {
-          document.body.removeChild(link);
-        }
-        URL.revokeObjectURL(blobUrl);
-      }, 5000);
-
-      toast.success("ดาวน์โหลด PDF เรียบร้อยแล้ว", { id: loadingToast });
-    } catch (err) {
-      console.error("PDF generation failed:", err);
-      toast.error(
-        "ดาวน์โหลด PDF ไม่สำเร็จ: " + (err instanceof Error ? err.message : String(err)),
-        { id: loadingToast }
-      );
-    } finally {
-      window.getComputedStyle = origWindowGCS;
-      CSSStyleDeclaration.prototype.getPropertyValue = origCSSProtoGetPropertyValue;
-      if (exportLayer && document.body.contains(exportLayer)) {
-        document.body.removeChild(exportLayer);
-      }
-      setIsDownloadingPdf(false);
-    }
+    const cleanup = () => {
+      printLayer.remove();
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.print();
   };
 
   // Map student completion
@@ -2710,10 +2490,10 @@ export default function DisciplinaryApp({
                   </div>
                   <div>
                     <h2 className="text-sm sm:text-base font-bold text-slate-900">
-                      ระบบสร้างเอกสารรายงาน (PDF Report)
+                      พิมพ์รายงาน
                     </h2>
                     <p className="text-[11px] sm:text-xs text-slate-500">
-                      ประเภทข้อมูล: รายบุคคล หรือ รายห้อง (เฉพาะ ม.2/3) พร้อมดาวน์โหลดแบบ A4
+                      เลือกข้อมูลรายบุคคลหรือรายห้อง ม.2/3 แล้วพิมพ์หรือบันทึกเป็น PDF ขนาด A4
                     </p>
                   </div>
                 </div>
@@ -2904,12 +2684,30 @@ export default function DisciplinaryApp({
                   ) : (
                     <>
                       <FileText size={16} />
-                      <span>สร้างเอกสาร (เปิดตัวอย่าง PDF)</span>
+                      <span>ดูตัวอย่างรายงาน</span>
                     </>
                   )}
                 </button>
               </div>
             </div>
+
+            <section className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4" aria-label="สรุปการทำเวร">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">สรุปการทำเวร</h2>
+                <p className="text-xs text-slate-600 mt-1">เริ่มนับจากวันที่บันทึก ข้ามเสาร์–อาทิตย์และวันหยุดโรงเรียนที่ระบุด้านล่าง</p>
+              </div>
+              <label className="block text-xs font-bold text-slate-700" htmlFor="school-holidays">วันหยุดโรงเรียน (รูปแบบ YYYY-MM-DD คั่นด้วยจุลภาคหรือขึ้นบรรทัดใหม่)</label>
+              <textarea id="school-holidays" rows={2} value={schoolHolidays} onChange={(event) => setSchoolHolidays(event.target.value)} placeholder="เช่น 2026-12-05, 2026-12-10" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-2 focus:outline-[#16453d]" />
+              <p className="text-xs text-slate-500">วันที่กรอกจะจำไว้ในเบราว์เซอร์เครื่องนี้ · 1 สัปดาห์ = 5 วันเรียน · 1 เดือน = วันเรียนในเดือนปฏิทิน · เทอม/ปีการศึกษาหรือระยะเวลาที่ไม่ระบุจำนวนวันยังไม่นำมารวม</p>
+              {choreSummary.length ? (
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full min-w-[600px] text-sm text-left">
+                    <thead className="bg-emerald-50 text-[#16453d]"><tr><th className="p-3">นักเรียน</th><th className="p-3">เริ่ม</th><th className="p-3">รวมวันทำเวร</th><th className="p-3">สิ้นสุดล่าสุด</th></tr></thead>
+                    <tbody className="divide-y divide-slate-100">{choreSummary.map((item) => <tr key={item.no}><td className="p-3 font-semibold">#{item.no} {item.name}</td><td className="p-3">{item.start}</td><td className="p-3">{item.days} วัน{item.uncounted ? ` (อีก ${item.uncounted} รายการต้องกำหนดจำนวนวัน)` : ""}</td><td className="p-3">{item.end ?? "—"}</td></tr>)}</tbody>
+                  </table>
+                </div>
+              ) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">ยังไม่มีรายการทำเวรในรายงานนี้</p>}
+            </section>
 
             {/* PREVIEW MODAL (Modeled on html/report.html & User Image 3, 4) */}
             {isPreviewModalOpen && (
@@ -2997,6 +2795,14 @@ export default function DisciplinaryApp({
 
                           {/* Dashed line */}
                           <div className="border-t-2 border-dashed border-slate-700 my-6" />
+
+                          {choreSummary.length > 0 && (
+                            <div className="mb-5 text-[11px] text-slate-900">
+                              <h2 className="font-bold border-b border-slate-500 pb-1 mb-2">สรุปการทำเวร (ไม่นับเสาร์–อาทิตย์และวันหยุดโรงเรียน)</h2>
+                              <table className="w-full text-left border-collapse"><thead><tr className="border-b border-slate-300"><th className="py-1">นักเรียน</th><th>เริ่ม</th><th>รวม</th><th>สิ้นสุดล่าสุด</th></tr></thead><tbody>{choreSummary.map((item) => <tr key={item.no} className="border-b border-slate-100"><td className="py-1">#{item.no} {item.name}</td><td>{item.start}</td><td>{item.days} วัน{item.uncounted ? "*" : ""}</td><td>{item.end ?? "—"}</td></tr>)}</tbody></table>
+                              {choreSummary.some((item) => item.uncounted > 0) && <p className="mt-1">* มีระยะเวลาที่ไม่สามารถแปลงเป็นจำนวนวันเรียนได้</p>}
+                            </div>
+                          )}
 
                           {/* Middle Content: Records Table or "ไม่ปรากฏข้อมูล" (Exact match to User Image 3) */}
                           <div className="min-h-[280px]">
@@ -3102,21 +2908,11 @@ export default function DisciplinaryApp({
                   <div className="p-4 bg-white/95 border-t border-slate-100 flex justify-center shadow-lg">
                     <button
                       type="button"
-                      onClick={handleDownloadPdf}
-                      disabled={isDownloadingPdf}
+                      onClick={handlePrintReport}
                       className="w-full sm:w-auto max-w-xs mx-auto bg-gradient-to-r from-[#ff5e3a] to-[#ff3b30] text-white px-9 py-3.5 rounded-full font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all text-sm sm:text-base flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      {isDownloadingPdf ? (
-                        <>
-                          <RotateCw size={18} className="animate-spin" />
-                          <span>กำลังบันทึก PDF...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download size={18} />
-                          <span>ดาวน์โหลด PDF</span>
-                        </>
-                      )}
+                      <Printer size={18} />
+                      <span>พิมพ์ / บันทึกเป็น PDF</span>
                     </button>
                   </div>
                 </div>
