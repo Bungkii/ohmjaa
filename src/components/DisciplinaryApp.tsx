@@ -1172,7 +1172,7 @@ export default function DisciplinaryApp({
   ];
 
   return (
-    <div className="min-h-screen bg-white text-[#151b2e] flex flex-col pb-[calc(180px+env(safe-area-inset-bottom,34px))]">
+    <div className="min-h-screen bg-[#f7faf8] text-[#151b2e] flex flex-col pb-[calc(96px+env(safe-area-inset-bottom,16px))] xl:pb-0">
       <Toaster position="top-center" toastOptions={{ duration: 2500 }} />
 
       {/* ========================================================================= */}
@@ -1197,7 +1197,7 @@ export default function DisciplinaryApp({
           </div>
 
           {/* Segmented Switch Tabs (Desktop) */}
-          <nav className="hidden lg:flex items-center gap-1 bg-slate-100/90 p-1 rounded-full border border-slate-200/80 text-xs font-bold shadow-inner">
+          <nav className="hidden xl:flex items-center gap-1 bg-slate-100/90 p-1 rounded-full border border-slate-200/80 text-xs font-bold shadow-inner" aria-label="เมนูหลักบนคอมพิวเตอร์">
             <button
               onClick={() => setActiveView("overview")}
               className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
@@ -1309,7 +1309,7 @@ export default function DisciplinaryApp({
       {/* ========================================================================= */}
       {/* 2. MAIN CONTENT AREA                                                      */}
       {/* ========================================================================= */}
-      <main className={`${activeView === "assignments" ? "w-full max-w-none px-2 sm:px-6" : "max-w-7xl mx-auto px-4 sm:px-6"} pt-6 pb-28 sm:pb-32 space-y-6 flex-1 w-full`}>
+      <main className={`${activeView === "assignments" ? "w-full max-w-none px-3 sm:px-6" : "max-w-7xl mx-auto px-4 sm:px-6"} pt-5 sm:pt-7 pb-8 space-y-6 flex-1 w-full`}>
 
         {/* View Title & Breadcrumbs */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
@@ -1351,6 +1351,21 @@ export default function DisciplinaryApp({
         {/* ------------------------------------------------------------------------- */}
         {activeView === "overview" && (
           <div className="space-y-6">
+
+            <section className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-[#e9f5ee] via-white to-[#f7faf8] p-5 sm:p-7 shadow-sm" aria-label="เริ่มงานวันนี้">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-bold text-[#16453d] border border-emerald-100"><Sparkles size={14} /> สำหรับคุณครู</div>
+                  <h2 className="mt-3 text-xl sm:text-2xl font-black text-[#16453d]">เริ่มดูแลห้องเรียนวันนี้</h2>
+                  <p className="mt-1 text-sm text-slate-600">เลือกงานที่ต้องทำได้ทันที หรือค้นหานักเรียนเพื่อดูข้อมูลรายคน</p>
+                </div>
+                <div className="grid grid-cols-2 sm:flex gap-2 shrink-0">
+                  <button onClick={() => setActiveView("today")} className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-[#16453d] shadow-sm hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><CalendarDays size={17} /> งานวันนี้</button>
+                  <button onClick={() => setIsSearchOpen(true)} className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-[#16453d] shadow-sm hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><Search size={17} /> ค้นหานักเรียน</button>
+                  <button onClick={() => setActiveView("disciplinary")} className="col-span-2 min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-[#16453d] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#0f352e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><PlusCircle size={17} /> เพิ่มบันทึก</button>
+                </div>
+              </div>
+            </section>
 
             {/* 4 Summary KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -3456,7 +3471,7 @@ export default function DisciplinaryApp({
       {/* 4. MOBILE & RESPONSIVE BOTTOM NAVIGATION (Fits all phones, tablets & desktop) */}
       {/* ========================================================================= */}
       <nav
-        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] inset-x-2.5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-1.5 sm:px-3 py-1 sm:py-1.5 flex items-center justify-between gap-0.5 sm:gap-1.5 w-auto max-w-[420px] sm:max-w-md md:max-w-lg"
+        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] inset-x-2.5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 xl:hidden rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-1.5 sm:px-3 py-1.5 sm:py-2 flex items-center justify-between gap-0.5 sm:gap-1.5 w-auto max-w-[420px] sm:max-w-md md:max-w-lg"
         aria-label="เมนูหลัก"
       >
         <button

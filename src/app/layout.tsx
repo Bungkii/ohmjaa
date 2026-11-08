@@ -4,8 +4,6 @@ import "./globals.css";
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
   themeColor: "#ffffff",
 };
@@ -42,7 +40,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col bg-white text-[#151b2e] selection:bg-[#dce9e2] selection:text-[#16453d] font-sans">
+      <body className="min-h-full flex flex-col bg-[#f7faf8] text-[#151b2e] selection:bg-[#dce9e2] selection:text-[#16453d] font-sans">
         {children}
       </body>
     </html>
