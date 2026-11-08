@@ -5,8 +5,13 @@ export type ShirtSize = "S" | "M" | "L" | "XL" | "2XL" | "3XL" | "4XL" | "Other"
 export interface StudentShirtInfo {
   student_id: string;
   size: ShirtSize;
+  quantity?: number; // จำนวนตัวที่สั่ง (default: 1)
   custom_size?: string;
   paid?: boolean;
+  slip_url?: string;
+  parent_name?: string;
+  parent_phone?: string;
+  ordered_at?: string;
   note?: string;
 }
 

@@ -1129,6 +1129,31 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
 
               {/* Actions */}
               <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href="/shirt-order"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-[#16453d] hover:from-emerald-700 hover:to-[#0f352e] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  title="เปิดลิงก์แบบฟอร์มให้ผู้ปกครองกรอก"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>เปิดฟอร์มผู้ปกครอง 🔗</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `${window.location.origin}/shirt-order`;
+                    navigator.clipboard.writeText(url);
+                    toast.success("คัดลอกลิงก์ฟอร์มสั่งเสื้อแล้ว! ส่งในกลุ่มไลน์ผู้ปกครองได้เลย 📋");
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  title="คัดลอกลิงก์ส่งไลน์ผู้ปกครอง"
+                >
+                  <Copy className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>คัดลอกลิงก์ส่งไลน์</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleCopyShirtSummary}
