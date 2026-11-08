@@ -307,7 +307,7 @@ function DieFace({ value, isRolling }: { value: number; isRolling: boolean }) {
 // 3. MAIN CLASSROOM GADGETS COMPONENT
 // =========================================================================
 export default function ClassroomGadgets() {
-  const [activeGadget, setActiveGadget] = useState<"timer" | "bell" | "dice">("timer");
+  const [gadgetFilter, setGadgetFilter] = useState<"all" | "timer" | "bell" | "dice">("all");
 
   // =========================================================================
   // GADGET 1: TIMER & STOPWATCH
@@ -542,52 +542,70 @@ export default function ClassroomGadgets() {
 
   return (
     <div className="space-y-6">
-      {/* Sub-navigation Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveGadget("timer")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
-            activeGadget === "timer"
-              ? "bg-[#16453d] text-white shadow-sm scale-100"
-              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-          }`}
-        >
-          <Timer className="w-4 h-4" />
-          <span>นาฬิกาจับเวลากิจกรรม</span>
-        </button>
+      {/* Sub-navigation Tabs / Filter Pills */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <button
+            type="button"
+            onClick={() => setGadgetFilter("all")}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              gadgetFilter === "all"
+                ? "bg-[#16453d] text-white shadow-xs"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <span>📱 แสดงแกดเจ็ตทั้งหมด (3 เมนู)</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveGadget("bell")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
-            activeGadget === "bell"
-              ? "bg-[#16453d] text-white shadow-sm scale-100"
-              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-          }`}
-        >
-          <Bell className="w-4 h-4" />
-          <span>กระดิ่งครู & ซาวด์บอร์ด</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setGadgetFilter("timer")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              gadgetFilter === "timer"
+                ? "bg-[#16453d] text-white shadow-xs"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <Timer className="w-3.5 h-3.5" />
+            <span>นาฬิกาจับเวลา</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveGadget("dice")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
-            activeGadget === "dice"
-              ? "bg-[#16453d] text-white shadow-sm scale-100"
-              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-          }`}
-        >
-          <span className="text-base">🎲</span>
-          <span>ทอยลูกเต๋า 2 ลูก</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setGadgetFilter("bell")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              gadgetFilter === "bell"
+                ? "bg-[#16453d] text-white shadow-xs"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <Bell className="w-3.5 h-3.5" />
+            <span>กระดิ่ง & ซาวด์บอร์ด</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setGadgetFilter("dice")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              gadgetFilter === "dice"
+                ? "bg-[#16453d] text-white shadow-xs"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <span>🎲</span>
+            <span>ลูกเต๋า 2 ลูก</span>
+          </button>
+        </div>
+
+        <span className="text-[11px] font-bold text-slate-400 hidden sm:inline">
+          💡 แสดงเครื่องมือเรียงกันบนหน้าเดียว ใช้งานได้พร้อมกัน
+        </span>
       </div>
 
       {/* ========================================================================= */}
       {/* 1. GADGET: TIMER & STOPWATCH                                              */}
       {/* ========================================================================= */}
-      {activeGadget === "timer" && (
+      {(gadgetFilter === "all" || gadgetFilter === "timer") && (
         <div
           ref={timerContainerRef}
           className={`bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm transition-all ${
@@ -808,7 +826,7 @@ export default function ClassroomGadgets() {
       {/* ========================================================================= */}
       {/* 2. GADGET: CLASSROOM BELL & SOUNDBOARD                                   */}
       {/* ========================================================================= */}
-      {activeGadget === "bell" && (
+      {(gadgetFilter === "all" || gadgetFilter === "bell") && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-10">
             {/* Left: Giant 3D Interactive Bell */}
@@ -905,7 +923,7 @@ export default function ClassroomGadgets() {
       {/* ========================================================================= */}
       {/* 3. GADGET: 2-DICE ROLLER                                                  */}
       {/* ========================================================================= */}
-      {activeGadget === "dice" && (
+      {(gadgetFilter === "all" || gadgetFilter === "dice") && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
           <div className="flex flex-col items-center justify-center text-center">
             <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">

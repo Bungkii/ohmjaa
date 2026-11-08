@@ -89,8 +89,8 @@ interface ActivitiesAndGroupingProps {
 }
 
 export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupingProps) {
-  // Top-level sub-view: "wheel" | "grouping" | "sizes" | "roles" | "gadgets"
-  const [subView, setSubView] = useState<"wheel" | "grouping" | "sizes" | "roles" | "gadgets">("wheel");
+  // Top-level sub-view: "gadgets" | "wheel" | "grouping" | "sizes" | "roles"
+  const [subView, setSubView] = useState<"gadgets" | "wheel" | "grouping" | "sizes" | "roles">("gadgets");
 
   // ==========================================
   // 1. STATE FOR GROUP GENERATOR
@@ -582,89 +582,96 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       {/* ========================================================================= */}
       {/* HEADER BANNER & SUB-NAVIGATION                                             */}
       {/* ========================================================================= */}
-      <div className="bg-gradient-to-r from-[#16453d] to-[#0d2a25] rounded-3xl p-5 sm:p-7 text-white shadow-md relative overflow-hidden">
+      <div className="bg-gradient-to-r from-[#16453d] to-[#0d2a25] rounded-3xl p-4 sm:p-6 text-white shadow-md relative overflow-hidden">
         <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
         
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div>
-            <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-1">
-              <Sparkles className="w-4 h-4" />
-              <span>ห้อง ม.2/3 • เครื่องมือครูประจำชั้น</span>
+            <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-0.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>ห้อง ม.2/3 • เครื่องมือห้องเรียน & กิจกรรม</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black flex items-center gap-2">
-              กิจกรรมห้อง & สุ่มจัดกลุ่ม
+            <h2 className="text-lg sm:text-2xl font-black flex items-center gap-2">
+              แกดเจ็ตห้องเรียน & กิจกรรม
             </h2>
-            <p className="text-slate-300 text-xs sm:text-sm mt-1">
-              สุ่มแบ่งกลุ่มนักเรียน สรุปยอดสั่งตัดเสื้อกิจกรรม และจัดสรรหน้าที่ในงานกิจกรรม
+            <p className="text-slate-300 text-xs mt-0.5 max-w-xl">
+              นาฬิกาจับเวลานับถอยหลัง, กระดิ่งครู & ซาวด์บอร์ด, ทอยลูกเต๋า 2 ลูก, วงล้อสุ่ม, สุ่มจัดกลุ่ม และไซส์เสื้อ
             </p>
           </div>
 
-          {/* Quick Sub-view Buttons */}
-          <div className="flex items-center gap-1.5 bg-white/10 p-1.5 rounded-2xl backdrop-blur-md border border-white/10 self-start md:self-auto">
-            <button
-              onClick={() => setSubView("wheel")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                subView === "wheel"
-                  ? "bg-white text-[#16453d] shadow-sm scale-100"
-                  : "text-white/80 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              <span className="text-xs">🎡</span>
-              <span>วงล้อสุ่ม</span>
-            </button>
+          {/* Quick Sub-view Buttons (Horizontal scrollable on mobile) */}
+          <div className="w-full md:w-auto overflow-x-auto no-scrollbar py-0.5">
+            <div className="flex items-center gap-1.5 bg-white/10 p-1.5 rounded-2xl backdrop-blur-md border border-white/10 min-w-max">
+              <button
+                type="button"
+                onClick={() => setSubView("gadgets")}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  subView === "gadgets"
+                    ? "bg-white text-[#16453d] shadow-sm scale-100"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span className="text-xs">⏱️</span>
+                <span>แกดเจ็ตในห้อง</span>
+              </button>
 
-            <button
-              onClick={() => setSubView("grouping")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                subView === "grouping"
-                  ? "bg-white text-[#16453d] shadow-sm scale-100"
-                  : "text-white/80 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              <Shuffle className="w-3.5 h-3.5" />
-              <span>สุ่มจัดกลุ่ม</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setSubView("wheel")}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  subView === "wheel"
+                    ? "bg-white text-[#16453d] shadow-sm scale-100"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span className="text-xs">🎡</span>
+                <span>วงล้อสุ่ม</span>
+              </button>
 
-            <button
-              onClick={() => setSubView("sizes")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                subView === "sizes"
-                  ? "bg-white text-[#16453d] shadow-sm scale-100"
-                  : "text-white/80 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              <Shirt className="w-3.5 h-3.5" />
-              <span>ไซส์เสื้อ</span>
-              {shirtSummary.totalSpecified > 0 && (
-                <span className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-                  {shirtSummary.totalSpecified}
-                </span>
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={() => setSubView("grouping")}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  subView === "grouping"
+                    ? "bg-white text-[#16453d] shadow-sm scale-100"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <Shuffle className="w-3.5 h-3.5" />
+                <span>สุ่มจัดกลุ่ม</span>
+              </button>
 
-            <button
-              onClick={() => setSubView("roles")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                subView === "roles"
-                  ? "bg-white text-[#16453d] shadow-sm scale-100"
-                  : "text-white/80 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              <Trophy className="w-3.5 h-3.5" />
-              <span>หน้าที่กิจกรรม</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setSubView("sizes")}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  subView === "sizes"
+                    ? "bg-white text-[#16453d] shadow-sm scale-100"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <Shirt className="w-3.5 h-3.5" />
+                <span>ไซส์เสื้อ</span>
+                {shirtSummary.totalSpecified > 0 && (
+                  <span className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                    {shirtSummary.totalSpecified}
+                  </span>
+                )}
+              </button>
 
-            <button
-              onClick={() => setSubView("gadgets")}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                subView === "gadgets"
-                  ? "bg-white text-[#16453d] shadow-sm scale-100"
-                  : "text-white/80 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              <span className="text-xs">⏱️</span>
-              <span>แกดเจ็ตในห้อง</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setSubView("roles")}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  subView === "roles"
+                    ? "bg-white text-[#16453d] shadow-sm scale-100"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <Trophy className="w-3.5 h-3.5" />
+                <span>หน้าที่กิจกรรม</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
