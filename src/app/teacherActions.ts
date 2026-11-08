@@ -5,9 +5,9 @@ import { createClient } from "@/utils/supabase/server";
 import type { HomeworkTask, PenaltyRecord, Student, TaskCompletion, SeverityLevel } from "@/types/penalty";
 
 const penaltyRules: Record<SeverityLevel, { title: string; punishment: string }> = {
-  low: { title: "รุนแรงน้อย", punishment: "ทำเวร 1 วัน" },
-  medium: { title: "รุนแรงกลาง", punishment: "ทำเวร 1 อาทิตย์" },
-  high: { title: "รุนแรงมาก", punishment: "ทำเวร 1 เดือน" },
+  low: { title: "รุนแรงน้อย", punishment: "ทำเวร +1 วัน" },
+  medium: { title: "รุนแรงกลาง", punishment: "ทำเวร +1 สัปดาห์" },
+  high: { title: "รุนแรงมาก", punishment: "ทำเวร +1 เดือน / 1 เทอม" },
   strict: { title: "ปกครอง", punishment: "ให้ใบปกครอง & เชิญผู้ปกครอง" },
 };
 

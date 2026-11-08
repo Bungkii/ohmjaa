@@ -204,7 +204,7 @@ const BEHAVIOR_PRESETS = [
   },
 ];
 
-const CHORE_DURATIONS = ["1 วัน", "1 สัปดาห์", "1 เดือน", "1 ปีการศึกษา", "อื่นๆ"];
+const CHORE_DURATIONS = ["+1 วัน", "+1 สัปดาห์", "+1 เดือน", "1 เทอม", "1 ปีการศึกษา", "อื่นๆ"];
 
 export default function DisciplinaryApp({
   initialStudents,
@@ -249,7 +249,7 @@ export default function DisciplinaryApp({
   const [isWarningSelected, setIsWarningSelected] = useState<boolean>(true);
   const [selectedPokkrongLevel, setSelectedPokkrongLevel] = useState<1 | 2 | 3 | null>(null);
   const [isChoreSelected, setIsChoreSelected] = useState<boolean>(false);
-  const [selectedChoreDuration, setSelectedChoreDuration] = useState<string>("1 วัน");
+  const [selectedChoreDuration, setSelectedChoreDuration] = useState<string>("+1 วัน");
   const [customChoreDuration, setCustomChoreDuration] = useState<string>("");
   const [newRecordStatus, setNewRecordStatus] = useState<PenaltyRecord["status"]>("pending");
   const [newRecordNote, setNewRecordNote] = useState("");
@@ -548,26 +548,21 @@ export default function DisciplinaryApp({
       clone.style.backgroundColor = "#ffffff";
       clone.style.color = "#000000";
 
-      // Explicitly convert computed styles of all cloned elements to inline sRGB
+      // Sanitize all inline styles in clone
       const allCloned = clone.querySelectorAll("*");
       allCloned.forEach((node) => {
         const el = node as HTMLElement;
         el.style.boxShadow = "none";
         el.style.textShadow = "none";
-        try {
-          const cs = origWindowGCS.call(window, el);
-          if (cs.color && (cs.color.includes("lab") || cs.color.includes("oklch"))) {
-            el.style.color = sanitizeColor(cs.color, "rgb(0, 0, 0)");
-          }
-          if (cs.backgroundColor && (cs.backgroundColor.includes("lab") || cs.backgroundColor.includes("oklch"))) {
-            el.style.backgroundColor = cs.backgroundColor.includes("0, 0, 0, 0") || cs.backgroundColor.includes("transparent")
-              ? "transparent"
-              : sanitizeColor(cs.backgroundColor, "rgb(255, 255, 255)");
-          }
-          if (cs.borderColor && (cs.borderColor.includes("lab") || cs.borderColor.includes("oklch"))) {
-            el.style.borderColor = sanitizeColor(cs.borderColor, "rgb(226, 232, 240)");
-          }
-        } catch {}
+        if (el.style.color && (el.style.color.includes("lab") || el.style.color.includes("oklch"))) {
+          el.style.color = sanitizeColor(el.style.color, "rgb(0,0,0)");
+        }
+        if (el.style.backgroundColor && (el.style.backgroundColor.includes("lab") || el.style.backgroundColor.includes("oklch"))) {
+          el.style.backgroundColor = sanitizeColor(el.style.backgroundColor, "rgb(255,255,255)");
+        }
+        if (el.style.borderColor && (el.style.borderColor.includes("lab") || el.style.borderColor.includes("oklch"))) {
+          el.style.borderColor = sanitizeColor(el.style.borderColor, "rgb(51,51,51)");
+        }
       });
 
       exportLayer.appendChild(clone);
@@ -622,7 +617,7 @@ export default function DisciplinaryApp({
                   if (prop === "getPropertyValue") {
                     return (name: string) => {
                       const raw = target.getPropertyValue(name);
-                      if (raw && (raw.includes("lab") || raw.includes("oklch") || raw.includes("color("))) {
+                      if (raw && (raw.includes("lab(") || raw.includes("oklch(") || raw.includes("color("))) {
                         if (name.includes("background")) return sanitizeColor(raw, "rgb(255, 255, 255)");
                         if (name.includes("shadow")) return "none";
                         if (name.includes("border")) return sanitizeColor(raw, "rgb(51, 51, 51)");
@@ -632,7 +627,7 @@ export default function DisciplinaryApp({
                     };
                   }
                   const val = (target as any)[prop];
-                  if (typeof val === "string" && (val.includes("lab") || val.includes("oklch") || val.includes("color("))) {
+                  if (typeof val === "string" && (val.includes("lab(") || val.includes("oklch(") || val.includes("color("))) {
                     if (prop.includes("background") || prop.includes("Background")) return sanitizeColor(val, "rgb(255, 255, 255)");
                     if (prop.includes("shadow") || prop.includes("Shadow")) return "none";
                     if (prop.includes("border") || prop.includes("Border")) return sanitizeColor(val, "rgb(51, 51, 51)");
@@ -949,8 +944,15 @@ export default function DisciplinaryApp({
     if (selectedPokkrongLevel === 2) return "high";
     if (selectedPokkrongLevel === 1) return "medium";
     if (isChoreSelected) {
-      if (selectedChoreDuration === "1 ปีการศึกษา" || selectedChoreDuration === "1 เดือน") return "high";
-      if (selectedChoreDuration === "1 สัปดาห์") return "medium";
+      if (
+        selectedChoreDuration === "1 ปีการศึกษา" ||
+        selectedChoreDuration === "1 เทอม" ||
+        selectedChoreDuration === "+1 เดือน" ||
+        selectedChoreDuration === "1 เดือน"
+      ) {
+        return "high";
+      }
+      if (selectedChoreDuration === "+1 สัปดาห์" || selectedChoreDuration === "1 สัปดาห์") return "medium";
       return "low";
     }
     return "low";
@@ -1307,7 +1309,7 @@ export default function DisciplinaryApp({
       {/* ========================================================================= */}
       {/* 2. MAIN CONTENT AREA                                                      */}
       {/* ========================================================================= */}
-      <main className={`${activeView === "assignments" ? "w-full max-w-none px-2 sm:px-6" : "max-w-7xl mx-auto px-4 sm:px-6"} pt-6 space-y-6 flex-1 w-full`}>
+      <main className={`${activeView === "assignments" ? "w-full max-w-none px-2 sm:px-6" : "max-w-7xl mx-auto px-4 sm:px-6"} pt-6 pb-28 sm:pb-32 space-y-6 flex-1 w-full`}>
 
         {/* View Title & Breadcrumbs */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
@@ -1717,18 +1719,18 @@ export default function DisciplinaryApp({
             {/* TAB 1: VERTICAL ROTATED MATRIX TABLE (Exact match to User Image 1 - ยาวไปสุดขอบฟ้า) */}
             {assignmentViewMode === "table" ? (
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden w-full">
-                <div className="overflow-x-auto overflow-y-auto max-h-[82vh] w-full smooth-scroll">
+                <div className="overflow-x-auto overflow-y-auto max-h-[82vh] w-full">
                   <table className="border-collapse text-left select-none w-full min-w-max">
                     <thead>
                       {/* Row 1: กำหนดส่ง + Short Thai Due Dates */}
-                      <tr className="bg-[#f8fafc] border-b border-slate-200 h-9">
-                        <th className="sticky left-0 top-0 z-30 bg-[#f8fafc] border-r border-slate-200 px-3 py-1.5 text-center text-xs font-bold text-slate-500 min-w-[130px] sm:min-w-[150px] w-[130px] sm:w-[150px] shadow-[2px_0_4px_rgba(0,0,0,0.03)]">
+                      <tr className="bg-slate-50/80 border-b border-slate-200">
+                        <th className="sticky left-0 top-0 z-30 bg-slate-50 border-r border-slate-200 p-2.5 text-center text-xs font-bold text-slate-500 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#e2e8f0]">
                           กำหนดส่ง
                         </th>
                         {activeTasks.map((t) => (
                           <th
                             key={`due-${t.id}`}
-                            className="sticky top-0 z-20 bg-[#f8fafc] border-r border-slate-200 px-1 py-1.5 text-center text-[10px] sm:text-[11px] font-medium text-slate-500 min-w-[46px] w-[46px] whitespace-nowrap"
+                            className="sticky top-0 z-20 bg-slate-50 border-r border-slate-200 p-2 text-center text-[10px] sm:text-[11px] font-medium text-slate-500 min-w-[48px] w-[48px] whitespace-nowrap"
                           >
                             {formatThaiShortDate(t.due_date)}
                           </th>
@@ -1736,14 +1738,14 @@ export default function DisciplinaryApp({
                       </tr>
 
                       {/* Row 2: นักเรียน + Vertical Rotated Column Headers reading upwards */}
-                      <tr className="bg-[#f8fafc] border-b-2 border-slate-300">
-                        <th className="sticky left-0 top-[36px] z-30 bg-[#f8fafc] border-r border-slate-200 px-3 py-2 text-center text-xs sm:text-sm font-black text-slate-800 min-w-[130px] sm:min-w-[150px] w-[130px] sm:w-[150px] shadow-[2px_0_4px_rgba(0,0,0,0.03)]">
+                      <tr className="bg-slate-50 border-b-2 border-slate-200">
+                        <th className="sticky left-0 top-[37px] z-30 bg-slate-50 border-r border-slate-200 p-3 text-center text-xs sm:text-sm font-black text-slate-800 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#e2e8f0]">
                           นักเรียน
                         </th>
                         {activeTasks.map((t) => (
                           <th
                             key={`header-${t.id}`}
-                            className="sticky top-[36px] z-20 bg-[#f8fafc] border-r border-slate-200 p-1 min-w-[46px] w-[46px] h-[175px] align-bottom"
+                            className="sticky top-[37px] z-20 bg-slate-50 border-r border-slate-200 p-1.5 min-w-[48px] w-[48px] h-[175px] align-bottom"
                           >
                             <div className="h-full flex items-end justify-center pb-2.5">
                               <span
@@ -1765,13 +1767,13 @@ export default function DisciplinaryApp({
                     <tbody className="divide-y divide-slate-100">
                       {filteredTableStudents.map((s) => (
                         <tr key={s.student_id} className="hover:bg-slate-50/70 transition-colors">
-                          {/* Sticky Left Pinned Column: [เลขที่]ชื่อเล่น / ชื่อ-สกุล (Exact Image 1) */}
-                          <td className="sticky left-0 z-20 bg-white border-r border-slate-200 px-3 py-1.5 min-w-[130px] sm:min-w-[150px] w-[130px] sm:w-[150px] h-[52px] shadow-[2px_0_4px_rgba(0,0,0,0.03)]">
+                          {/* Sticky Left Pinned Column: [เลขที่]ชื่อเล่น / ชื่อ-สกุล */}
+                          <td className="sticky left-0 z-10 bg-white border-r border-slate-100 px-3 py-1.5 min-w-[150px] w-[150px] h-[52px] shadow-[1px_0_0_0_#f1f5f9]">
                             <div className="flex flex-col justify-center leading-tight">
                               <span className="font-bold text-slate-900 text-xs sm:text-[13px] truncate">
                                 [{s.student_no}]{s.nickname || s.first_name}
                               </span>
-                              <span className="text-[10px] sm:text-[11px] text-slate-400 truncate mt-0.5">
+                              <span className="text-[11px] text-slate-400 truncate mt-0.5">
                                 {s.first_name} {s.last_name}
                               </span>
                             </div>
@@ -1780,25 +1782,23 @@ export default function DisciplinaryApp({
                           {/* Status Cells (Interactive Tiles matching Image 1) */}
                           {activeTasks.map((t) => {
                             const status = completionMap.get(`${s.student_id}_${t.id}`) || "todo";
-                            const overdueLevel = getTaskOverdueLevel(t.due_date);
+                            const isOverdue = isTaskOverdue(t.due_date);
 
                             return (
                               <td
                                 key={`cell-${s.student_id}-${t.id}`}
-                                className="border-r border-slate-100 p-1.5 text-center align-middle h-[52px] min-w-[46px] w-[46px]"
+                                className="border-r border-slate-100 p-1.5 text-center align-middle h-[52px] min-w-[48px] w-[48px]"
                               >
                                 <button
                                   type="button"
                                   onClick={() => handleCycleStatus(s.student_id, t.id)}
-                                  className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg mx-auto flex items-center justify-center transition-all transform active:scale-85 cursor-pointer ${
+                                  className={`w-8 h-8 rounded-lg mx-auto flex items-center justify-center transition-all transform active:scale-85 cursor-pointer ${
                                     status === "done"
-                                      ? "bg-[#5cd489] text-white shadow-2xs border border-[#48bb78]/30"
+                                      ? "bg-[#5cd489] text-white shadow-2xs"
                                       : status === "in_progress"
-                                      ? "bg-[#f97316] text-white shadow-2xs border border-[#ea580c]/30"
-                                      : overdueLevel === "critical"
-                                      ? "bg-white border-2 border-rose-300 text-[#e11d48] font-black text-xs shadow-2xs"
-                                      : overdueLevel === "overdue"
-                                      ? "bg-white border-2 border-rose-300 text-[#e11d48] font-black text-xs shadow-2xs"
+                                      ? "bg-[#f97316] text-white shadow-2xs"
+                                      : isOverdue
+                                      ? "bg-white border border-rose-200 text-[#e11d48] font-black text-xs shadow-2xs"
                                       : "bg-white border border-slate-200 hover:border-slate-400"
                                   }`}
                                   title={`เลขที่ ${s.student_no} ${s.first_name} - ${t.details} (แตะเพื่อเปลี่ยนสถานะ)`}
@@ -1807,10 +1807,8 @@ export default function DisciplinaryApp({
                                     null
                                   ) : status === "in_progress" ? (
                                     null
-                                  ) : overdueLevel === "critical" ? (
-                                    <span className="text-[#e11d48] font-black text-[11px] leading-none tracking-tight">!!!</span>
-                                  ) : overdueLevel === "overdue" ? (
-                                    <span className="text-[#e11d48] font-black text-xs leading-none">!</span>
+                                  ) : isOverdue ? (
+                                    "!!!"
                                   ) : null}
                                 </button>
                               </td>
@@ -1830,7 +1828,7 @@ export default function DisciplinaryApp({
                     {/* Footer Summary Row */}
                     <tfoot>
                       <tr className="bg-slate-100 border-t-2 border-slate-200">
-                        <td className="sticky left-0 bottom-0 z-30 bg-slate-100 border-r border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 min-w-[130px] sm:min-w-[150px] w-[130px] sm:w-[150px] shadow-[2px_0_4px_rgba(0,0,0,0.03)]">
+                        <td className="sticky left-0 bottom-0 z-30 bg-slate-100 border-r border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#cbd5e1]">
                           ส่งแล้ว / รวม
                         </td>
                         {activeTasks.map((t) => {
@@ -1841,7 +1839,7 @@ export default function DisciplinaryApp({
                           return (
                             <td
                               key={`summary-${t.id}`}
-                              className="sticky bottom-0 z-20 bg-slate-100 border-r border-slate-200 py-2 text-center text-[10px] font-bold text-slate-700 min-w-[46px] w-[46px]"
+                              className="sticky bottom-0 z-20 bg-slate-100 border-r border-slate-200 py-2 text-center text-[10px] font-bold text-slate-700 min-w-[48px] w-[48px]"
                             >
                               <div>{doneCount}/{students.length}</div>
                               <div className="text-[9px] text-[#16453d]">{pct}%</div>
@@ -2928,28 +2926,23 @@ export default function DisciplinaryApp({
                       >
                         <div>
                           {/* Header: Logo, Vertical Blue Line, Title, Meta */}
-                          <div className="grid grid-cols-[56px_1fr_auto] gap-3.5 items-center pb-4 border-b border-slate-200">
-                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#16453d] to-[#0f352e] flex items-center justify-center text-white shadow-xs">
-                              <svg viewBox="0 0 48 48" fill="none" className="w-9 h-9" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M24 4L7 11V22C7 32.5 14.3 42.2 24 44C33.7 42.2 41 32.5 41 22V11L24 4Z" fill="#ffffff" fillOpacity="0.18" stroke="#ffffff" strokeWidth="2.5" strokeLinejoin="round"/>
-                                <path d="M24 14V34M17 21L24 14L31 21M16 28H32" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
+                          <div className="grid grid-cols-[48px_1fr_auto] gap-3.5 items-start pb-4">
+                            <div className="w-12 h-12 border-2 border-slate-300 rounded-sm flex items-center justify-center text-slate-400">
+                              <ShieldAlert size={28} />
                             </div>
-                            <div className="border-l-3 border-[#16453d] pl-3.5">
-                              <div className="text-xs font-bold text-slate-600 tracking-wide uppercase">
+                            <div className="border-l-2 border-[#1c2a66] pl-3">
+                              <div className="text-[11px] font-bold text-slate-700 leading-tight">
                                 ระบบข้อมูลนักเรียน
                               </div>
-                              <h1 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight mt-0.5">
+                              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight mt-0.5">
                                 ระดับชั้นมัธยมศึกษาปีที่ 2
                               </h1>
-                              <div className="text-xs font-semibold text-[#16453d]">
-                                ห้องเรียน ม.2/3
-                              </div>
                             </div>
-                            <div className="text-right text-[11px] sm:text-xs leading-tight text-slate-700 space-y-0.5">
-                              <div><strong className="font-bold text-slate-900">ประเภทข้อมูล:</strong> {reportMode === "room" ? "รายห้อง (ม.2/3)" : "รายบุคคล"}</div>
-                              <div><strong className="font-bold text-slate-900">วันที่พิมพ์:</strong> {formatThaiFullDate(new Date())}</div>
-                              <div className="text-slate-500 text-[10px]">เอกสารทางการประจำชั้น</div>
+                            <div className="text-right text-[11px] leading-tight text-slate-700">
+                              <div className="font-bold">ประเภทข้อมูล</div>
+                              <div>{reportMode === "room" ? "รายห้อง" : "รายบุคคล"}</div>
+                              <div className="font-bold mt-1">วันที่พิมพ์</div>
+                              <div>{formatThaiFullDate(new Date())}</div>
                             </div>
                           </div>
 
@@ -3460,70 +3453,70 @@ export default function DisciplinaryApp({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. MOBILE-STYLE BOTTOM PILL NAVIGATION (Icon Top, Small Label Underneath) */}
+      {/* 4. MOBILE & RESPONSIVE BOTTOM NAVIGATION (Fits all phones, tablets & desktop) */}
       {/* ========================================================================= */}
       <nav
-        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] inset-x-2.5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-1 sm:px-2 py-1 flex items-center justify-between gap-0.5 sm:gap-1 max-w-md w-auto"
+        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] inset-x-2.5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-1.5 sm:px-3 py-1 sm:py-1.5 flex items-center justify-between gap-0.5 sm:gap-1.5 w-auto max-w-[420px] sm:max-w-md md:max-w-lg"
         aria-label="เมนูหลัก"
       >
         <button
           onClick={() => setActiveView("overview")}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-2xl transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-2 rounded-2xl sm:rounded-full transition-all cursor-pointer ${
             activeView === "overview"
               ? "bg-[#16453d] text-white shadow-xs font-bold"
               : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <LayoutDashboard size={19} className="shrink-0" />
-          <span className="text-[10px] leading-tight mt-0.5 truncate w-full text-center">ภาพรวม</span>
+          <LayoutDashboard className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0" />
+          <span className="text-[10px] sm:text-[11px] leading-tight mt-0.5 truncate w-full text-center tracking-tight">ภาพรวม</span>
         </button>
 
         <button
           onClick={() => setActiveView("assignments")}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-2xl transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-2 rounded-2xl sm:rounded-full transition-all cursor-pointer ${
             activeView === "assignments"
               ? "bg-[#16453d] text-white shadow-xs font-bold"
               : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <BookOpen size={19} className="shrink-0" />
-          <span className="text-[10px] leading-tight mt-0.5 truncate w-full text-center">การบ้าน</span>
+          <BookOpen className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0" />
+          <span className="text-[10px] sm:text-[11px] leading-tight mt-0.5 truncate w-full text-center tracking-tight">การบ้าน</span>
         </button>
 
         <button
           onClick={() => setActiveView("disciplinary")}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-2xl transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-2 rounded-2xl sm:rounded-full transition-all cursor-pointer ${
             activeView === "disciplinary"
               ? "bg-[#16453d] text-white shadow-xs font-bold"
               : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <Gavel size={19} className="shrink-0" />
-          <span className="text-[10px] leading-tight mt-0.5 truncate w-full text-center">วินัย</span>
+          <Gavel className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0" />
+          <span className="text-[10px] sm:text-[11px] leading-tight mt-0.5 truncate w-full text-center tracking-tight">วินัย</span>
         </button>
 
         <button
           onClick={() => setActiveView("student")}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-2xl transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-2 rounded-2xl sm:rounded-full transition-all cursor-pointer ${
             activeView === "student"
               ? "bg-[#16453d] text-white shadow-xs font-bold"
               : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <UserCheck size={19} className="shrink-0" />
-          <span className="text-[10px] leading-tight mt-0.5 truncate w-full text-center">นักเรียน</span>
+          <UserCheck className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0" />
+          <span className="text-[10px] sm:text-[11px] leading-tight mt-0.5 truncate w-full text-center tracking-tight">นักเรียน</span>
         </button>
 
         <button
           onClick={() => setActiveView("history")}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-2xl transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-2 rounded-2xl sm:rounded-full transition-all cursor-pointer ${
             activeView === "history"
               ? "bg-[#16453d] text-white shadow-xs font-bold"
               : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <FileText size={19} className="shrink-0" />
-          <span className="text-[10px] leading-tight mt-0.5 truncate w-full text-center">รายงาน</span>
+          <FileText className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0" />
+          <span className="text-[10px] sm:text-[11px] leading-tight mt-0.5 truncate w-full text-center tracking-tight">รายงาน</span>
         </button>
       </nav>
 
