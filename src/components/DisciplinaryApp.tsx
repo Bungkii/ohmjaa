@@ -1809,13 +1809,20 @@ export default function DisciplinaryApp({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    <AnimatePresence>
+                    <AnimatePresence mode="popLayout">
                     {records.slice(0, 8).map((r) => (
                       <motion.tr
                         key={r.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0, x: -30, backgroundColor: "#fee2e2", transition: { duration: 0.25 } }}
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{
+                          opacity: 0,
+                          x: -80,
+                          backgroundColor: "#fecdd3",
+                          scale: 0.96,
+                          transition: { duration: 0.35, ease: "easeInOut" },
+                        }}
                         className={`hover:bg-slate-50 transition-colors ${deletingId === r.id ? "bg-rose-100 opacity-60" : ""}`}
                       >
                         <td className="py-2.5 px-2 font-medium text-slate-900">
@@ -2353,13 +2360,20 @@ export default function DisciplinaryApp({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    <AnimatePresence>
+                    <AnimatePresence mode="popLayout">
                     {filteredHistoryRecords.map((r) => (
                       <motion.tr
                         key={r.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0, x: -30, backgroundColor: "#fee2e2", transition: { duration: 0.25 } }}
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{
+                          opacity: 0,
+                          x: -80,
+                          backgroundColor: "#fecdd3",
+                          scale: 0.96,
+                          transition: { duration: 0.35, ease: "easeInOut" },
+                        }}
                         className={`hover:bg-slate-50 transition-colors ${deletingId === r.id ? "bg-rose-100 opacity-60" : ""}`}
                       >
                         <td className="py-3 px-3 font-bold text-slate-900">
