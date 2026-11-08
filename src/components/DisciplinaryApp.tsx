@@ -54,6 +54,7 @@ import {
   Printer,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
+import { Description, Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { startOfDay, isBefore, isToday, isTomorrow, differenceInDays } from "date-fns";
 import { Student, PenaltyRecord, SeverityLevel, HomeworkTask, TaskCompletion } from "@/types/penalty";
 import { getChoreSchedule, parseHolidayDates } from "@/lib/choreSchedule";
@@ -206,6 +207,7 @@ const BEHAVIOR_PRESETS = [
 ];
 
 const CHORE_DURATIONS = ["+1 วัน", "+1 สัปดาห์", "+1 เดือน", "1 เทอม", "1 ปีการศึกษา", "อื่นๆ"];
+const DUTY_WEEKDAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์"];
 
 export default function DisciplinaryApp({
   initialStudents,
@@ -260,6 +262,8 @@ export default function DisciplinaryApp({
   const [historySearch, setHistorySearch] = useState("");
   const [historyStatusFilter, setHistoryStatusFilter] = useState<"all" | "pending" | "completed" | "forgiven">("all");
   const [editingRecord, setEditingRecord] = useState<PenaltyRecord | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editIncident, setEditIncident] = useState("");
   const [editSeverity, setEditSeverity] = useState<SeverityLevel>("medium");
   const [editStatus, setEditStatus] = useState<PenaltyRecord["status"]>("pending");
@@ -276,6 +280,7 @@ export default function DisciplinaryApp({
   const [reportNote, setReportNote] = useState<string>("");
   const [schoolHolidays, setSchoolHolidays] = useState<string>("");
   const [holidaysLoaded, setHolidaysLoaded] = useState(false);
+  const [weeklyDuty, setWeeklyDuty] = useState<Record<string, string>>({});
   const [isNoteSectionOpen, setIsNoteSectionOpen] = useState<boolean>(false);
   const [isFieldsSectionOpen, setIsFieldsSectionOpen] = useState<boolean>(false);
   const [isGeneratingDoc, setIsGeneratingDoc] = useState<boolean>(false);
@@ -284,6 +289,7 @@ export default function DisciplinaryApp({
 
   useEffect(() => {
     setSchoolHolidays(localStorage.getItem("ohmjaa_school_holidays") ?? "");
+    try { setWeeklyDuty(JSON.parse(localStorage.getItem("ohmjaa_weekly_duty") ?? "{}")); } catch { setWeeklyDuty({}); }
     setHolidaysLoaded(true);
   }, []);
 
@@ -292,6 +298,10 @@ export default function DisciplinaryApp({
     if (schoolHolidays) localStorage.setItem("ohmjaa_school_holidays", schoolHolidays);
     else localStorage.removeItem("ohmjaa_school_holidays");
   }, [schoolHolidays, holidaysLoaded]);
+
+  useEffect(() => {
+    if (holidaysLoaded) localStorage.setItem("ohmjaa_weekly_duty", JSON.stringify(weeklyDuty));
+  }, [weeklyDuty, holidaysLoaded]);
 
   // Fallback homework tasks if none returned from database
   const DEFAULT_HOMEWORK_TASKS: HomeworkTask[] = useMemo(() => [
@@ -442,6 +452,7 @@ export default function DisciplinaryApp({
     const holidays = parseHolidayDates(schoolHolidays);
     const byStudent = new Map<string, { name: string; no: number; days: number; start: string; end: string | null; uncounted: number }>();
     for (const record of studentReportRecords) {
+      if (record.status === "forgiven") continue;
       const schedule = getChoreSchedule(record, holidays);
       if (!schedule) continue;
       const current = byStudent.get(record.student_id) ?? {
@@ -456,6 +467,28 @@ export default function DisciplinaryApp({
     }
     return [...byStudent.values()].sort((a, b) => a.no - b.no);
   }, [studentReportRecords, schoolHolidays]);
+
+  const studentChoreLookup = useMemo(() => {
+    const holidays = parseHolidayDates(schoolHolidays);
+    const lookup = new Map<string, { days: number; unknown: number; end: string | null }>();
+    for (const record of records) {
+      if (record.status === "forgiven") continue;
+      const schedule = getChoreSchedule(record, holidays);
+      if (!schedule) continue;
+      const current = lookup.get(record.student_id) ?? { days: 0, unknown: 0, end: null };
+      current.days += schedule.days ?? 0;
+      if (schedule.days === null) current.unknown++;
+      if (schedule.end && (!current.end || schedule.end > current.end)) current.end = schedule.end;
+      lookup.set(record.student_id, current);
+    }
+    return lookup;
+  }, [records, schoolHolidays]);
+
+  const formatChoreWeeks = (days: number) => {
+    const weeks = Math.floor(days / 5);
+    const remaining = days % 5;
+    return [weeks ? `${weeks} สัปดาห์` : "", remaining ? `${remaining} วัน` : ""].filter(Boolean).join(" ") || "0 วัน";
+  };
 
   const handleGenerateReport = async () => {
     setIsGeneratingDoc(true);
@@ -844,15 +877,20 @@ export default function DisciplinaryApp({
   };
 
   // Handle Delete Record
-  const handleDeleteRecord = async (id: string, name: string) => {
-    if (!confirm(`ต้องการลบรายการของ ${name} ใช่หรือไม่?`)) return;
+  const handleDeleteRecord = async () => {
+    if (!pendingDelete || isDeleting) return;
+    const { id } = pendingDelete;
+    setIsDeleting(true);
     try {
       await deletePenaltyRecord(id);
       setRecords((prev) => prev.filter((r) => r.id !== id));
       addAuditEntry("delete", "ohmjaa_penalties", id, "");
       toast.success("ลบรายการประวัติแล้ว");
+      setPendingDelete(null);
     } catch {
       toast.error("ไม่สามารถลบรายการได้");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1780,14 +1818,16 @@ export default function DisciplinaryApp({
                       }}
                       className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 flex items-center justify-between text-xs transition-colors cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-7 h-7 rounded-full bg-slate-100 font-mono font-bold flex items-center justify-center text-slate-700">
                           #{s.student_no}
                         </div>
-                        <span className="font-bold text-slate-900">{formatStudentFullName(s)}</span>
-                        {s.nickname && <span className="text-slate-400">({s.nickname})</span>}
+                        <span>
+                          <span className="block font-bold text-slate-900">{formatStudentFullName(s)}{s.nickname && <span className="ml-1 font-normal text-slate-400">({s.nickname})</span>}</span>
+                          <span className="block mt-0.5 text-slate-600">ทำเวร {formatChoreWeeks(studentChoreLookup.get(s.student_id)?.days ?? 0)} · เวรประจำ: {weeklyDuty[s.student_id] ? `วัน${weeklyDuty[s.student_id]}` : "ยังไม่ได้กำหนด"}</span>
+                        </span>
                       </div>
-                      <span className="font-mono text-slate-400">{s.student_id}</span>
+                      <ChevronRight size={15} className="shrink-0 text-slate-400" />
                     </button>
                   ))}
                   {modalStudentResults.length === 0 && (
@@ -1829,6 +1869,17 @@ export default function DisciplinaryApp({
                   <div className="py-2.5 px-4 rounded-full bg-slate-50 border border-slate-200 text-center font-bold text-xs text-slate-800 shadow-xs">
                     เลขที่ {selectedStudent.student_no}
                   </div>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm">
+                  <div className="font-bold text-[#16453d]">ข้อมูลการทำเวร</div>
+                  <p className="mt-1 text-slate-700">ทำเวรจากบันทึกรวม <strong>{formatChoreWeeks(studentChoreLookup.get(selectedStudent.student_id)?.days ?? 0)}</strong>{studentChoreLookup.get(selectedStudent.student_id)?.unknown ? " · มีรายการที่ยังคำนวณจำนวนวันไม่ได้" : ""}</p>
+                  <label className="mt-3 flex flex-col gap-1.5 font-semibold text-slate-700" htmlFor="weekly-duty-select">วันเวรประจำสัปดาห์</label>
+                  <select id="weekly-duty-select" value={weeklyDuty[selectedStudent.student_id] ?? ""} onChange={(event) => setWeeklyDuty((current) => ({ ...current, [selectedStudent.student_id]: event.target.value }))} className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm focus:outline-2 focus:outline-[#16453d]">
+                    <option value="">ยังไม่ได้กำหนด</option>
+                    {DUTY_WEEKDAYS.map((day) => <option key={day} value={day}>วัน{day}</option>)}
+                  </select>
+                  <p className="mt-2 text-xs text-slate-500">วันเวรประจำที่เลือกจะจำไว้ในเบราว์เซอร์เครื่องนี้</p>
                 </div>
 
                 {/* Segmented Switch Control: บันทึกข้อมูล vs ดูงาน/ประวัติ */}
@@ -2451,7 +2502,7 @@ export default function DisciplinaryApp({
                             แก้ไข
                           </button>
                           <button
-                            onClick={() => handleDeleteRecord(r.id, r.student_name)}
+                            onClick={() => setPendingDelete({ id: r.id, name: r.student_name })}
                             className="p-1 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="ลบรายการ"
                           >
@@ -3021,7 +3072,7 @@ export default function DisciplinaryApp({
                             แก้ไข
                           </button>
                           <button
-                            onClick={() => handleDeleteRecord(r.id, r.student_name)}
+                            onClick={() => setPendingDelete({ id: r.id, name: r.student_name })}
                             className="p-1 rounded-full text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                             title="ลบ"
                           >
@@ -3237,31 +3288,52 @@ export default function DisciplinaryApp({
               />
             </div>
 
-            <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 pr-1">
+            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 pr-1">
               {modalStudentResults.map((s) => (
                 <button
                   key={s.student_id}
                   onClick={() => {
                     setSelectedStudent(s);
                     setPenaltyStudent(s);
+                    setActiveView("student");
                     setIsSearchOpen(false);
-                    toast.success(`เลือก ${s.first_name} แล้ว`);
                   }}
-                  className="w-full text-left py-2.5 px-2 rounded-xl hover:bg-slate-50 flex items-center justify-between text-xs transition-colors cursor-pointer"
+                  className="w-full text-left py-3 px-2 rounded-xl hover:bg-emerald-50 flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
                     <span className="w-6 h-6 rounded-full bg-slate-100 font-mono text-[11px] font-bold flex items-center justify-center text-slate-700">
                       {s.student_no}
                     </span>
-                    <span className="font-bold text-slate-900">{formatStudentFullName(s)}</span>
+                    <span className="min-w-0">
+                      <span className="block font-bold text-slate-900">{formatStudentFullName(s)}</span>
+                      <span className="mt-1 block text-slate-600">ทำเวร {formatChoreWeeks(studentChoreLookup.get(s.student_id)?.days ?? 0)}{studentChoreLookup.get(s.student_id)?.unknown ? " + รายการที่ยังคำนวณไม่ได้" : ""}</span>
+                      <span className="mt-0.5 block text-[#16453d]">เวรประจำ: {weeklyDuty[s.student_id] ? `วัน${weeklyDuty[s.student_id]}` : "ยังไม่ได้กำหนด"}</span>
+                    </span>
                   </div>
-                  <span className="font-mono text-slate-400 text-[11px]">{s.student_id}</span>
+                  <ChevronRight size={16} className="shrink-0 text-slate-400" />
                 </button>
               ))}
             </div>
           </div>
         </div>
       )}
+
+      <Dialog open={pendingDelete !== null} onClose={() => { if (!isDeleting) setPendingDelete(null); }} className="relative z-[60]">
+        <DialogBackdrop className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <DialogPanel className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><Trash2 size={21} /></div>
+            <DialogTitle className="text-lg font-bold text-slate-900">ลบบันทึกวินัย?</DialogTitle>
+            <Description className="mt-2 text-sm leading-relaxed text-slate-600">
+              ต้องการลบบันทึกของ <strong className="text-slate-900">{pendingDelete?.name}</strong> ใช่หรือไม่? รายการที่ลบแล้วจะไม่แสดงในประวัติ
+            </Description>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" data-autofocus onClick={() => setPendingDelete(null)} disabled={isDeleting} className="min-h-11 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">ยกเลิก</button>
+              <button type="button" onClick={handleDeleteRecord} disabled={isDeleting} className="min-h-11 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50">{isDeleting ? "กำลังลบ..." : "ยืนยันลบ"}</button>
+            </div>
+          </DialogPanel>
+        </div>
+      </Dialog>
 
       {/* ========================================================================= */}
       {/* 4. MOBILE & RESPONSIVE BOTTOM NAVIGATION (Fits all phones, tablets & desktop) */}
