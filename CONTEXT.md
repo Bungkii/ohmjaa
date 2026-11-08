@@ -9,7 +9,7 @@ Ohmjaa เป็นเว็บสำหรับครูห้อง ม.2/3 �
 - Next.js 16 App Router, React 19, TypeScript และ Tailwind CSS 4
 - `src/app/page.tsx` อ่านนักเรียน บันทึกวินัย และวันเวรประจำจาก Supabase แล้วส่งให้ `DisciplinaryApp` ถ้าอ่านไม่สำเร็จจะใช้รายชื่อนักเรียนสำรองและชุดข้อมูลอื่นเป็นค่าว่าง
 - `DisciplinaryApp` เป็น client component ที่มีหน้า ภาพรวม, ติดตามวินัย, นักเรียน, กิจกรรม & สุ่มกลุ่ม, บันทึกวินัย, ประวัติ/รายงาน และการแก้ไข
-- หน้ากิจกรรม & สุ่มกลุ่มใช้คอมโพเนนต์ `src/components/ActivitiesAndGrouping.tsx` และวงล้อสุ่ม `src/components/SpinWheel.tsx` รองรับการหมุนวงล้อสุ่มนักเรียน (ฟิสิกส์ชะลอความเร็ว, ระบบกลับทิศทางข้อความอัตโนมัติไม่ให้ตัวหนังสือกลับหัว, รองรับ HiDPI ทุกระดับสเกลและปรับขนาดวงล้อให้พอดีกับหน้าจอ, ค้นหารายชื่อในวงล้อ, เสียงสังเคราะห์ Web Audio, ตัดชื่อออก), สุ่มกลุ่ม (คละเพศ, สุ่มหัวหน้า, กระจายสมาชิกแม่นยำ พร้อมระบุแจกแจงจำนวนสมาชิก เช่น 7 คน 5 กลุ่ม, 6 คน 3 กลุ่ม), ระบบข้อมูลกิจกรรมพิเศษ/ไซส์เสื้อ (สรุปยอดรวม, เช็คชำระเงิน, มอบหมายหน้าที่) และไดอะล็อกตั้งค่าคอลัมน์/ช่องลงชื่อก่อนพิมพ์รายงาน A4 รูปแบบมาตรฐานโรงเรียน บันทึกสถานะใน `localStorage`
+- หน้ากิจกรรม & สุ่มกลุ่มใช้คอมโพเนนต์ `src/components/ActivitiesAndGrouping.tsx`, วงล้อสุ่ม `src/components/SpinWheel.tsx` และแกดเจ็ตห้องเรียน `src/components/ClassroomGadgets.tsx` รองรับการหมุนวงล้อสุ่มนักเรียน, สุ่มกลุ่ม (คละเพศ, สุ่มหัวหน้า, แจกแจงกลุ่ม เช่น 7 คน 5 กลุ่ม, 6 คน 3 กลุ่ม), ระบบข้อมูลกิจกรรมพิเศษ/ไซส์เสื้อ, และชุดแกดเจ็ตในห้องเรียน (นาฬิกาจับเวลากิจกรรม/นับถอยหลังพร้อมโหมดเต็มจอ, กระดิ่งครูตั้งโต๊ะสั่นเรียกสมาธิ & ซาวด์บอร์ดเอฟเฟกต์ 6 เสียง, ทอยลูกเต๋า 2 ลูกแบบสุ่ม 3D) บันทึกสถานะใน `localStorage`
 - การลบรายการวินัยและไดอะล็อกยืนยันรองรับแอนิเมชั่น (Framer Motion `AnimatePresence` slide/fade out และ Headless UI transition) พร้อมสถานะกำลังลบ
 - การบันทึก ลบ และแก้ไขจาก UI ปัจจุบันเรียก `src/app/actions.ts` ซึ่งใช้ browser Supabase client และมี local cache บางส่วน
 - การถามยืนยันก่อนลบใช้ Headless UI Dialog; การแจ้งผลใช้ `react-hot-toast`
@@ -21,7 +21,7 @@ Ohmjaa เป็นเว็บสำหรับครูห้อง ม.2/3 �
 | พื้นที่ | ไฟล์ |
 | --- | --- |
 | หน้าและ layout | `src/app/page.tsx`, `src/app/layout.tsx`, `src/app/globals.css` |
-| UI หลัก | `src/components/DisciplinaryApp.tsx`, `src/components/ActivitiesAndGrouping.tsx`, `src/components/SpinWheel.tsx` |
+| UI หลัก | `src/components/DisciplinaryApp.tsx`, `src/components/ActivitiesAndGrouping.tsx`, `src/components/SpinWheel.tsx`, `src/components/ClassroomGadgets.tsx` |
 | การทำงานกับข้อมูล | `src/app/actions.ts`, `src/app/teacherActions.ts`, `src/utils/supabase/` |
 | ชนิดข้อมูลและการคำนวณ | `src/types/penalty.ts`, `src/types/activities.ts`, `src/lib/choreSchedule.ts` |
 | ข้อมูลสำรอง | `src/data/students.json` |

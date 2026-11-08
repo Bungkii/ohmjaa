@@ -47,6 +47,7 @@ import {
 } from "@/types/activities";
 import { formatStudentFullName, getStudentAvatar } from "./DisciplinaryApp";
 import SpinWheel from "./SpinWheel";
+import ClassroomGadgets from "./ClassroomGadgets";
 
 function formatThaiFullDate(date: Date): string {
   const months = [
@@ -88,8 +89,8 @@ interface ActivitiesAndGroupingProps {
 }
 
 export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupingProps) {
-  // Top-level sub-view: "wheel" | "grouping" | "sizes" | "roles"
-  const [subView, setSubView] = useState<"wheel" | "grouping" | "sizes" | "roles">("wheel");
+  // Top-level sub-view: "wheel" | "grouping" | "sizes" | "roles" | "gadgets"
+  const [subView, setSubView] = useState<"wheel" | "grouping" | "sizes" | "roles" | "gadgets">("wheel");
 
   // ==========================================
   // 1. STATE FOR GROUP GENERATOR
@@ -651,6 +652,18 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
             >
               <Trophy className="w-3.5 h-3.5" />
               <span>หน้าที่กิจกรรม</span>
+            </button>
+
+            <button
+              onClick={() => setSubView("gadgets")}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                subView === "gadgets"
+                  ? "bg-white text-[#16453d] shadow-sm scale-100"
+                  : "text-white/80 hover:text-white hover:bg-white/10"
+              }`}
+            >
+              <span className="text-xs">⏱️</span>
+              <span>แกดเจ็ตในห้อง</span>
             </button>
           </div>
         </div>
@@ -1400,6 +1413,13 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. SUB-VIEW: CLASSROOM GADGETS (นาฬิกาจับเวลา, กระดิ่ง, ลูกเต๋า 2 ลูก)    */}
+      {/* ========================================================================= */}
+      {subView === "gadgets" && (
+        <ClassroomGadgets />
       )}
 
       {/* ========================================================================= */}
