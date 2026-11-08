@@ -38,24 +38,3 @@ export interface PenaltyRecord {
   updated_by?: string;
   created_at: string;
 }
-
-export interface HomeworkTask {
-  id: string;
-  subject: string;
-  due_date: string;
-  details: string;
-  teacher_name?: string | null;
-  submission_method?: string | null;
-  status: 'todo' | 'in_progress' | 'done' | string;
-  work_type?: string | null;
-  group_size?: number | null;
-  max_score?: number | null;
-  created_at?: string;
-}
-
-export interface TaskCompletion {
-  id?: string;
-  student_id: string;
-  task_id: string;
-  status: 'todo' | 'in_progress' | 'done';
-}

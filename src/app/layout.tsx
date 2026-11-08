@@ -9,8 +9,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "โอมจ๋า ม.2/3 | การบ้านและบันทึกวินัย",
-  description: "ระบบติดตามการบ้านและบันทึกวินัยนักเรียน ห้อง ม.2/3",
+  title: "โอมจ๋า ม.2/3 | บันทึกวินัยนักเรียน",
+  description: "ระบบติดตามและบันทึกวินัยนักเรียน ห้อง ม.2/3",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

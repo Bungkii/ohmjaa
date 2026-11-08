@@ -56,7 +56,7 @@ export const ROLE_CONFIG: Record<
     label: 'Leader (หัวหน้าห้อง)',
     title: 'หัวหน้าห้อง',
     badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
-    description: 'หัวหน้าห้อง จัดการการบ้าน เวร และตารางเรียน',
+    description: 'หัวหน้าห้อง จัดการเวรและตารางเรียน',
   },
   Finance: {
     label: 'Finance (เหรัญญิก)',

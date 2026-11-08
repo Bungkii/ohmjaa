@@ -3,7 +3,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Users,
-  Trophy,
   CheckCircle2,
   Clock,
   Search,
@@ -32,7 +31,6 @@ import {
   TrendingUp,
   Dumbbell,
   MessageCircle,
-  FileX,
   Sun,
   SunMedium,
   Timer,
@@ -55,15 +53,13 @@ import {
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Description, Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
-import { startOfDay, isBefore, isToday, isTomorrow, differenceInDays } from "date-fns";
-import { Student, PenaltyRecord, SeverityLevel, HomeworkTask, TaskCompletion } from "@/types/penalty";
+import { Student, PenaltyRecord, SeverityLevel } from "@/types/penalty";
 import { getChoreSchedule, parseHolidayDates } from "@/lib/choreSchedule";
 import {
   createPenaltyRecord,
   createPenaltyRecordsBulk,
   deletePenaltyRecord,
   updatePenaltyRecord,
-  updateTaskCompletion,
 } from "@/app/actions";
 
 export interface TeacherAuditEntry {
@@ -77,21 +73,11 @@ export interface TeacherAuditEntry {
   created_at: string;
 }
 
-export interface TeacherTaskReview {
-  teacher_id: string;
-  student_id: string;
-  task_id: string;
-  reviewed_at: string;
-}
-
 interface DisciplinaryAppProps {
   initialStudents: Student[];
   initialRecords: PenaltyRecord[];
-  initialTasks: HomeworkTask[];
-  initialCompletions: TaskCompletion[];
   initialWeeklyDuty?: Record<string, string>;
   initialAudit?: TeacherAuditEntry[];
-  initialReviews?: TeacherTaskReview[];
   teacherEmail?: string;
 }
 
@@ -102,22 +88,6 @@ export function formatStudentFullName(student: Student): string {
 
 export function getStudentAvatar(student: Student): string {
   return student.prefix === "ด.ญ." ? "/student-girl.webp" : "/student-boy.webp";
-}
-
-export function getUrgency(task: HomeworkTask) {
-  if (task.status === "done") return null;
-  const due = startOfDay(new Date(task.due_date));
-  const today = startOfDay(new Date());
-
-  if (isBefore(due, today)) {
-    return { level: "critical", text: "เกินกำหนด", color: "text-rose-700 bg-rose-50 border-rose-200" };
-  } else if (isToday(due)) {
-    return { level: "warning", text: "ครบกำหนดวันนี้", color: "text-amber-700 bg-amber-50 border-amber-200" };
-  } else if (isTomorrow(due) || differenceInDays(due, today) <= 2) {
-    return { level: "warning", text: "ใกล้ถึงกำหนด", color: "text-amber-700 bg-amber-100 border-amber-200" };
-  } else {
-    return { level: "chill", text: "ยังไม่ถึงกำหนด", color: "text-slate-600 bg-slate-50 border-slate-200" };
-  }
 }
 
 const severityConfig: Record<
@@ -170,12 +140,6 @@ const BEHAVIOR_PRESETS = [
     icon: MessageCircle,
   },
   {
-    id: "no_homework",
-    label: "ไม่ส่งงาน",
-    sub: "ค้างส่งการบ้าน/งาน",
-    icon: FileX,
-  },
-  {
     id: "late_morning",
     label: "สายเช้า",
     sub: "มาไม่ทันช่วงเช้า",
@@ -212,36 +176,22 @@ const CHORE_DURATIONS = ["+1 วัน", "+1 สัปดาห์", "+1 เด�
 export default function DisciplinaryApp({
   initialStudents,
   initialRecords,
-  initialTasks,
-  initialCompletions,
   initialWeeklyDuty = {},
   initialAudit,
-  initialReviews,
 }: DisciplinaryAppProps) {
   const [students] = useState<Student[]>(initialStudents);
   const [records, setRecords] = useState<PenaltyRecord[]>(initialRecords);
-  const [tasks] = useState<HomeworkTask[]>(initialTasks);
-  const [completions, setCompletions] = useState<TaskCompletion[]>(initialCompletions);
   const [audit, setAudit] = useState<TeacherAuditEntry[]>(initialAudit ?? []);
-  const [reviews, setReviews] = useState<TeacherTaskReview[]>(initialReviews ?? []);
 
   // View state
   const [activeView, setActiveView] = useState<
-    "overview" | "today" | "assignments" | "student" | "disciplinary" | "history" | "audit"
+    "overview" | "today" | "student" | "disciplinary" | "history" | "audit"
   >("overview");
-
-  // Student view switch ("บันทึกข้อมูล" vs "ดูงาน/ประวัติ")
-  const [studentCardTab, setStudentCardTab] = useState<"record" | "history">("record");
 
   // Selected Student for Persistent Tracking
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchStudentInput, setSearchStudentInput] = useState("");
-
-  // Homework View Filters
-  const [childFilter, setChildFilter] = useState<"all" | "pending" | "done">("all");
-  const [filterSubject, setFilterSubject] = useState<string>("all");
-  const [selectedTask, setSelectedTask] = useState<HomeworkTask | null>(null);
 
   // Disciplinary form state
   const [isGroupMode, setIsGroupMode] = useState<boolean>(false);
@@ -270,10 +220,6 @@ export default function DisciplinaryApp({
   const [editStatus, setEditStatus] = useState<PenaltyRecord["status"]>("pending");
   const [editNote, setEditNote] = useState("");
 
-  // Assignments Matrix View States (Matching Image 1)
-  const [assignmentViewMode, setAssignmentViewMode] = useState<"table" | "kanban">("table");
-  const [tableStudentSearch, setTableStudentSearch] = useState("");
-
   // Report Generator States (Matching html/report.html and Images 2, 3, 4)
   const [reportMode, setReportMode] = useState<"person" | "room">("person");
   const [reportStudentId, setReportStudentId] = useState<string>(students[0]?.student_id || "30233");
@@ -299,22 +245,6 @@ export default function DisciplinaryApp({
     else localStorage.removeItem("ohmjaa_school_holidays");
   }, [schoolHolidays, holidaysLoaded]);
 
-
-  // Fallback homework tasks if none returned from database
-  const DEFAULT_HOMEWORK_TASKS: HomeworkTask[] = useMemo(() => [
-    { id: "task-13", subject: "วิทย์", details: "13. Link โฆษณา ผลิตภัณฑ์ ล่าสุด", due_date: "2026-09-11", status: "todo" },
-    { id: "task-12", subject: "วิทย์", details: "12. Link โฆษณาผลิตภัณฑ์", due_date: "2026-09-11", status: "todo" },
-    { id: "task-11", subject: "วิทย์", details: "11. Lab การแยกสารโดยวิธี โครมาโทกราฟี", due_date: "2026-08-28", status: "todo" },
-    { id: "task-10", subject: "วิทย์", details: "10. Lab การแยกสารโดยการกลั่นธรรมดา", due_date: "2026-08-28", status: "todo" },
-    { id: "task-9", subject: "วิทย์", details: "9. Lab การแยกสารโดยการระเหยแห้ง", due_date: "2026-08-28", status: "todo" },
-    { id: "task-8", subject: "วิทย์", details: "8. การแยกสารผสม", due_date: "2026-08-11", status: "todo" },
-    { id: "task-7", subject: "วิทย์", details: "7. สารละลายและสารบริสุทธิ์", due_date: "2026-08-04", status: "todo" },
-    { id: "task-6", subject: "วิทย์", details: "6. แบบฝึกหัดหน่วยที่ 1", due_date: "2026-07-21", status: "todo" },
-  ], []);
-
-  const activeTasks = useMemo(() => {
-    return tasks && tasks.length > 0 ? tasks : DEFAULT_HOMEWORK_TASKS;
-  }, [tasks, DEFAULT_HOMEWORK_TASKS]);
 
   const formatThaiShortDate = (dateStr: string) => {
     if (!dateStr) return "-";
@@ -349,67 +279,6 @@ export default function DisciplinaryApp({
       return String(date);
     }
   };
-
-  const getTaskOverdueLevel = (dueDateStr: string): "none" | "overdue" | "critical" => {
-    if (!dueDateStr) return "none";
-    try {
-      const due = startOfDay(new Date(dueDateStr));
-      const today = startOfDay(new Date());
-      if (!isBefore(due, today)) return "none";
-      const days = differenceInDays(today, due);
-      return days >= 7 ? "critical" : "overdue";
-    } catch {
-      return "none";
-    }
-  };
-
-  const isTaskOverdue = (dueDateStr: string) => {
-    if (!dueDateStr) return false;
-    try {
-      const due = startOfDay(new Date(dueDateStr));
-      const today = startOfDay(new Date());
-      return isBefore(due, today);
-    } catch {
-      return false;
-    }
-  };
-
-  const handleCycleStatus = async (studentId: string, taskId: string) => {
-    const currentStatus = completionMap.get(`${studentId}_${taskId}`) || "todo";
-    let nextStatus: TaskCompletion["status"] = "done";
-    if (currentStatus === "done") {
-      nextStatus = "in_progress"; // ส่งกลับ / กำลังทำ
-    } else if (currentStatus === "in_progress") {
-      nextStatus = "todo"; // ยังไม่ส่ง
-    } else {
-      nextStatus = "done"; // ส่งแล้ว
-    }
-
-    // Optimistic instant update
-    setCompletions((prev) => [
-      ...prev.filter((c) => !(c.student_id === studentId && c.task_id === taskId)),
-      { student_id: studentId, task_id: taskId, status: nextStatus },
-    ]);
-
-    try {
-      await updateTaskCompletion(studentId, taskId, nextStatus);
-      addAuditEntry("update", "student_task_completions", taskId, studentId);
-    } catch (err) {
-      console.warn("Cycle status update error:", err);
-    }
-  };
-
-  const filteredTableStudents = useMemo(() => {
-    const q = tableStudentSearch.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter(
-      (s) =>
-        s.student_no.toString() === q ||
-        s.first_name.toLowerCase().includes(q) ||
-        s.last_name.toLowerCase().includes(q) ||
-        (s.nickname && s.nickname.toLowerCase().includes(q))
-    );
-  }, [students, tableStudentSearch]);
 
   const currentReportStudent = useMemo(() => {
     return students.find((s) => s.student_id === reportStudentId) || students[0] || null;
@@ -510,73 +379,6 @@ export default function DisciplinaryApp({
     window.print();
   };
 
-  // Map student completion
-  const completionMap = useMemo(() => {
-    const map = new Map<string, string>();
-    completions.forEach((c) => {
-      map.set(`${c.student_id}_${c.task_id}`, c.status);
-    });
-    return map;
-  }, [completions]);
-
-  const reviewedSet = useMemo(() => new Set(reviews.map((item) => `${item.student_id}_${item.task_id}`)), [reviews]);
-  const pendingReviews = useMemo(
-    () => completions.filter((item) => item.status === "done" && !reviewedSet.has(`${item.student_id}_${item.task_id}`)),
-    [completions, reviewedSet]
-  );
-
-  // Tasks with student-specific status applied
-  const studentActiveTasks = useMemo(() => {
-    return tasks.map((t) => {
-      if (!selectedStudent) return t;
-      const status = completionMap.get(`${selectedStudent.student_id}_${t.id}`);
-      return { ...t, status: status ?? "todo" };
-    });
-  }, [tasks, selectedStudent, completionMap]);
-
-  // Filtered tasks by subject and childFilter
-  const filteredTasks = useMemo(() => {
-    let result = studentActiveTasks;
-    if (filterSubject !== "all") {
-      result = result.filter((t) => t.subject === filterSubject);
-    }
-    if (selectedStudent && childFilter === "pending") {
-      result = result.filter((t) => t.status !== "done");
-    } else if (selectedStudent && childFilter === "done") {
-      result = result.filter((t) => t.status === "done");
-    }
-    return result;
-  }, [studentActiveTasks, filterSubject, selectedStudent, childFilter]);
-
-  // Unique subjects for filters
-  const uniqueSubjects = useMemo(() => {
-    const subs = Array.from(new Set(tasks.map((t) => t.subject)));
-    return subs.sort();
-  }, [tasks]);
-
-  // Stats for the selected student
-  const studentStats = useMemo(() => {
-    const total = tasks.length;
-    let done = 0;
-    let pending = 0;
-    studentActiveTasks.forEach((t) => {
-      if (t.status === "done") done++;
-      else pending++;
-    });
-    const progress = total > 0 ? Math.round((done / total) * 100) : 0;
-    return { total, done, pending, progress };
-  }, [tasks, studentActiveTasks]);
-
-  const openTasks = useMemo(() => tasks.filter((task) => task.status !== "done"), [tasks]);
-  const upcomingTasks = useMemo(
-    () => [...openTasks].sort((a, b) => a.due_date.localeCompare(b.due_date)).slice(0, 5),
-    [openTasks]
-  );
-  const dueSoonCount = useMemo(
-    () => openTasks.filter((task) => ["critical", "warning"].includes(getUrgency(task)?.level ?? "")).length,
-    [openTasks]
-  );
-
   // Behavior type frequency statistics (matching html/dashboard.html)
   const behaviorTypeStats = useMemo(() => {
     const counts: Record<string, number> = {
@@ -584,7 +386,6 @@ export default function DisciplinaryApp({
       "สายเที่ยง": 0,
       "สายพัก 10": 0,
       "เครื่องแต่งกาย": 0,
-      "ไม่ส่งงาน": 0,
       "พูดคุย": 0,
       "เล่นกีฬาในห้อง": 0,
       "อื่น ๆ": 0,
@@ -645,14 +446,6 @@ export default function DisciplinaryApp({
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
   }, [records, students]);
-
-  // Overall classroom completion rate
-  const classroomCompletionRate = useMemo(() => {
-    if (students.length === 0 || tasks.length === 0) return 0;
-    const totalPossible = students.length * tasks.length;
-    const totalDone = completions.filter((c) => c.status === "done").length;
-    return Math.round((totalDone / totalPossible) * 100);
-  }, [students, tasks, completions]);
 
   // Student search modal results
   const modalStudentResults = useMemo(() => {
@@ -891,18 +684,6 @@ export default function DisciplinaryApp({
     }
   };
 
-  const handleCompletionChange = async (studentId: string, taskId: string, status: TaskCompletion["status"]) => {
-    try {
-      const changed = await updateTaskCompletion(studentId, taskId, status);
-      setCompletions((current) => [...current.filter((item) => !(item.student_id === studentId && item.task_id === taskId)), changed]);
-      if (status !== "done") setReviews((current) => (current ?? []).filter((item) => !(item.student_id === studentId && item.task_id === taskId)));
-      addAuditEntry("update", "student_task_completions", taskId, studentId);
-      toast.success("อัปเดตสถานะงานแล้ว");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "บันทึกสถานะงานไม่สำเร็จ");
-    }
-  };
-
   const openRecordEditor = (record: PenaltyRecord) => {
     setEditingRecord(record);
     setEditIncident(record.incident);
@@ -979,13 +760,6 @@ export default function DisciplinaryApp({
     });
   }, [records, historySearch, historyStatusFilter]);
 
-  // Kanban columns definition
-  const columns = [
-    { id: "todo", title: "ต้องทำ", tasks: filteredTasks.filter((t) => t.status === "todo") },
-    { id: "in_progress", title: "กำลังทำ", tasks: filteredTasks.filter((t) => t.status === "in_progress") },
-    { id: "done", title: "เสร็จแล้ว", tasks: filteredTasks.filter((t) => t.status === "done") },
-  ];
-
   return (
     <div className="min-h-screen bg-[#f7faf8] text-[#151b2e] flex flex-col pb-[calc(96px+env(safe-area-inset-bottom,16px))] lg:pb-0">
       <Toaster position="top-center" toastOptions={{ duration: 2500 }} />
@@ -1006,7 +780,7 @@ export default function DisciplinaryApp({
                 <span className="font-black text-lg sm:text-xl text-slate-900 tracking-tight">โอมจ๋า</span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
-                ระบบติดตามการบ้านและวินัย ห้อง ม.2/3 ({students.length} คน)
+                ระบบบันทึกและติดตามวินัย ห้อง ม.2/3 ({students.length} คน)
               </p>
             </div>
           </div>
@@ -1031,18 +805,9 @@ export default function DisciplinaryApp({
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
               }`}
             >
-              งานวันนี้
+              ติดตามวินัย
             </button>
-            <button
-              onClick={() => setActiveView("assignments")}
-              className={`px-2 xl:px-4 py-2 rounded-full transition-all cursor-pointer ${
-                activeView === "assignments"
-                  ? "bg-[#16453d] text-white shadow-sm"
-                  : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
-              }`}
-            >
-              การบ้าน
-            </button>
+
             <button
               onClick={() => setActiveView("student")}
               className={`px-2 xl:px-3.5 py-2 rounded-full transition-all cursor-pointer ${
@@ -1124,7 +889,7 @@ export default function DisciplinaryApp({
       {/* ========================================================================= */}
       {/* 2. MAIN CONTENT AREA                                                      */}
       {/* ========================================================================= */}
-      <main className={`${activeView === "assignments" ? "w-full max-w-none px-3 sm:px-6" : "max-w-7xl mx-auto px-4 sm:px-6"} pt-5 sm:pt-7 pb-8 space-y-6 flex-1 w-full`}>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-5 sm:pt-7 pb-8 space-y-6 flex-1 w-full">
 
         {/* View Title & Breadcrumbs */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
@@ -1136,8 +901,7 @@ export default function DisciplinaryApp({
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
               {activeView === "overview" && "ภาพรวมห้องเรียนและวินัย"}
-              {activeView === "today" && "งานที่ต้องจัดการวันนี้"}
-              {activeView === "assignments" && "กระดานติดตามการบ้าน"}
+              {activeView === "today" && "วินัยที่ต้องติดตาม"}
               {activeView === "student" && "ข้อมูลและประวัตินักเรียน"}
               {activeView === "disciplinary" && "บันทึกพฤติกรรมและวินัย"}
               {activeView === "history" && "รายงานและประวัติบันทึก"}
@@ -1167,23 +931,23 @@ export default function DisciplinaryApp({
         {activeView === "overview" && (
           <div className="space-y-6">
 
-            <section className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-[#e9f5ee] via-white to-[#f7faf8] p-5 sm:p-7 shadow-sm" aria-label="เริ่มงานวันนี้">
+            <section className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-[#e9f5ee] via-white to-[#f7faf8] p-5 sm:p-7 shadow-sm" aria-label="เริ่มติดตามวินัย">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
                 <div>
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-bold text-[#16453d] border border-emerald-100"><Sparkles size={14} /> สำหรับคุณครู</div>
                   <h2 className="mt-3 text-xl sm:text-2xl font-black text-[#16453d]">เริ่มดูแลห้องเรียนวันนี้</h2>
-                  <p className="mt-1 text-sm text-slate-600">เลือกงานที่ต้องทำได้ทันที หรือค้นหานักเรียนเพื่อดูข้อมูลรายคน</p>
+                  <p className="mt-1 text-sm text-slate-600">เลือกบันทึกที่ต้องติดตาม หรือค้นหานักเรียนเพื่อดูข้อมูลรายคน</p>
                 </div>
                 <div className="grid grid-cols-2 sm:flex gap-2 shrink-0">
-                  <button onClick={() => setActiveView("today")} className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-[#16453d] shadow-sm hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><CalendarDays size={17} /> งานวันนี้</button>
+                  <button onClick={() => setActiveView("today")} className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-[#16453d] shadow-sm hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><CalendarDays size={17} /> ติดตามวินัย</button>
                   <button onClick={() => setIsSearchOpen(true)} className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-[#16453d] shadow-sm hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><Search size={17} /> ค้นหานักเรียน</button>
                   <button onClick={() => setActiveView("disciplinary")} className="col-span-2 min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-[#16453d] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#0f352e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><PlusCircle size={17} /> เพิ่มบันทึก</button>
                 </div>
               </div>
             </section>
 
-            {/* 4 Summary KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* 2 Summary KPI Cards */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-500">บันทึกวินัยทั้งหมด</span>
@@ -1212,35 +976,6 @@ export default function DisciplinaryApp({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500">การบ้านค้างส่ง</span>
-                  <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center">
-                    <FileX size={16} />
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="text-3xl font-black text-rose-700 font-mono">
-                    {dueSoonCount}
-                  </div>
-                  <p className="text-[11px] font-semibold text-slate-500 mt-1">งานใกล้หรือเกินกำหนด</p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500">อัตราส่งงานทั้งห้อง</span>
-                  <div className="w-8 h-8 rounded-full bg-emerald-50 text-[#16453d] flex items-center justify-center">
-                    <Trophy size={16} />
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="text-3xl font-black text-[#16453d] font-mono">
-                    {classroomCompletionRate}%
-                  </div>
-                  <p className="text-[11px] font-semibold text-slate-500 mt-1">ส่งครบตามกำหนดเวลา</p>
-                </div>
-              </div>
             </div>
 
             {/* Behavior Distribution Breakdown (html/dashboard.html style) */}
@@ -1310,7 +1045,7 @@ export default function DisciplinaryApp({
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div>
                     <h2 className="text-base font-bold text-slate-900">นักเรียนที่ต้องดูแลใกล้ชิด</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">มีบันทึกวินัยหรือค้างส่งมากที่สุด</p>
+                    <p className="text-xs text-slate-500 mt-0.5">มีบันทึกวินัยมากที่สุด</p>
                   </div>
                   <button
                     onClick={() => setActiveView("student")}
@@ -1363,55 +1098,11 @@ export default function DisciplinaryApp({
         )}
 
         {/* ------------------------------------------------------------------------- */}
-        {/* VIEW 2: TODAY (Tasks Due & Pending Penalties)                              */}
+        {/* VIEW 2: DISCIPLINARY FOLLOW-UP                              */}
         {/* ------------------------------------------------------------------------- */}
         {activeView === "today" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="max-w-3xl mx-auto">
             
-            {/* Urgent Tasks */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center">
-                    <Clock size={16} />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">งานที่ต้องส่งวันนี้ / ใกล้กำหนด</h2>
-                    <p className="text-xs text-slate-500">ตรวจสอบและติดตามการส่ง</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="divide-y divide-slate-100">
-                {openTasks.filter((task) => ["critical", "warning"].includes(getUrgency(task)?.level ?? "")).map((task) => {
-                  const pending = students.filter((student) => completionMap.get(`${student.student_id}_${task.id}`) !== "done").length;
-                  return (
-                    <div
-                      key={task.id}
-                      onClick={() => setSelectedTask(task)}
-                      className="py-3 flex items-center justify-between gap-3 hover:bg-slate-50 px-2 rounded-xl transition-colors cursor-pointer"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-slate-900">{task.subject}</div>
-                        <div className="text-[11px] text-slate-500 truncate">{task.details}</div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
-                          ค้างส่ง {pending} คน
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {dueSoonCount === 0 && (
-                  <div className="py-10 text-center text-xs text-slate-400">
-                    ไม่มีงานใกล้หรือเกินกำหนดในขณะนี้
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Pending Penalties Follow-up */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -1453,328 +1144,6 @@ export default function DisciplinaryApp({
                 )}
               </div>
             </div>
-
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------------------- */}
-        {/* VIEW 3: ASSIGNMENTS (Vertical Rotated Matrix & Kanban Board)               */}
-        {/* ------------------------------------------------------------------------- */}
-        {activeView === "assignments" && (
-          <div className="space-y-4">
-            
-            {/* Control Bar: Mode Toggle, Search, and Legend (Matching Image 1) */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-xs space-y-3">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                {/* View Switcher: Table vs Kanban */}
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full text-xs font-bold self-start">
-                  <button
-                    type="button"
-                    onClick={() => setAssignmentViewMode("table")}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
-                      assignmentViewMode === "table"
-                        ? "bg-[#16453d] text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <Table size={14} />
-                    <span>ตารางติดตาม (Matrix)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAssignmentViewMode("kanban")}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
-                      assignmentViewMode === "kanban"
-                        ? "bg-[#16453d] text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <Layers size={14} />
-                    <span>กระดานงาน (Kanban)</span>
-                  </button>
-                </div>
-
-                {/* Quick Student Search */}
-                <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={tableStudentSearch}
-                    onChange={(e) => setTableStudentSearch(e.target.value)}
-                    placeholder="ค้นหาชื่อ หรือเลขที่ (1-53)..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-full focus:outline-none focus:bg-white focus:border-[#16453d]"
-                  />
-                  {tableStudentSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setTableStudentSearch("")}
-                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
-                    >
-                      <X size={13} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Status Legend Bar (Exact match to User Image 1) */}
-              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-3 sm:gap-5 text-xs font-semibold text-slate-700">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[#e11d48] font-black text-sm">!</span>
-                  <span>เลยกำหนด</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-[#e11d48] font-black text-[11px] leading-tight">
-                    !!!
-                  </span>
-                  <span>เลยกำหนดมาก</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-4 h-4 rounded-sm border border-slate-300 bg-white inline-block shadow-2xs" />
-                  <span>ยังไม่ส่ง</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-4 h-4 rounded-sm bg-[#5cd489] inline-block shadow-2xs" />
-                  <span>ส่งแล้ว</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-4 h-4 rounded-sm bg-[#f97316] inline-block shadow-2xs" />
-                  <span>ส่งกลับ</span>
-                </div>
-                <span className="text-[11px] text-slate-400 ml-auto hidden md:inline">
-                  * แตะที่ช่องเพื่อเปลี่ยนสถานะ (ส่งแล้ว / ส่งกลับ / ยังไม่ส่ง)
-                </span>
-              </div>
-            </div>
-
-            {/* TAB 1: VERTICAL ROTATED MATRIX TABLE (Exact match to User Image 1 - ยาวไปสุดขอบฟ้า) */}
-            {assignmentViewMode === "table" ? (
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden w-full">
-                <div className="overflow-x-auto overflow-y-auto max-h-[82vh] w-full">
-                  <table className="border-collapse text-left select-none w-full min-w-max">
-                    <thead>
-                      {/* Row 1: กำหนดส่ง + Short Thai Due Dates */}
-                      <tr className="bg-slate-50/80 border-b border-slate-200">
-                        <th className="sticky left-0 top-0 z-30 bg-slate-50 border-r border-slate-200 p-2.5 text-center text-xs font-bold text-slate-500 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#e2e8f0]">
-                          กำหนดส่ง
-                        </th>
-                        {activeTasks.map((t) => (
-                          <th
-                            key={`due-${t.id}`}
-                            className="sticky top-0 z-20 bg-slate-50 border-r border-slate-200 p-2 text-center text-[10px] sm:text-[11px] font-medium text-slate-500 min-w-[48px] w-[48px] whitespace-nowrap"
-                          >
-                            {formatThaiShortDate(t.due_date)}
-                          </th>
-                        ))}
-                      </tr>
-
-                      {/* Row 2: นักเรียน + Vertical Rotated Column Headers reading upwards */}
-                      <tr className="bg-slate-50 border-b-2 border-slate-200">
-                        <th className="sticky left-0 top-[37px] z-30 bg-slate-50 border-r border-slate-200 p-3 text-center text-xs sm:text-sm font-black text-slate-800 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#e2e8f0]">
-                          นักเรียน
-                        </th>
-                        {activeTasks.map((t) => (
-                          <th
-                            key={`header-${t.id}`}
-                            className="sticky top-[37px] z-20 bg-slate-50 border-r border-slate-200 p-1.5 min-w-[48px] w-[48px] h-[175px] align-bottom"
-                          >
-                            <div className="h-full flex items-end justify-center pb-2.5">
-                              <span
-                                className="text-[11px] font-semibold text-slate-700 whitespace-nowrap truncate max-h-[160px] tracking-tight"
-                                style={{
-                                  writingMode: "vertical-rl",
-                                  transform: "rotate(180deg)",
-                                }}
-                                title={t.details}
-                              >
-                                {t.details}
-                              </span>
-                            </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredTableStudents.map((s) => (
-                        <tr key={s.student_id} className="hover:bg-slate-50/70 transition-colors">
-                          {/* Sticky Left Pinned Column: [เลขที่]ชื่อเล่น / ชื่อ-สกุล */}
-                          <td className="sticky left-0 z-10 bg-white border-r border-slate-100 px-3 py-1.5 min-w-[150px] w-[150px] h-[52px] shadow-[1px_0_0_0_#f1f5f9]">
-                            <div className="flex flex-col justify-center leading-tight">
-                              <span className="font-bold text-slate-900 text-xs sm:text-[13px] truncate">
-                                [{s.student_no}]{s.nickname || s.first_name}
-                              </span>
-                              <span className="text-[11px] text-slate-400 truncate mt-0.5">
-                                {s.first_name} {s.last_name}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Status Cells (Interactive Tiles matching Image 1) */}
-                          {activeTasks.map((t) => {
-                            const status = completionMap.get(`${s.student_id}_${t.id}`) || "todo";
-                            const isOverdue = isTaskOverdue(t.due_date);
-
-                            return (
-                              <td
-                                key={`cell-${s.student_id}-${t.id}`}
-                                className="border-r border-slate-100 p-1.5 text-center align-middle h-[52px] min-w-[48px] w-[48px]"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => handleCycleStatus(s.student_id, t.id)}
-                                  className={`w-8 h-8 rounded-lg mx-auto flex items-center justify-center transition-all transform active:scale-85 cursor-pointer ${
-                                    status === "done"
-                                      ? "bg-[#5cd489] text-white shadow-2xs"
-                                      : status === "in_progress"
-                                      ? "bg-[#f97316] text-white shadow-2xs"
-                                      : isOverdue
-                                      ? "bg-white border border-rose-200 text-[#e11d48] font-black text-xs shadow-2xs"
-                                      : "bg-white border border-slate-200 hover:border-slate-400"
-                                  }`}
-                                  title={`เลขที่ ${s.student_no} ${s.first_name} - ${t.details} (แตะเพื่อเปลี่ยนสถานะ)`}
-                                >
-                                  {status === "done" ? (
-                                    null
-                                  ) : status === "in_progress" ? (
-                                    null
-                                  ) : isOverdue ? (
-                                    "!!!"
-                                  ) : null}
-                                </button>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                      {filteredTableStudents.length === 0 && (
-                        <tr>
-                          <td colSpan={activeTasks.length + 1} className="py-12 text-center text-xs text-slate-400">
-                            ไม่พบนักเรียนตามคำค้นหา
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-
-                    {/* Footer Summary Row */}
-                    <tfoot>
-                      <tr className="bg-slate-100 border-t-2 border-slate-200">
-                        <td className="sticky left-0 bottom-0 z-30 bg-slate-100 border-r border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#cbd5e1]">
-                          ส่งแล้ว / รวม
-                        </td>
-                        {activeTasks.map((t) => {
-                          const doneCount = students.filter(
-                            (s) => completionMap.get(`${s.student_id}_${t.id}`) === "done"
-                          ).length;
-                          const pct = Math.round((doneCount / (students.length || 1)) * 100);
-                          return (
-                            <td
-                              key={`summary-${t.id}`}
-                              className="sticky bottom-0 z-20 bg-slate-100 border-r border-slate-200 py-2 text-center text-[10px] font-bold text-slate-700 min-w-[48px] w-[48px]"
-                            >
-                              <div>{doneCount}/{students.length}</div>
-                              <div className="text-[9px] text-[#16453d]">{pct}%</div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            ) : (
-              /* TAB 2: KANBAN COLUMNS */
-              <div className="space-y-4">
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 bg-white rounded-2xl border border-slate-200 p-2.5 shadow-xs">
-                  <button
-                    onClick={() => setFilterSubject("all")}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                      filterSubject === "all"
-                        ? "bg-[#16453d] text-white shadow-xs"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    ทุกวิชา ({tasks.length})
-                  </button>
-                  {uniqueSubjects.map((sub) => (
-                    <button
-                      key={sub}
-                      onClick={() => setFilterSubject(sub)}
-                      className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                        filterSubject === sub
-                          ? "bg-[#16453d] text-white shadow-xs"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      {sub}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  {columns.map((col) => (
-                    <div key={col.id} className="bg-slate-50/70 rounded-2xl border border-slate-200 p-4 space-y-3">
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                        <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#16453d]" />
-                          <span>{col.title}</span>
-                        </h3>
-                        <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-white border border-slate-200 text-slate-600">
-                          {col.tasks.length}
-                        </span>
-                      </div>
-
-                      <div className="space-y-3 min-h-[260px]">
-                        {col.tasks.map((task) => {
-                          const urgency = getUrgency(task);
-                          const pendingCount = students.filter(
-                            (s) => completionMap.get(`${s.student_id}_${task.id}`) !== "done"
-                          ).length;
-
-                          return (
-                            <div
-                              key={task.id}
-                              onClick={() => setSelectedTask(task)}
-                              className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs hover:border-[#16453d]/40 transition-all cursor-pointer space-y-2"
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-[#16453d]">
-                                  {task.subject}
-                                </span>
-                                {urgency && (
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${urgency.color}`}>
-                                    {urgency.text}
-                                  </span>
-                                )}
-                              </div>
-
-                              <h4 className="font-bold text-slate-900 text-sm leading-snug">
-                                {task.details}
-                              </h4>
-
-                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                                <div className="flex items-center gap-1">
-                                  <Calendar size={12} />
-                                  <span>{task.due_date}</span>
-                                </div>
-                                <span className="font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                                  ยังไม่ส่ง {pendingCount} คน
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        {col.tasks.length === 0 && (
-                          <div className="py-12 text-center text-xs text-slate-400 bg-white/50 rounded-xl border border-dashed border-slate-200">
-                            ไม่มีงานในส่วนนี้
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
           </div>
         )}
@@ -1874,65 +1243,6 @@ export default function DisciplinaryApp({
                   <p className="mt-3 font-semibold text-slate-700">วันเวรประจำสัปดาห์: <strong className="text-[#16453d]">{weeklyDuty[selectedStudent.student_id] ? `วัน${weeklyDuty[selectedStudent.student_id]}` : "ยังไม่ได้กำหนด"}</strong></p>
                 </div>
 
-                {/* Segmented Switch Control: บันทึกข้อมูล vs ดูงาน/ประวัติ */}
-                <div className="grid grid-cols-2 p-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-bold shadow-inner">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStudentCardTab("record");
-                      setPenaltyStudent(selectedStudent);
-                      setActiveView("disciplinary");
-                    }}
-                    className={`py-2 rounded-full transition-all cursor-pointer ${
-                      studentCardTab === "record"
-                        ? "bg-[#16453d] text-white shadow-xs"
-                        : "text-slate-600 hover:text-[#16453d]"
-                    }`}
-                  >
-                    บันทึกข้อมูลวินัย
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStudentCardTab("history")}
-                    className={`py-2 rounded-full transition-all cursor-pointer ${
-                      studentCardTab === "history"
-                        ? "bg-[#16453d] text-white shadow-xs"
-                        : "text-slate-600 hover:text-[#16453d]"
-                    }`}
-                  >
-                    ดูงานและการบ้าน
-                  </button>
-                </div>
-
-                {/* Sub-view: Student Homework & History Details */}
-                {studentCardTab === "history" && (
-                  <div className="space-y-4 pt-2 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                        สถานะการบ้าน ({studentStats.done}/{studentStats.total} เสร็จสิ้น)
-                      </h3>
-                      <span className="font-mono text-xs font-bold text-[#16453d]">
-                        {studentStats.progress}%
-                      </span>
-                    </div>
-
-                    <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto">
-                      {tasks.map((task) => {
-                        const status = completionMap.get(`${selectedStudent.student_id}_${task.id}`) ?? "todo";
-                        const isDone = status === "done";
-                        return (
-                          <div key={task.id} className="py-2.5 flex items-center justify-between text-xs">
-                            <span className="font-medium text-slate-800 truncate mr-2">{task.subject}: {task.details}</span>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${isDone ? "bg-emerald-50 text-[#16453d]" : "bg-rose-50 text-rose-700"}`}>
-                              {isDone ? "ส่งแล้ว" : "ยังไม่ส่ง"}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
               </div>
             ) : (
               <div className="bg-white rounded-3xl border border-slate-200 p-10 text-center shadow-xs space-y-3">
@@ -1941,7 +1251,7 @@ export default function DisciplinaryApp({
                 </div>
                 <h3 className="font-bold text-base text-slate-900">เลือกนักเรียนเพื่อดูข้อมูล</h3>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  ค้นหาด้วยชื่อ เลขประจำตัว หรือเลขที่ด้านบน เพื่อดูบันทึกและสถานะการบ้าน
+                  ค้นหาด้วยชื่อ เลขประจำตัว หรือเลขที่ด้านบน เพื่อดูข้อมูลนักเรียนและการทำเวร
                 </p>
               </div>
             )}
@@ -3123,75 +2433,8 @@ export default function DisciplinaryApp({
       </main>
 
       {/* ========================================================================= */}
-      {/* 3. MODALS (Task Details, Record Editor, Search Student)                   */}
+      {/* 3. MODALS (Record Editor, Search Student)                   */}
       {/* ========================================================================= */}
-
-      {/* Task Per-Student Detail Modal */}
-      {selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-[#16453d]">
-                  {selectedTask.subject}
-                </span>
-                <h3 className="text-base font-bold text-slate-900 mt-1">{selectedTask.details}</h3>
-              </div>
-              <button
-                onClick={() => setSelectedTask(null)}
-                className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="border-t border-slate-100 pt-3">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-xs font-bold text-slate-800">
-                  สถานะการส่งรายบุคคล ({students.filter((s) => completionMap.get(`${s.student_id}_${selectedTask.id}`) === "done").length}/{students.length} ส่งแล้ว)
-                </h4>
-              </div>
-
-              <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 pr-1">
-                {students.map((s) => {
-                  const status = completionMap.get(`${s.student_id}_${selectedTask.id}`) ?? "todo";
-                  return (
-                    <div key={s.student_id} className="py-2 flex items-center justify-between gap-3 text-xs">
-                      <span className="font-medium text-slate-800 truncate">
-                        #{s.student_no} {s.first_name} {s.last_name}
-                      </span>
-                      <select
-                        value={status}
-                        onChange={(e) =>
-                          handleCompletionChange(s.student_id, selectedTask.id, e.target.value as TaskCompletion["status"])
-                        }
-                        className={`text-xs font-bold rounded-full px-3 py-1 border cursor-pointer ${
-                          status === "done"
-                            ? "bg-emerald-50 text-[#16453d] border-emerald-200"
-                            : "bg-slate-50 text-slate-700 border-slate-200"
-                        }`}
-                      >
-                        <option value="todo">ยังไม่ส่ง</option>
-                        <option value="in_progress">กำลังทำ</option>
-                        <option value="done">ส่งแล้ว</option>
-                      </select>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setSelectedTask(null)}
-                className="px-5 py-2 rounded-full bg-[#16453d] hover:bg-[#0f352e] text-white text-xs font-bold transition-all cursor-pointer shadow-sm"
-              >
-                เสร็จสิ้น
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Record Editor Modal */}
       {editingRecord && (
@@ -3346,17 +2589,7 @@ export default function DisciplinaryApp({
           <span className="text-[10px] sm:text-[11px] leading-tight mt-0.5 truncate w-full text-center tracking-tight">ภาพรวม</span>
         </button>
 
-        <button
-          onClick={() => setActiveView("assignments")}
-          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-2 rounded-2xl sm:rounded-full transition-all cursor-pointer ${
-            activeView === "assignments"
-              ? "bg-[#16453d] text-white shadow-xs font-bold"
-              : "text-slate-500 hover:text-[#16453d] font-medium"
-          }`}
-        >
-          <BookOpen className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0" />
-          <span className="text-[10px] sm:text-[11px] leading-tight mt-0.5 truncate w-full text-center tracking-tight">การบ้าน</span>
-        </button>
+
 
         <button
           onClick={() => setActiveView("disciplinary")}
