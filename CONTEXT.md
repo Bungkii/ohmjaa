@@ -30,7 +30,7 @@ Ohmjaa เป็นเว็บสำหรับครูห้อง ม.2/3 �
 
 1. `src/app/login/page.tsx` redirect ไป `/`; `teacherActions.ts` มี server actions สำหรับตรวจสิทธิ์ แต่หน้า `/` และ `DisciplinaryApp` ปัจจุบันยังไม่เรียกใช้ชุดนั้น เอกสาร `docs/teacher-setup.md` และ `docs/superpowers/plans/` อธิบายแผน/การตั้งค่าที่อาจไม่ตรงกับเส้นทาง UI ปัจจุบันทั้งหมด
 2. SQL ใน `supabase/` มีหลาย migration และ policy คนละช่วงเวลา ต้องตรวจฐานข้อมูลจริงก่อนรัน migration ใด ๆ โดยเฉพาะข้อมูลนักเรียนและสิทธิ์เข้าถึง
-3. `ohmjaa_school_holidays` และ `ohmjaa_weekly_duty` เก็บใน `localStorage` ต่อเบราว์เซอร์ ไม่ใช่ข้อมูลส่วนกลาง
+3. `ohmjaa_school_holidays` ยังเก็บใน `localStorage` ต่อเบราว์เซอร์ ส่วนวันเวรประจำสัปดาห์เตรียมอ่านจาก `student_weekly_duty` ซึ่งเว็บไม่มีสิทธิ์เขียน ต้องตรวจและรัน `supabase/migration_student_weekly_duty.sql` แล้วกรอกตารางเวรผ่านช่องทางผู้ดูแลฐานข้อมูล
 4. ระยะเวลาทำเวรแบบวันและสัปดาห์คิดเป็นวันเรียน (1 สัปดาห์ = 5 วันเรียน); แบบเดือนนับวันเรียนในช่วงเดือนปฏิทิน; แบบเทอม ปีการศึกษา หรือข้อความกำหนดเองบางแบบยังไม่รวมยอดวัน
 5. `@vercel/analytics` มีใน dependencies แต่ยังไม่เปิดใช้งานใน UI; โปรเจกต์ไม่ได้ติดตั้ง `sonner` หรือมี `components.json` ของ shadcn/ui
 

@@ -89,6 +89,7 @@ interface DisciplinaryAppProps {
   initialRecords: PenaltyRecord[];
   initialTasks: HomeworkTask[];
   initialCompletions: TaskCompletion[];
+  initialWeeklyDuty?: Record<string, string>;
   initialAudit?: TeacherAuditEntry[];
   initialReviews?: TeacherTaskReview[];
   teacherEmail?: string;
@@ -207,13 +208,13 @@ const BEHAVIOR_PRESETS = [
 ];
 
 const CHORE_DURATIONS = ["+1 วัน", "+1 สัปดาห์", "+1 เดือน", "1 เทอม", "1 ปีการศึกษา", "อื่นๆ"];
-const DUTY_WEEKDAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์"];
 
 export default function DisciplinaryApp({
   initialStudents,
   initialRecords,
   initialTasks,
   initialCompletions,
+  initialWeeklyDuty = {},
   initialAudit,
   initialReviews,
 }: DisciplinaryAppProps) {
@@ -280,7 +281,7 @@ export default function DisciplinaryApp({
   const [reportNote, setReportNote] = useState<string>("");
   const [schoolHolidays, setSchoolHolidays] = useState<string>("");
   const [holidaysLoaded, setHolidaysLoaded] = useState(false);
-  const [weeklyDuty, setWeeklyDuty] = useState<Record<string, string>>({});
+  const weeklyDuty = initialWeeklyDuty;
   const [isNoteSectionOpen, setIsNoteSectionOpen] = useState<boolean>(false);
   const [isFieldsSectionOpen, setIsFieldsSectionOpen] = useState<boolean>(false);
   const [isGeneratingDoc, setIsGeneratingDoc] = useState<boolean>(false);
@@ -289,7 +290,6 @@ export default function DisciplinaryApp({
 
   useEffect(() => {
     setSchoolHolidays(localStorage.getItem("ohmjaa_school_holidays") ?? "");
-    try { setWeeklyDuty(JSON.parse(localStorage.getItem("ohmjaa_weekly_duty") ?? "{}")); } catch { setWeeklyDuty({}); }
     setHolidaysLoaded(true);
   }, []);
 
@@ -299,9 +299,6 @@ export default function DisciplinaryApp({
     else localStorage.removeItem("ohmjaa_school_holidays");
   }, [schoolHolidays, holidaysLoaded]);
 
-  useEffect(() => {
-    if (holidaysLoaded) localStorage.setItem("ohmjaa_weekly_duty", JSON.stringify(weeklyDuty));
-  }, [weeklyDuty, holidaysLoaded]);
 
   // Fallback homework tasks if none returned from database
   const DEFAULT_HOMEWORK_TASKS: HomeworkTask[] = useMemo(() => [
@@ -1874,12 +1871,7 @@ export default function DisciplinaryApp({
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm">
                   <div className="font-bold text-[#16453d]">ข้อมูลการทำเวร</div>
                   <p className="mt-1 text-slate-700">ทำเวรจากบันทึกรวม <strong>{formatChoreWeeks(studentChoreLookup.get(selectedStudent.student_id)?.days ?? 0)}</strong>{studentChoreLookup.get(selectedStudent.student_id)?.unknown ? " · มีรายการที่ยังคำนวณจำนวนวันไม่ได้" : ""}</p>
-                  <label className="mt-3 flex flex-col gap-1.5 font-semibold text-slate-700" htmlFor="weekly-duty-select">วันเวรประจำสัปดาห์</label>
-                  <select id="weekly-duty-select" value={weeklyDuty[selectedStudent.student_id] ?? ""} onChange={(event) => setWeeklyDuty((current) => ({ ...current, [selectedStudent.student_id]: event.target.value }))} className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2.5 text-sm focus:outline-2 focus:outline-[#16453d]">
-                    <option value="">ยังไม่ได้กำหนด</option>
-                    {DUTY_WEEKDAYS.map((day) => <option key={day} value={day}>วัน{day}</option>)}
-                  </select>
-                  <p className="mt-2 text-xs text-slate-500">วันเวรประจำที่เลือกจะจำไว้ในเบราว์เซอร์เครื่องนี้</p>
+                  <p className="mt-3 font-semibold text-slate-700">วันเวรประจำสัปดาห์: <strong className="text-[#16453d]">{weeklyDuty[selectedStudent.student_id] ? `วัน${weeklyDuty[selectedStudent.student_id]}` : "ยังไม่ได้กำหนด"}</strong></p>
                 </div>
 
                 {/* Segmented Switch Control: บันทึกข้อมูล vs ดูงาน/ประวัติ */}

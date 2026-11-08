@@ -10,6 +10,7 @@ export default async function HomePage() {
   let records: PenaltyRecord[] = [];
   let tasks: HomeworkTask[] = [];
   let completions: TaskCompletion[] = [];
+  let weeklyDuty: Record<string, string> = {};
 
   try {
     const supabase = await createClient();
@@ -43,6 +44,9 @@ export default async function HomePage() {
     if (completionsRes.data) {
       completions = completionsRes.data as TaskCompletion[];
     }
+    const { data: dutyRows } = await supabase.from("student_weekly_duty")
+      .select("student_id, weekday");
+    weeklyDuty = Object.fromEntries((dutyRows ?? []).map((row) => [row.student_id, row.weekday]));
   } catch (err) {
     console.warn("Could not fetch from Supabase on server, using fallback:", err);
   }
@@ -53,6 +57,7 @@ export default async function HomePage() {
       initialRecords={records}
       initialTasks={tasks}
       initialCompletions={completions}
+      initialWeeklyDuty={weeklyDuty}
       initialAudit={[]}
       initialReviews={[]}
       teacherEmail="ครูประจำชั้น ม.2/3"
