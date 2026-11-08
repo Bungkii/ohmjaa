@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Users,
   Trophy,
@@ -49,6 +49,9 @@ import {
   Square,
   Eye,
   Edit3,
+  Table,
+  Download,
+  Printer,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { startOfDay, isBefore, isToday, isTomorrow, differenceInDays } from "date-fns";
@@ -260,6 +263,204 @@ export default function DisciplinaryApp({
   const [editSeverity, setEditSeverity] = useState<SeverityLevel>("medium");
   const [editStatus, setEditStatus] = useState<PenaltyRecord["status"]>("pending");
   const [editNote, setEditNote] = useState("");
+
+  // Assignments Matrix View States (Matching Image 1)
+  const [assignmentViewMode, setAssignmentViewMode] = useState<"table" | "kanban">("table");
+  const [tableStudentSearch, setTableStudentSearch] = useState("");
+
+  // Report Generator States (Matching html/report.html and Images 2, 3, 4)
+  const [reportMode, setReportMode] = useState<"person" | "room">("person");
+  const [reportStudentId, setReportStudentId] = useState<string>(students[0]?.student_id || "30233");
+  const [reportStudentSearch, setReportStudentSearch] = useState<string>("");
+  const [reportNote, setReportNote] = useState<string>("");
+  const [isNoteSectionOpen, setIsNoteSectionOpen] = useState<boolean>(false);
+  const [isFieldsSectionOpen, setIsFieldsSectionOpen] = useState<boolean>(false);
+  const [isGeneratingDoc, setIsGeneratingDoc] = useState<boolean>(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState<boolean>(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
+  const reportPrintRef = useRef<HTMLDivElement>(null);
+
+  // Fallback homework tasks if none returned from database
+  const DEFAULT_HOMEWORK_TASKS: HomeworkTask[] = useMemo(() => [
+    { id: "task-13", subject: "วิทย์", details: "13. Link โฆษณา ผลิตภัณฑ์ ล่าสุด", due_date: "2026-09-11", status: "todo" },
+    { id: "task-12", subject: "วิทย์", details: "12. Link โฆษณาผลิตภัณฑ์", due_date: "2026-09-11", status: "todo" },
+    { id: "task-11", subject: "วิทย์", details: "11. Lab การแยกสารโดยวิธี โครมาโทกราฟี", due_date: "2026-08-28", status: "todo" },
+    { id: "task-10", subject: "วิทย์", details: "10. Lab การแยกสารโดยการกลั่นธรรมดา", due_date: "2026-08-28", status: "todo" },
+    { id: "task-9", subject: "วิทย์", details: "9. Lab การแยกสารโดยการระเหยแห้ง", due_date: "2026-08-28", status: "todo" },
+    { id: "task-8", subject: "วิทย์", details: "8. การแยกสารผสม", due_date: "2026-08-11", status: "todo" },
+    { id: "task-7", subject: "วิทย์", details: "7. สารละลายและสารบริสุทธิ์", due_date: "2026-08-04", status: "todo" },
+    { id: "task-6", subject: "วิทย์", details: "6. แบบฝึกหัดหน่วยที่ 1", due_date: "2026-07-21", status: "todo" },
+  ], []);
+
+  const activeTasks = useMemo(() => {
+    return tasks && tasks.length > 0 ? tasks : DEFAULT_HOMEWORK_TASKS;
+  }, [tasks, DEFAULT_HOMEWORK_TASKS]);
+
+  const formatThaiShortDate = (dateStr: string) => {
+    if (!dateStr) return "-";
+    try {
+      const parts = dateStr.split("-");
+      if (parts.length === 3) {
+        const day = parseInt(parts[2], 10);
+        const monthIdx = parseInt(parts[1], 10) - 1;
+        const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+        return `${day} ${thMonths[monthIdx] || ""}`;
+      }
+      const d = new Date(dateStr);
+      const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+      return `${d.getDate()} ${thMonths[d.getMonth()]}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatThaiFullDate = (date: Date | string) => {
+    try {
+      const d = typeof date === "string" ? new Date(date) : date;
+      const day = d.getDate();
+      const months = [
+        "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+        "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+      ];
+      const month = months[d.getMonth()];
+      const year = d.getFullYear() + 543;
+      return `${day} ${month} ${year}`;
+    } catch {
+      return String(date);
+    }
+  };
+
+  const isTaskOverdue = (dueDateStr: string) => {
+    if (!dueDateStr) return false;
+    try {
+      const due = startOfDay(new Date(dueDateStr));
+      const today = startOfDay(new Date());
+      return isBefore(due, today);
+    } catch {
+      return false;
+    }
+  };
+
+  const handleCycleStatus = async (studentId: string, taskId: string) => {
+    const currentStatus = completionMap.get(`${studentId}_${taskId}`) || "todo";
+    let nextStatus: TaskCompletion["status"] = "done";
+    if (currentStatus === "done") {
+      nextStatus = "in_progress"; // ส่งกลับ / กำลังทำ
+    } else if (currentStatus === "in_progress") {
+      nextStatus = "todo"; // ยังไม่ส่ง
+    } else {
+      nextStatus = "done"; // ส่งแล้ว
+    }
+
+    // Optimistic instant update
+    setCompletions((prev) => [
+      ...prev.filter((c) => !(c.student_id === studentId && c.task_id === taskId)),
+      { student_id: studentId, task_id: taskId, status: nextStatus },
+    ]);
+
+    try {
+      await updateTaskCompletion(studentId, taskId, nextStatus);
+      addAuditEntry("update", "student_task_completions", taskId, studentId);
+    } catch (err) {
+      console.warn("Cycle status update error:", err);
+    }
+  };
+
+  const filteredTableStudents = useMemo(() => {
+    const q = tableStudentSearch.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter(
+      (s) =>
+        s.student_no.toString() === q ||
+        s.first_name.toLowerCase().includes(q) ||
+        s.last_name.toLowerCase().includes(q) ||
+        (s.nickname && s.nickname.toLowerCase().includes(q))
+    );
+  }, [students, tableStudentSearch]);
+
+  const currentReportStudent = useMemo(() => {
+    return students.find((s) => s.student_id === reportStudentId) || students[0] || null;
+  }, [students, reportStudentId]);
+
+  const reportStudentSearchResults = useMemo(() => {
+    const q = reportStudentSearch.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter(
+      (s) =>
+        s.student_no.toString() === q ||
+        s.first_name.toLowerCase().includes(q) ||
+        s.last_name.toLowerCase().includes(q) ||
+        (s.nickname && s.nickname.toLowerCase().includes(q))
+    );
+  }, [students, reportStudentSearch]);
+
+  const studentReportRecords = useMemo(() => {
+    if (reportMode === "room") {
+      return records;
+    }
+    if (!currentReportStudent) return [];
+    return records.filter((r) => r.student_id === currentReportStudent.student_id);
+  }, [records, reportMode, currentReportStudent]);
+
+  const groupedStudentRecords = useMemo(() => {
+    const groups: Record<string, PenaltyRecord[]> = {};
+    studentReportRecords.forEach((r) => {
+      const key = r.incident || "บันทึกวินัย";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    });
+    return groups;
+  }, [studentReportRecords]);
+
+  const handleGenerateReport = async () => {
+    setIsGeneratingDoc(true);
+    await new Promise((r) => setTimeout(r, 350));
+    setIsGeneratingDoc(false);
+    setIsPreviewModalOpen(true);
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!reportPrintRef.current) return;
+    setIsDownloadingPdf(true);
+    const loadingToast = toast.loading("กำลังสร้างเอกสาร PDF ความละเอียดสูง...");
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
+
+      const element = reportPrintRef.current;
+      const canvas = await html2canvas(element, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+        compress: true,
+      });
+
+      pdf.addImage(imgData, "PNG", 0, 0, 210, 297, undefined, "FAST");
+
+      const fileName =
+        reportMode === "person" && currentReportStudent
+          ? `รายงานวินัย_ม2-3_เลขที่${currentReportStudent.student_no}_${currentReportStudent.first_name}.pdf`
+          : `รายงานวินัย_ห้องม2-3.pdf`;
+
+      pdf.save(fileName);
+      toast.success("ดาวน์โหลด PDF เรียบร้อยแล้ว", { id: loadingToast });
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast.error("ดาวน์โหลด PDF ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", { id: loadingToast });
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   // Map student completion
   const completionMap = useMemo(() => {
@@ -1182,133 +1383,323 @@ export default function DisciplinaryApp({
         )}
 
         {/* ------------------------------------------------------------------------- */}
-        {/* VIEW 3: ASSIGNMENTS (Kanban Board & Per-student Tracking)                  */}
+        {/* VIEW 3: ASSIGNMENTS (Vertical Rotated Matrix & Kanban Board)               */}
         {/* ------------------------------------------------------------------------- */}
         {activeView === "assignments" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             
-            {/* Subject Filters Bar */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200 p-3 shadow-xs">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                <button
-                  onClick={() => setFilterSubject("all")}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    filterSubject === "all"
-                      ? "bg-[#16453d] text-white shadow-xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  ทุกวิชา ({tasks.length})
-                </button>
-                {uniqueSubjects.map((sub) => (
+            {/* Control Bar: Mode Toggle, Search, and Legend (Matching Image 1) */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                {/* View Switcher: Table vs Kanban */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full text-xs font-bold self-start">
                   <button
-                    key={sub}
-                    onClick={() => setFilterSubject(sub)}
+                    type="button"
+                    onClick={() => setAssignmentViewMode("table")}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
+                      assignmentViewMode === "table"
+                        ? "bg-[#16453d] text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Table size={14} />
+                    <span>ตารางติดตาม (Matrix)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAssignmentViewMode("kanban")}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
+                      assignmentViewMode === "kanban"
+                        ? "bg-[#16453d] text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Layers size={14} />
+                    <span>กระดานงาน (Kanban)</span>
+                  </button>
+                </div>
+
+                {/* Quick Student Search */}
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={tableStudentSearch}
+                    onChange={(e) => setTableStudentSearch(e.target.value)}
+                    placeholder="ค้นหาชื่อ หรือเลขที่ (1-53)..."
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-full focus:outline-none focus:bg-white focus:border-[#16453d]"
+                  />
+                  {tableStudentSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setTableStudentSearch("")}
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Status Legend Bar (Exact match to User Image 1) */}
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-3 sm:gap-5 text-xs font-semibold text-slate-700">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[#e11d48] font-black text-sm">!</span>
+                  <span>เลยกำหนด</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-[#e11d48] font-black text-[11px] leading-tight">
+                    !!!
+                  </span>
+                  <span>เลยกำหนดมาก</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-sm border border-slate-300 bg-white inline-block shadow-2xs" />
+                  <span>ยังไม่ส่ง</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-sm bg-[#5cd489] inline-block shadow-2xs" />
+                  <span>ส่งแล้ว</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-4 h-4 rounded-sm bg-[#f97316] inline-block shadow-2xs" />
+                  <span>ส่งกลับ</span>
+                </div>
+                <span className="text-[11px] text-slate-400 ml-auto hidden md:inline">
+                  * แตะที่ช่องเพื่อเปลี่ยนสถานะ (ส่งแล้ว / ส่งกลับ / ยังไม่ส่ง)
+                </span>
+              </div>
+            </div>
+
+            {/* TAB 1: VERTICAL ROTATED MATRIX TABLE (Exact match to User Image 1) */}
+            {assignmentViewMode === "table" ? (
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto overflow-y-auto max-h-[74vh]">
+                  <table className="border-collapse text-left select-none w-full min-w-max">
+                    <thead>
+                      {/* Row 1: กำหนดส่ง + Short Thai Due Dates */}
+                      <tr className="bg-slate-50/80 border-b border-slate-200">
+                        <th className="sticky left-0 top-0 z-30 bg-slate-50 border-r border-slate-200 p-2.5 text-center text-xs font-bold text-slate-500 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#e2e8f0]">
+                          กำหนดส่ง
+                        </th>
+                        {activeTasks.map((t) => (
+                          <th
+                            key={`due-${t.id}`}
+                            className="sticky top-0 z-20 bg-slate-50 border-r border-slate-200 p-2 text-center text-[10px] sm:text-[11px] font-medium text-slate-500 min-w-[48px] w-[48px] whitespace-nowrap"
+                          >
+                            {formatThaiShortDate(t.due_date)}
+                          </th>
+                        ))}
+                      </tr>
+
+                      {/* Row 2: นักเรียน + Vertical Rotated Column Headers reading upwards */}
+                      <tr className="bg-slate-50 border-b-2 border-slate-200">
+                        <th className="sticky left-0 top-[37px] z-30 bg-slate-50 border-r border-slate-200 p-3 text-center text-xs sm:text-sm font-black text-slate-800 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#e2e8f0]">
+                          นักเรียน
+                        </th>
+                        {activeTasks.map((t) => (
+                          <th
+                            key={`header-${t.id}`}
+                            className="sticky top-[37px] z-20 bg-slate-50 border-r border-slate-200 p-1.5 min-w-[48px] w-[48px] h-[175px] align-bottom"
+                          >
+                            <div className="h-full flex items-end justify-center pb-2.5">
+                              <span
+                                className="text-[11px] font-semibold text-slate-700 whitespace-nowrap truncate max-h-[160px] tracking-tight"
+                                style={{
+                                  writingMode: "vertical-rl",
+                                  transform: "rotate(180deg)",
+                                }}
+                                title={t.details}
+                              >
+                                {t.details}
+                              </span>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredTableStudents.map((s) => (
+                        <tr key={s.student_id} className="hover:bg-slate-50/70 transition-colors">
+                          {/* Sticky Left Pinned Column: [เลขที่]ชื่อเล่น / ชื่อ-สกุล */}
+                          <td className="sticky left-0 z-10 bg-white border-r border-slate-100 px-3 py-1.5 min-w-[150px] w-[150px] h-[52px] shadow-[1px_0_0_0_#f1f5f9]">
+                            <div className="flex flex-col justify-center leading-tight">
+                              <span className="font-bold text-slate-900 text-xs sm:text-[13px] truncate">
+                                [{s.student_no}]{s.nickname || s.first_name}
+                              </span>
+                              <span className="text-[11px] text-slate-400 truncate mt-0.5">
+                                {s.first_name} {s.last_name}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Status Cells (Interactive Tiles matching Image 1) */}
+                          {activeTasks.map((t) => {
+                            const status = completionMap.get(`${s.student_id}_${t.id}`) || "todo";
+                            const isOverdue = isTaskOverdue(t.due_date);
+
+                            return (
+                              <td
+                                key={`cell-${s.student_id}-${t.id}`}
+                                className="border-r border-slate-100 p-1.5 text-center align-middle h-[52px] min-w-[48px] w-[48px]"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handleCycleStatus(s.student_id, t.id)}
+                                  className={`w-8 h-8 rounded-lg mx-auto flex items-center justify-center transition-all transform active:scale-85 cursor-pointer ${
+                                    status === "done"
+                                      ? "bg-[#5cd489] text-white shadow-2xs"
+                                      : status === "in_progress"
+                                      ? "bg-[#f97316] text-white shadow-2xs"
+                                      : isOverdue
+                                      ? "bg-white border border-rose-200 text-[#e11d48] font-black text-xs shadow-2xs"
+                                      : "bg-white border border-slate-200 hover:border-slate-400"
+                                  }`}
+                                  title={`เลขที่ ${s.student_no} ${s.first_name} - ${t.details} (แตะเพื่อเปลี่ยนสถานะ)`}
+                                >
+                                  {status === "done" ? (
+                                    null
+                                  ) : status === "in_progress" ? (
+                                    null
+                                  ) : isOverdue ? (
+                                    "!!!"
+                                  ) : null}
+                                </button>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                      {filteredTableStudents.length === 0 && (
+                        <tr>
+                          <td colSpan={activeTasks.length + 1} className="py-12 text-center text-xs text-slate-400">
+                            ไม่พบนักเรียนตามคำค้นหา
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+
+                    {/* Footer Summary Row */}
+                    <tfoot>
+                      <tr className="bg-slate-100 border-t-2 border-slate-200">
+                        <td className="sticky left-0 bottom-0 z-30 bg-slate-100 border-r border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#cbd5e1]">
+                          ส่งแล้ว / รวม
+                        </td>
+                        {activeTasks.map((t) => {
+                          const doneCount = students.filter(
+                            (s) => completionMap.get(`${s.student_id}_${t.id}`) === "done"
+                          ).length;
+                          const pct = Math.round((doneCount / (students.length || 1)) * 100);
+                          return (
+                            <td
+                              key={`summary-${t.id}`}
+                              className="sticky bottom-0 z-20 bg-slate-100 border-r border-slate-200 py-2 text-center text-[10px] font-bold text-slate-700 min-w-[48px] w-[48px]"
+                            >
+                              <div>{doneCount}/{students.length}</div>
+                              <div className="text-[9px] text-[#16453d]">{pct}%</div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              /* TAB 2: KANBAN COLUMNS */
+              <div className="space-y-4">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 bg-white rounded-2xl border border-slate-200 p-2.5 shadow-xs">
+                  <button
+                    onClick={() => setFilterSubject("all")}
                     className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                      filterSubject === sub
+                      filterSubject === "all"
                         ? "bg-[#16453d] text-white shadow-xs"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
-                    {sub}
+                    ทุกวิชา ({tasks.length})
                   </button>
-                ))}
-              </div>
-
-              {selectedStudent && (
-                <div className="flex items-center gap-1 text-xs bg-slate-100 p-1 rounded-full">
-                  <button
-                    onClick={() => setChildFilter("all")}
-                    className={`px-3 py-1 rounded-full font-bold transition-all cursor-pointer ${
-                      childFilter === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600"
-                    }`}
-                  >
-                    ทั้งหมด
-                  </button>
-                  <button
-                    onClick={() => setChildFilter("pending")}
-                    className={`px-3 py-1 rounded-full font-bold transition-all cursor-pointer ${
-                      childFilter === "pending" ? "bg-[#16453d] text-white shadow-xs" : "text-slate-600"
-                    }`}
-                  >
-                    ยังไม่ส่ง ({studentStats.pending})
-                  </button>
-                  <button
-                    onClick={() => setChildFilter("done")}
-                    className={`px-3 py-1 rounded-full font-bold transition-all cursor-pointer ${
-                      childFilter === "done" ? "bg-[#16453d] text-white shadow-xs" : "text-slate-600"
-                    }`}
-                  >
-                    ส่งแล้ว ({studentStats.done})
-                  </button>
+                  {uniqueSubjects.map((sub) => (
+                    <button
+                      key={sub}
+                      onClick={() => setFilterSubject(sub)}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        filterSubject === sub
+                          ? "bg-[#16453d] text-white shadow-xs"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {sub}
+                    </button>
+                  ))}
                 </div>
-              )}
-            </div>
 
-            {/* Kanban Columns */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {columns.map((col) => (
-                <div key={col.id} className="bg-slate-50/70 rounded-2xl border border-slate-200 p-4 space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                    <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#16453d]" />
-                      <span>{col.title}</span>
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-white border border-slate-200 text-slate-600">
-                      {col.tasks.length}
-                    </span>
-                  </div>
-
-                  <div className="space-y-3 min-h-[260px]">
-                    {col.tasks.map((task) => {
-                      const urgency = getUrgency(task);
-                      const pendingCount = students.filter(
-                        (s) => completionMap.get(`${s.student_id}_${task.id}`) !== "done"
-                      ).length;
-
-                      return (
-                        <div
-                          key={task.id}
-                          onClick={() => setSelectedTask(task)}
-                          className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs hover:border-[#16453d]/40 transition-all cursor-pointer space-y-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-[#16453d]">
-                              {task.subject}
-                            </span>
-                            {urgency && (
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${urgency.color}`}>
-                                {urgency.text}
-                              </span>
-                            )}
-                          </div>
-
-                          <h4 className="font-bold text-slate-900 text-sm leading-snug">
-                            {task.details}
-                          </h4>
-
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                            <div className="flex items-center gap-1">
-                              <Calendar size={12} />
-                              <span>{task.due_date}</span>
-                            </div>
-                            <span className="font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                              ยังไม่ส่ง {pendingCount} คน
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {col.tasks.length === 0 && (
-                      <div className="py-12 text-center text-xs text-slate-400 bg-white/50 rounded-xl border border-dashed border-slate-200">
-                        ไม่มีงานในส่วนนี้
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {columns.map((col) => (
+                    <div key={col.id} className="bg-slate-50/70 rounded-2xl border border-slate-200 p-4 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                        <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#16453d]" />
+                          <span>{col.title}</span>
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-white border border-slate-200 text-slate-600">
+                          {col.tasks.length}
+                        </span>
                       </div>
-                    )}
-                  </div>
+
+                      <div className="space-y-3 min-h-[260px]">
+                        {col.tasks.map((task) => {
+                          const urgency = getUrgency(task);
+                          const pendingCount = students.filter(
+                            (s) => completionMap.get(`${s.student_id}_${task.id}`) !== "done"
+                          ).length;
+
+                          return (
+                            <div
+                              key={task.id}
+                              onClick={() => setSelectedTask(task)}
+                              className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs hover:border-[#16453d]/40 transition-all cursor-pointer space-y-2"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-[#16453d]">
+                                  {task.subject}
+                                </span>
+                                {urgency && (
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${urgency.color}`}>
+                                    {urgency.text}
+                                  </span>
+                                )}
+                              </div>
+
+                              <h4 className="font-bold text-slate-900 text-sm leading-snug">
+                                {task.details}
+                              </h4>
+
+                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                                <div className="flex items-center gap-1">
+                                  <Calendar size={12} />
+                                  <span>{task.due_date}</span>
+                                </div>
+                                <span className="font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                  ยังไม่ส่ง {pendingCount} คน
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {col.tasks.length === 0 && (
+                          <div className="py-12 text-center text-xs text-slate-400 bg-white/50 rounded-xl border border-dashed border-slate-200">
+                            ไม่มีงานในส่วนนี้
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
 
           </div>
         )}
@@ -2045,130 +2436,485 @@ export default function DisciplinaryApp({
         )}
 
         {/* ------------------------------------------------------------------------- */}
-        {/* VIEW 6: HISTORY & REPORT TABLE (Modeled on html/report.html)               */}
+        {/* VIEW 6: HISTORY & REPORT GENERATOR (Modeled on html/report.html)          */}
         {/* ------------------------------------------------------------------------- */}
         {activeView === "history" && (
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-sm">
-            
-            {/* Filter Bar */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={historySearch}
-                  onChange={(e) => setHistorySearch(e.target.value)}
-                  placeholder="ค้นหาชื่อ, เหตุการณ์, หรือบทลงโทษ..."
-                  className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-full focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#16453d]"
-                />
-              </div>
+          <div className="space-y-6">
 
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full text-xs font-bold">
-                  <button
-                    onClick={() => setHistoryStatusFilter("all")}
-                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                      historyStatusFilter === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600"
-                    }`}
-                  >
-                    ทั้งหมด ({records.length})
-                  </button>
-                  <button
-                    onClick={() => setHistoryStatusFilter("pending")}
-                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                      historyStatusFilter === "pending" ? "bg-[#16453d] text-white shadow-xs" : "text-slate-600"
-                    }`}
-                  >
-                    รอติดตาม
-                  </button>
-                  <button
-                    onClick={() => setHistoryStatusFilter("completed")}
-                    className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-                      historyStatusFilter === "completed" ? "bg-[#16453d] text-white shadow-xs" : "text-slate-600"
-                    }`}
-                  >
-                    เสร็จสิ้น
-                  </button>
+            {/* 1. PDF REPORT GENERATOR CARD (Modeled on html/report.html & User Image 2) */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-7 shadow-sm space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-[#16453d] flex items-center justify-center font-bold">
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">
+                      ระบบสร้างเอกสารรายงาน (PDF Report)
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      สร้างรายงานวินัยรายบุคคลหรือรายห้อง พร้อมพรีวิวและดาวน์โหลดแบบ A4
+                    </p>
+                  </div>
                 </div>
 
+                {/* Individual vs Room Mode Toggle */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full text-xs font-bold self-start">
+                  <button
+                    type="button"
+                    onClick={() => setReportMode("person")}
+                    className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${
+                      reportMode === "person"
+                        ? "bg-[#16453d] text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    รายบุคคล
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReportMode("room")}
+                    className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${
+                      reportMode === "room"
+                        ? "bg-[#16453d] text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    รายห้อง
+                  </button>
+                </div>
+              </div>
+
+              {/* Individual Student Picker if in Person mode */}
+              {reportMode === "person" && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-800">
+                    เลือกนักเรียนที่ต้องการออกรายงาน
+                  </label>
+                  <div className="relative max-w-md">
+                    <Search className="absolute left-3.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={reportStudentSearch}
+                      onChange={(e) => setReportStudentSearch(e.target.value)}
+                      placeholder="พิมพ์ค้นหาชื่อ หรือเลขที่ (1-53)..."
+                      className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-full focus:outline-none focus:bg-white focus:border-[#16453d]"
+                    />
+                  </div>
+
+                  <div className="max-h-36 overflow-y-auto border border-slate-100 rounded-2xl p-2 bg-slate-50/50 flex flex-wrap gap-1.5">
+                    {reportStudentSearchResults.map((s) => {
+                      const isSelected = currentReportStudent?.student_id === s.student_id;
+                      return (
+                        <button
+                          key={`report-s-${s.student_id}`}
+                          type="button"
+                          onClick={() => setReportStudentId(s.student_id)}
+                          className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${
+                            isSelected
+                              ? "bg-[#16453d] text-white font-bold shadow-xs scale-102"
+                              : "bg-white text-slate-700 border border-slate-200 hover:border-[#16453d]/40"
+                          }`}
+                        >
+                          <span className="font-mono text-[10px] opacity-70">#{s.student_no}</span>
+                          <span>{s.first_name}</span>
+                          {s.nickname && <span className="opacity-75">({s.nickname})</span>}
+                          {isSelected && <Check size={12} className="ml-0.5" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {currentReportStudent && (
+                    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-[#16453d] text-white font-mono text-[11px] flex items-center justify-center font-bold">
+                          {currentReportStudent.student_no}
+                        </div>
+                        <span className="font-bold text-slate-900">
+                          {currentReportStudent.prefix}{currentReportStudent.first_name} {currentReportStudent.last_name}
+                        </span>
+                        {currentReportStudent.nickname && (
+                          <span className="text-slate-500 font-semibold">({currentReportStudent.nickname})</span>
+                        )}
+                        <span className="text-slate-400 font-mono text-[11px]">เลขประจำตัว: {currentReportStudent.student_id}</span>
+                      </div>
+                      <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 text-[11px]">
+                        บันทึกวินัย {studentReportRecords.length} ครั้ง
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Strips: หมายเหตุ & การแสดงข้อมูล (Exact match to User Image 2) */}
+              <div className="flex flex-wrap items-center gap-3">
                 <button
-                  onClick={handleExportCSV}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#16453d] text-white px-4 py-2 rounded-full hover:bg-[#0f352e] transition-all cursor-pointer shadow-xs"
+                  type="button"
+                  onClick={() => setIsNoteSectionOpen(!isNoteSectionOpen)}
+                  className={`px-5 py-2 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                    isNoteSectionOpen || reportNote
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                  }`}
                 >
-                  <FileText size={14} />
-                  <span>ส่งออก CSV</span>
+                  หมายเหตุ {reportNote ? "✓" : ""}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsFieldsSectionOpen(!isFieldsSectionOpen)}
+                  className={`px-5 py-2 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                    isFieldsSectionOpen
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  การแสดงข้อมูล
+                </button>
+              </div>
+
+              {/* Collapsible Note Input */}
+              {isNoteSectionOpen && (
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                  <label className="block text-xs font-bold text-slate-800">
+                    ข้อความหมายเหตุท้ายเอกสาร
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={reportNote}
+                    onChange={(e) => setReportNote(e.target.value)}
+                    placeholder="พิมพ์หมายเหตุเพิ่มเติมสำหรับแนบท้ายเอกสาร (เว้นว่างไว้หากต้องการพิมพ์เป็นเส้นประเปล่า)..."
+                    className="w-full p-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#16453d]"
+                  />
+                </div>
+              )}
+
+              {/* Primary Action Button: สร้างเอกสาร (User Image 2) */}
+              <div className="pt-2 flex justify-center">
+                <button
+                  type="button"
+                  onClick={handleGenerateReport}
+                  disabled={isGeneratingDoc}
+                  className="w-full sm:w-auto min-w-[240px] px-8 py-3.5 rounded-full font-bold text-sm bg-gradient-to-r from-[#16453d] to-[#1f5c51] text-white hover:opacity-95 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isGeneratingDoc ? (
+                    <>
+                      <RotateCw size={16} className="animate-spin" />
+                      <span>กำลังสร้างเอกสาร...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText size={16} />
+                      <span>สร้างเอกสาร</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
 
-            {/* Data Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 text-[11px] uppercase tracking-wider">
-                    <th className="py-3 px-3 font-bold">เลขที่ / ชื่อ</th>
-                    <th className="py-3 px-3 font-bold">เหตุการณ์</th>
-                    <th className="py-3 px-3 font-bold">การดำเนินการ</th>
-                    <th className="py-3 px-3 font-bold">สถานะ</th>
-                    <th className="py-3 px-3 font-bold">วันที่</th>
-                    <th className="py-3 px-3 font-bold text-right">จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredHistoryRecords.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-3 font-bold text-slate-900">
-                        <span className="font-mono text-slate-400 mr-1.5">#{r.student_no}</span>
-                        {r.student_name}
-                      </td>
-                      <td className="py-3 px-3 text-slate-700 max-w-[200px] truncate" title={r.incident}>
-                        {r.incident}
-                      </td>
-                      <td className="py-3 px-3 font-bold text-[#16453d] max-w-[180px] truncate">
-                        {r.punishment}
-                      </td>
-                      <td className="py-3 px-3">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                            r.status === "completed"
-                              ? "bg-emerald-50 text-[#16453d] border-emerald-200"
-                              : r.status === "forgiven"
-                              ? "bg-slate-100 text-slate-600 border-slate-200"
-                              : "bg-amber-50 text-amber-800 border-amber-200"
-                          }`}
-                        >
-                          {r.status === "completed" ? "เสร็จสิ้น" : r.status === "forgiven" ? "ยกเว้น" : "รอติดตาม"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-slate-400 font-mono text-[11px]">
-                        {new Date(r.created_at).toLocaleDateString("th-TH")}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <button
-                          onClick={() => openRecordEditor(r)}
-                          className="px-2 py-1 text-[#16453d] hover:underline font-bold cursor-pointer"
-                        >
-                          แก้ไข
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRecord(r.id, r.student_name)}
-                          className="p-1 rounded-full text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                          title="ลบ"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </td>
+            {/* PREVIEW MODAL (Modeled on html/report.html & User Image 3, 4) */}
+            {isPreviewModalOpen && (
+              <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+                <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+                  {/* Top Bar with circular close button (Image 4) */}
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white">
+                    <h3 className="font-bold text-base sm:text-lg text-slate-800">
+                      ตัวอย่างเอกสาร
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setIsPreviewModalOpen(false)}
+                      className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center font-bold text-lg cursor-pointer transition-colors"
+                      aria-label="ปิด"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {/* Scrollable Document Preview Body */}
+                  <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-100/70 flex justify-center">
+                    {/* A4 Sheet Print Preview Container (Exact match to User Image 3) */}
+                    <div
+                      ref={reportPrintRef}
+                      className="bg-white shadow-xl p-8 sm:p-12 w-full max-w-[210mm] min-h-[297mm] text-slate-900 border border-slate-200 flex flex-col justify-between"
+                      style={{ fontFamily: "'LINE Seed Sans TH', 'Sarabun', sans-serif" }}
+                    >
+                      <div>
+                        {/* Header: Logo, Vertical Blue Line, Title, Meta */}
+                        <div className="grid grid-cols-[48px_1fr_auto] gap-3.5 items-start pb-4">
+                          <div className="w-12 h-12 border-2 border-slate-300 rounded-sm flex items-center justify-center text-slate-400">
+                            <ShieldAlert size={28} />
+                          </div>
+                          <div className="border-l-2 border-[#1c2a66] pl-3">
+                            <div className="text-[11px] font-bold text-slate-700 leading-tight">
+                              ระบบข้อมูลนักเรียน
+                            </div>
+                            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight mt-0.5">
+                              ระดับชั้นมัธยมศึกษาปีที่ 2
+                            </h1>
+                          </div>
+                          <div className="text-right text-[11px] leading-tight text-slate-700">
+                            <div className="font-bold">ประเภทข้อมูล</div>
+                            <div>{reportMode === "room" ? "รายห้อง" : "รายบุคคล"}</div>
+                            <div className="font-bold mt-1">วันที่พิมพ์</div>
+                            <div>{formatThaiFullDate(new Date())}</div>
+                          </div>
+                        </div>
+
+                        {/* Fields: ชื่อ-สกุล, เลขประจำตัว, ห้อง, เลขที่ with underlines */}
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 mt-4 text-xs sm:text-sm">
+                          <div className="col-span-2 flex items-end gap-2">
+                            <strong className="whitespace-nowrap font-bold">ชื่อ - สกุล</strong>
+                            <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
+                              {reportMode === "room"
+                                ? "นักเรียนชั้นมัธยมศึกษาปีที่ 2/3 ทุกคน"
+                                : currentReportStudent
+                                ? `${currentReportStudent.prefix}${currentReportStudent.first_name} ${currentReportStudent.last_name}`
+                                : "-"}
+                            </span>
+                          </div>
+                          <div className="flex items-end gap-2">
+                            <strong className="whitespace-nowrap font-bold">เลขประจำตัว</strong>
+                            <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
+                              {reportMode === "room" ? "30233 - 37825" : currentReportStudent?.student_id || "-"}
+                            </span>
+                          </div>
+                          <div className="flex items-end gap-3">
+                            <div className="flex items-end gap-1.5 flex-1">
+                              <strong className="whitespace-nowrap font-bold">ห้อง</strong>
+                              <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
+                                ม.2/3
+                              </span>
+                            </div>
+                            <div className="flex items-end gap-1.5 flex-1">
+                              <strong className="whitespace-nowrap font-bold">เลขที่</strong>
+                              <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
+                                {reportMode === "room" ? "1 - 53" : currentReportStudent?.student_no || "-"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Dashed line */}
+                        <div className="border-t-2 border-dashed border-slate-700 my-6" />
+
+                        {/* Middle Content: Records Table or "ไม่ปรากฏข้อมูล" (Exact match to User Image 3) */}
+                        <div className="min-h-[280px]">
+                          {studentReportRecords.length === 0 ? (
+                            <div className="py-12 pl-6 sm:pl-24 text-slate-500 text-sm font-medium">
+                              ไม่ปรากฏข้อมูล
+                            </div>
+                          ) : (
+                            <div className="space-y-6">
+                              {Object.entries(groupedStudentRecords).map(([behaviorName, items]) => (
+                                <div key={behaviorName} className="space-y-2">
+                                  <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-900">
+                                    <div>ประเภทพฤติกรรม : {behaviorName}</div>
+                                    <div>จำนวน : {items.length} ครั้ง</div>
+                                  </div>
+                                  <table className="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                      <tr className="border-b-2 border-slate-800 font-bold text-slate-800">
+                                        <th className="py-1.5 px-2 w-12 text-center">ครั้งที่</th>
+                                        <th className="py-1.5 px-2 w-28">วันที่</th>
+                                        <th className="py-1.5 px-2">การดำเนินการ</th>
+                                        <th className="py-1.5 px-2">หมายเหตุ</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200">
+                                      {items.map((r, idx) => (
+                                        <tr key={r.id}>
+                                          <td className="py-1.5 px-2 text-center text-slate-600">{idx + 1}</td>
+                                          <td className="py-1.5 px-2 text-slate-700">{formatThaiFullDate(new Date(r.created_at))}</td>
+                                          <td className="py-1.5 px-2 font-bold text-slate-900">{r.punishment}</td>
+                                          <td className="py-1.5 px-2 text-slate-600">{r.follow_up_note || "-"}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Footer: รวมทั้งหมด, หน้าที่, เส้นประ, ช่วงข้อมูล, หมายเหตุ (Image 3) */}
+                      <div className="mt-8 pt-4">
+                        <div className="text-right text-xs sm:text-sm font-bold text-slate-900">
+                          รวมทั้งหมด : {studentReportRecords.length} ครั้ง
+                        </div>
+                        <div className="text-right text-[11px] text-slate-500 mb-2">
+                          หน้าที่ 1/1
+                        </div>
+
+                        <div className="border-t-2 border-dashed border-slate-700 my-2" />
+
+                        <div className="text-[11px] sm:text-xs text-slate-700">
+                          ข้อมูลตั้งแต่ : วันที่ 1 พฤษภาคม 2569 - {formatThaiFullDate(new Date())}
+                        </div>
+
+                        <div className="mt-2 text-[11px] sm:text-xs text-slate-900">
+                          <strong>หมายเหตุ :</strong>
+                          <div className="mt-1 space-y-1">
+                            <div className="border-b border-dashed border-slate-400 h-5 px-1 truncate text-slate-700">
+                              {reportNote || ""}
+                            </div>
+                            <div className="border-b border-dashed border-slate-400 h-5" />
+                            <div className="border-b border-dashed border-slate-400 h-5" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fixed Bottom Action Bar: Vibrant Coral/Orange Pill Button (Exact match to User Image 4) */}
+                  <div className="p-4 bg-white/95 border-t border-slate-100 flex justify-center shadow-lg">
+                    <button
+                      type="button"
+                      onClick={handleDownloadPdf}
+                      disabled={isDownloadingPdf}
+                      className="bg-gradient-to-r from-[#ff5e3a] to-[#ff3b30] text-white px-9 py-3 rounded-full font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all text-sm sm:text-base flex items-center gap-2 cursor-pointer"
+                    >
+                      {isDownloadingPdf ? (
+                        <>
+                          <RotateCw size={18} className="animate-spin" />
+                          <span>กำลังบันทึก PDF...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download size={18} />
+                          <span>ดาวน์โหลด PDF</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2. PENALTY RECORDS MANAGEMENT TABLE */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    placeholder="ค้นหาชื่อ, เหตุการณ์, หรือบทลงโทษ..."
+                    className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-full focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#16453d]"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full text-xs font-bold">
+                    <button
+                      onClick={() => setHistoryStatusFilter("all")}
+                      className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                        historyStatusFilter === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600"
+                      }`}
+                    >
+                      ทั้งหมด ({records.length})
+                    </button>
+                    <button
+                      onClick={() => setHistoryStatusFilter("pending")}
+                      className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                        historyStatusFilter === "pending" ? "bg-[#16453d] text-white shadow-xs" : "text-slate-600"
+                      }`}
+                    >
+                      รอติดตาม
+                    </button>
+                    <button
+                      onClick={() => setHistoryStatusFilter("completed")}
+                      className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                        historyStatusFilter === "completed" ? "bg-[#16453d] text-white shadow-xs" : "text-slate-600"
+                      }`}
+                    >
+                      เสร็จสิ้น
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleExportCSV}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#16453d] text-white px-4 py-2 rounded-full hover:bg-[#0f352e] transition-all cursor-pointer shadow-xs"
+                  >
+                    <FileText size={14} />
+                    <span>ส่งออก CSV</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Data Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 text-[11px] uppercase tracking-wider">
+                      <th className="py-3 px-3 font-bold">เลขที่ / ชื่อ</th>
+                      <th className="py-3 px-3 font-bold">เหตุการณ์</th>
+                      <th className="py-3 px-3 font-bold">การดำเนินการ</th>
+                      <th className="py-3 px-3 font-bold">สถานะ</th>
+                      <th className="py-3 px-3 font-bold">วันที่</th>
+                      <th className="py-3 px-3 font-bold text-right">จัดการ</th>
                     </tr>
-                  ))}
-                  {filteredHistoryRecords.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
-                        ไม่พบข้อมูลตามตัวกรอง
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredHistoryRecords.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-3 font-bold text-slate-900">
+                          <span className="font-mono text-slate-400 mr-1.5">#{r.student_no}</span>
+                          {r.student_name}
+                        </td>
+                        <td className="py-3 px-3 text-slate-700 max-w-[200px] truncate" title={r.incident}>
+                          {r.incident}
+                        </td>
+                        <td className="py-3 px-3 font-bold text-[#16453d] max-w-[180px] truncate">
+                          {r.punishment}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              r.status === "completed"
+                                ? "bg-emerald-50 text-[#16453d] border-emerald-200"
+                                : r.status === "forgiven"
+                                ? "bg-slate-100 text-slate-600 border-slate-200"
+                                : "bg-amber-50 text-amber-800 border-amber-200"
+                            }`}
+                          >
+                            {r.status === "completed" ? "เสร็จสิ้น" : r.status === "forgiven" ? "ยกเว้น" : "รอติดตาม"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-slate-400 font-mono text-[11px]">
+                          {new Date(r.created_at).toLocaleDateString("th-TH")}
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => openRecordEditor(r)}
+                            className="px-2 py-1 text-[#16453d] hover:underline font-bold cursor-pointer"
+                          >
+                            แก้ไข
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRecord(r.id, r.student_name)}
+                            className="p-1 rounded-full text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                            title="ลบ"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredHistoryRecords.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-slate-400">
+                          ไม่พบข้อมูลตามตัวกรอง
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
           </div>
