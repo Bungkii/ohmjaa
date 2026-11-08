@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Plus,
   Play,
+  Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -48,10 +49,24 @@ export default function SpinWheel({ students }: SpinWheelProps) {
   // Pool of students on the wheel
   const [activePool, setActivePool] = useState<Student[]>([]);
   const [removedStudents, setRemovedStudents] = useState<Student[]>([]);
+  const [poolSearch, setPoolSearch] = useState<string>("");
   const [isSpinning, setIsSpinning] = useState(false);
   const [winner, setWinner] = useState<Student | null>(null);
   const [showWinnerModal, setShowWinnerModal] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Filter pool by search term
+  const filteredPool = useMemo(() => {
+    if (!poolSearch.trim()) return activePool;
+    const q = poolSearch.trim().toLowerCase();
+    return activePool.filter(
+      (s) =>
+        s.student_no.toString().includes(q) ||
+        s.first_name.toLowerCase().includes(q) ||
+        s.last_name.toLowerCase().includes(q) ||
+        (s.nickname && s.nickname.toLowerCase().includes(q))
+    );
+  }, [activePool, poolSearch]);
 
   // Wheel canvas ref & angle state
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -128,7 +143,23 @@ export default function SpinWheel({ students }: SpinWheelProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const size = canvas.width;
+    // Use CSS clientWidth (logical pixels)
+    const displaySize = canvas.clientWidth || 480;
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+
+    // Ensure backing store matches DPR
+    const targetWidth = Math.round(displaySize * dpr);
+    const targetHeight = Math.round(displaySize * dpr);
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+    }
+
+    ctx.save();
+    // Scale context to DPR so all operations use logical coordinates (0 to displaySize)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const size = displaySize;
     const center = size / 2;
     const radius = center - 14;
     const pool = activePool;
@@ -147,10 +178,11 @@ export default function SpinWheel({ students }: SpinWheelProps) {
       ctx.stroke();
 
       ctx.fillStyle = "#94a3b8";
-      ctx.font = "bold 16px 'LINE Seed Sans TH', sans-serif";
+      ctx.font = "bold 16px 'LINE Seed Sans TH', 'IBM Plex Sans Thai', sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("ไม่มีนักเรียนในวงล้อ", center, center);
+      ctx.restore();
       return;
     }
 
@@ -199,19 +231,35 @@ export default function SpinWheel({ students }: SpinWheelProps) {
 
       // Text inside slice
       ctx.save();
-      ctx.rotate(angle + arc / 2);
-      ctx.textAlign = "right";
+      const sliceMidAngle = angle + arc / 2;
+      ctx.rotate(sliceMidAngle);
       ctx.textBaseline = "middle";
       ctx.fillStyle = "#ffffff";
-      ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
       ctx.shadowBlur = 3;
 
-      // Font size scales with number of items
-      const fontSize = total > 40 ? 11 : total > 25 ? 12 : 14;
-      ctx.font = `bold ${fontSize}px 'LINE Seed Sans TH', sans-serif`;
+      // Font size scales with number of items and wheel size
+      const baseFontSize = total > 45 ? 10.5 : total > 30 ? 11.5 : total > 15 ? 12.5 : 14;
+      const scaleFactor = displaySize / 480;
+      const fontSize = Math.max(9, Math.round(baseFontSize * Math.min(1.15, Math.max(0.85, scaleFactor))));
+      ctx.font = `bold ${fontSize}px 'LINE Seed Sans TH', 'IBM Plex Sans Thai', sans-serif`;
 
       const displayText = `#${student.student_no} ${student.nickname || student.first_name}`;
-      ctx.fillText(displayText, radius - 16, 0);
+
+      // Calculate actual angle on the screen (including current rotation)
+      const netAngle = (currentAngle + sliceMidAngle) % (2 * Math.PI);
+      const screenAngle = (netAngle + 2 * Math.PI) % (2 * Math.PI);
+
+      // Auto-flip text on left half of wheel so it is always right-side up
+      const shouldFlip = screenAngle > Math.PI / 2 && screenAngle < (3 * Math.PI) / 2;
+      if (shouldFlip) {
+        ctx.rotate(Math.PI);
+        ctx.textAlign = "left";
+        ctx.fillText(displayText, -(radius - 14), 0);
+      } else {
+        ctx.textAlign = "right";
+        ctx.fillText(displayText, radius - 14, 0);
+      }
       ctx.restore();
     }
 
@@ -240,7 +288,7 @@ export default function SpinWheel({ students }: SpinWheelProps) {
 
     // Center text / icon
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 13px 'LINE Seed Sans TH', sans-serif";
+    ctx.font = "bold 13px 'LINE Seed Sans TH', 'IBM Plex Sans Thai', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("หมุน!", center, center);
@@ -262,23 +310,34 @@ export default function SpinWheel({ students }: SpinWheelProps) {
     ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.restore();
+
+    ctx.restore();
   }, [activePool]);
 
-  // Resize canvas for crisp rendering on HiDPI screens
+  // Resize observer to keep canvas sharp and properly fitted
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    const displaySize = Math.min(460, window.innerWidth - 48);
-    canvas.width = displaySize * dpr;
-    canvas.height = displaySize * dpr;
-    canvas.style.width = `${displaySize}px`;
-    canvas.style.height = `${displaySize}px`;
 
-    const ctx = canvas.getContext("2d");
-    if (ctx) ctx.scale(dpr, dpr);
+    const handleResize = () => {
+      drawWheel();
+    };
 
-    drawWheel();
+    handleResize();
+
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => handleResize())
+      : null;
+
+    if (resizeObserver) {
+      resizeObserver.observe(canvas);
+    }
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener("resize", handleResize);
+    };
   }, [drawWheel]);
 
   // Redraw when pool or rotation changes
@@ -423,18 +482,21 @@ export default function SpinWheel({ students }: SpinWheelProps) {
         </div>
 
         {/* Wheel Display & Sidebar Layout */}
-        <div className="pt-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          {/* Wheel Canvas (Left 7-8 cols) */}
-          <div className="lg:col-span-8 flex flex-col items-center justify-center">
-            <div className="relative cursor-pointer select-none" onClick={handleSpin}>
+        <div className="pt-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Wheel Canvas (Left 7 cols) */}
+          <div className="lg:col-span-7 flex flex-col items-center justify-center">
+            <div
+              className="relative cursor-pointer select-none w-full max-w-[500px] aspect-square flex items-center justify-center"
+              onClick={handleSpin}
+            >
               <canvas
                 ref={canvasRef}
-                className="max-w-full drop-shadow-xl rounded-full transition-transform active:scale-98"
+                className="w-full h-full drop-shadow-xl rounded-full transition-transform active:scale-98"
               />
             </div>
 
             {/* Big Spin Action Button */}
-            <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 w-full max-w-sm">
+            <div className="mt-5 flex flex-col items-center gap-2 w-full max-w-md">
               <button
                 type="button"
                 onClick={handleSpin}
@@ -444,11 +506,14 @@ export default function SpinWheel({ students }: SpinWheelProps) {
                 <Play className={`w-5 h-5 fill-white ${isSpinning ? "animate-spin" : ""}`} />
                 <span>{isSpinning ? "กำลังหมุนวงล้อ..." : "กดหมุนวงล้อเลย! 🎯"}</span>
               </button>
+              <p className="text-[11px] text-slate-400 font-medium text-center">
+                💡 หรือคลิกที่ตัววงล้อเพื่อเริ่มหมุนสุ่มได้ทันที
+              </p>
             </div>
           </div>
 
-          {/* Wheel Pool & Status (Right 4-5 cols) */}
-          <div className="lg:col-span-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 p-4 space-y-4">
+          {/* Wheel Pool & Status (Right 5 cols) */}
+          <div className="lg:col-span-5 bg-slate-50/80 rounded-2xl border border-slate-200/80 p-4 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-200">
               <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                 <Users size={14} className="text-[#16453d]" />
@@ -461,28 +526,46 @@ export default function SpinWheel({ students }: SpinWheelProps) {
               )}
             </div>
 
+            {/* Search filter */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={poolSearch}
+                onChange={(e) => setPoolSearch(e.target.value)}
+                placeholder="ค้นหาชื่อ หรือเลขที่ในวงล้อ..."
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#16453d]"
+              />
+            </div>
+
             {/* Pool List */}
-            <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 pr-1 text-xs">
-              {activePool.map((s) => (
-                <div key={s.student_id} className="py-1.5 px-1 flex items-center justify-between">
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="font-mono text-[10px] text-slate-400 w-5">#{s.student_no}</span>
-                    <span className="font-medium text-slate-800 truncate">{formatStudentFullName(s)}</span>
-                    {s.nickname && <span className="text-slate-400 text-[11px]">({s.nickname})</span>}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActivePool((prev) => prev.filter((p) => p.student_id !== s.student_id));
-                      setRemovedStudents((prev) => [...prev, s]);
-                    }}
-                    className="p-1 text-slate-300 hover:text-rose-500 transition-colors cursor-pointer"
-                    title="นำชื่อออกจากวงล้อ"
-                  >
-                    <UserX size={13} />
-                  </button>
+            <div className="max-h-[380px] sm:max-h-[440px] overflow-y-auto divide-y divide-slate-100 pr-1 text-xs">
+              {filteredPool.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-xs">
+                  {poolSearch ? "ไม่พบนักเรียนตามคำค้นหา" : "ไม่มีนักเรียนในวงล้อ"}
                 </div>
-              ))}
+              ) : (
+                filteredPool.map((s) => (
+                  <div key={s.student_id} className="py-1.5 px-1.5 flex items-center justify-between hover:bg-white/80 rounded-lg transition-colors">
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="font-mono text-[10px] text-slate-400 w-5">#{s.student_no}</span>
+                      <span className="font-medium text-slate-800 truncate">{formatStudentFullName(s)}</span>
+                      {s.nickname && <span className="text-slate-400 text-[11px]">({s.nickname})</span>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePool((prev) => prev.filter((p) => p.student_id !== s.student_id));
+                        setRemovedStudents((prev) => [...prev, s]);
+                      }}
+                      className="p-1 text-slate-300 hover:text-rose-500 transition-colors cursor-pointer"
+                      title="นำชื่อออกจากวงล้อ"
+                    >
+                      <UserX size={13} />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Removed Students Tray */}
@@ -491,7 +574,7 @@ export default function SpinWheel({ students }: SpinWheelProps) {
                 <span className="text-[11px] font-bold text-slate-500 block mb-1.5">
                   นักเรียนที่ถูกสุ่มไปแล้ว:
                 </span>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto pr-1">
                   {removedStudents.map((s) => (
                     <button
                       key={s.student_id}

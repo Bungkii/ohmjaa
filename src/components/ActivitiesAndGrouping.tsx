@@ -31,6 +31,7 @@ import {
   Share2,
   Eye,
   Info,
+  ShieldAlert,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, Description } from "@headlessui/react";
@@ -46,6 +47,14 @@ import {
 } from "@/types/activities";
 import { formatStudentFullName, getStudentAvatar } from "./DisciplinaryApp";
 import SpinWheel from "./SpinWheel";
+
+function formatThaiFullDate(date: Date): string {
+  const months = [
+    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+  ];
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear() + 543}`;
+}
 
 const GROUP_COLORS = [
   { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-800", headerBg: "bg-emerald-600", light: "bg-emerald-100" },
@@ -108,11 +117,30 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [pendingResetDialog, setPendingResetDialog] = useState<"sizes" | "roles" | "groups" | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printDocType, setPrintDocType] = useState<"groups" | "sizes" | "roles">("groups");
+  const [printColumns, setPrintColumns] = useState({
+    studentNo: true,
+    studentId: false,
+    name: true,
+    nickname: true,
+    mainData: true,
+    secondaryData: true,
+    note: true,
+    signatureCell: true,
+  });
+  const [showBottomSignatures, setShowBottomSignatures] = useState(true);
+  const [signature1Title, setSignature1Title] = useState("ครูประจำชั้น ม.2/3");
+  const [signature2Title, setSignature2Title] = useState("หัวหน้าห้อง ม.2/3");
   const reportPrintRef = useRef<HTMLDivElement | null>(null);
 
-  const handlePrintDocument = (type: "groups" | "sizes" | "roles") => {
+  const handleOpenPrintModal = (type: "groups" | "sizes" | "roles") => {
     setPrintDocType(type);
+    setIsPrintModalOpen(true);
+  };
+
+  const executePrint = () => {
+    setIsPrintModalOpen(false);
     setTimeout(() => {
       if (!reportPrintRef.current) return;
       const printLayer = document.createElement("div");
@@ -126,7 +154,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       };
       window.addEventListener("afterprint", cleanup);
       window.print();
-    }, 100);
+    }, 150);
   };
 
   // Load from localStorage on mount
@@ -778,7 +806,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
 
                   <button
                     type="button"
-                    onClick={() => handlePrintDocument("groups")}
+                    onClick={() => handleOpenPrintModal("groups")}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5" />
@@ -967,7 +995,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
 
                 <button
                   type="button"
-                  onClick={() => handlePrintDocument("sizes")}
+                  onClick={() => handleOpenPrintModal("sizes")}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
@@ -1166,7 +1194,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handlePrintDocument("roles")}
+                  onClick={() => handleOpenPrintModal("roles")}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
@@ -1547,63 +1575,408 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
         </div>
       </Dialog>
       {/* ========================================================================= */}
-      {/* HIDDEN REPORT PRINT TEMPLATE (Cloned to .report-print-layer for A4 PDF)   */}
+      {/* PRINT SETUP MODAL (ถามคอลัมน์ และ ช่องเซ็นชื่อ)                                */}
+      {/* ========================================================================= */}
+      <Dialog
+        open={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        className="relative z-50"
+      >
+        <DialogBackdrop
+          transition
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity duration-300 data-[closed]:opacity-0"
+        />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <DialogPanel
+            transition
+            className="w-full max-w-lg rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-slate-100 transition-all duration-300 data-[closed]:scale-95 data-[closed]:opacity-0 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#16453d] flex items-center justify-center font-bold">
+                  <Printer size={20} />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-black text-slate-900">
+                    ตั้งค่าการพิมพ์รายงานเอกสาร A4
+                  </DialogTitle>
+                  <Description className="text-xs text-slate-500">
+                    {printDocType === "groups" && "รายงานการจัดกลุ่มนักเรียน"}
+                    {printDocType === "sizes" && "ใบสรุปยอดการสั่งตัดเสื้อกิจกรรม"}
+                    {printDocType === "roles" && "เอกสารมอบหมายหน้าที่นักเรียนในกิจกรรม"}
+                  </Description>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Section 1: Choose Columns */}
+            <div className="py-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <SlidersHorizontal size={14} className="text-[#16453d]" />
+                  <span>1. เลือกคอลัมน์ที่ต้องการแสดงในตาราง:</span>
+                </span>
+                <span className="text-[11px] text-slate-400">ติ๊กเลือกตามต้องการ</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs">
+                <label className="flex items-center gap-2 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={printColumns.studentNo}
+                    onChange={(e) => setPrintColumns({ ...printColumns, studentNo: e.target.checked })}
+                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                  />
+                  <span className="font-medium text-slate-700">เลขที่</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={printColumns.studentId}
+                    onChange={(e) => setPrintColumns({ ...printColumns, studentId: e.target.checked })}
+                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                  />
+                  <span className="font-medium text-slate-700">เลขประจำตัว</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={printColumns.name}
+                    onChange={(e) => setPrintColumns({ ...printColumns, name: e.target.checked })}
+                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                  />
+                  <span className="font-medium text-slate-700">ชื่อ - สกุล</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={printColumns.nickname}
+                    onChange={(e) => setPrintColumns({ ...printColumns, nickname: e.target.checked })}
+                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                  />
+                  <span className="font-medium text-slate-700">ชื่อเล่น</span>
+                </label>
+
+                {printDocType === "groups" && (
+                  <label className="flex items-center gap-2 cursor-pointer py-1">
+                    <input
+                      type="checkbox"
+                      checked={printColumns.secondaryData}
+                      onChange={(e) => setPrintColumns({ ...printColumns, secondaryData: e.target.checked })}
+                      className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                    />
+                    <span className="font-medium text-slate-700">ตำแหน่ง (หัวหน้า/สมาชิก)</span>
+                  </label>
+                )}
+
+                {printDocType === "sizes" && (
+                  <>
+                    <label className="flex items-center gap-2 cursor-pointer py-1">
+                      <input
+                        type="checkbox"
+                        checked={printColumns.mainData}
+                        onChange={(e) => setPrintColumns({ ...printColumns, mainData: e.target.checked })}
+                        className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                      />
+                      <span className="font-medium text-slate-700">ไซส์เสื้อ</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer py-1">
+                      <input
+                        type="checkbox"
+                        checked={printColumns.secondaryData}
+                        onChange={(e) => setPrintColumns({ ...printColumns, secondaryData: e.target.checked })}
+                        className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                      />
+                      <span className="font-medium text-slate-700">สถานะชำระเงิน</span>
+                    </label>
+                  </>
+                )}
+
+                {printDocType === "roles" && (
+                  <>
+                    <label className="flex items-center gap-2 cursor-pointer py-1">
+                      <input
+                        type="checkbox"
+                        checked={printColumns.mainData}
+                        onChange={(e) => setPrintColumns({ ...printColumns, mainData: e.target.checked })}
+                        className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                      />
+                      <span className="font-medium text-slate-700">หน้าที่ที่มอบหมาย</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer py-1">
+                      <input
+                        type="checkbox"
+                        checked={printColumns.secondaryData}
+                        onChange={(e) => setPrintColumns({ ...printColumns, secondaryData: e.target.checked })}
+                        className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                      />
+                      <span className="font-medium text-slate-700">รายละเอียดหน้าที่</span>
+                    </label>
+                  </>
+                )}
+
+                <label className="flex items-center gap-2 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={printColumns.note}
+                    onChange={(e) => setPrintColumns({ ...printColumns, note: e.target.checked })}
+                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                  />
+                  <span className="font-medium text-slate-700">หมายเหตุ</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={printColumns.signatureCell}
+                    onChange={(e) => setPrintColumns({ ...printColumns, signatureCell: e.target.checked })}
+                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                  />
+                  <span className="font-medium text-slate-700">ช่องเซ็นชื่อ / ลายมือชื่อ</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Section 2: Bottom Signature Block */}
+            <div className="py-3 border-t border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <CheckCircle2 size={14} className="text-[#16453d]" />
+                  <span>2. ช่องลงชื่อท้ายเอกสาร:</span>
+                </span>
+                <label className="flex items-center gap-2 text-xs font-bold text-[#16453d] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showBottomSignatures}
+                    onChange={(e) => setShowBottomSignatures(e.target.checked)}
+                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                  />
+                  <span>มีช่องลงชื่อข้างล่าง</span>
+                </label>
+              </div>
+
+              {showBottomSignatures && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      ตำแหน่งผู้ลงชื่อที่ 1:
+                    </label>
+                    <input
+                      type="text"
+                      value={signature1Title}
+                      onChange={(e) => setSignature1Title(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#16453d]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      ตำแหน่งผู้ลงชื่อที่ 2:
+                    </label>
+                    <input
+                      type="text"
+                      value={signature2Title}
+                      onChange={(e) => setSignature2Title(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#16453d]"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="pt-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={executePrint}
+                className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#16453d] hover:bg-[#0f352e] text-white text-xs font-black shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
+              >
+                <Printer size={15} />
+                <span>สั่งพิมพ์เอกสาร A4 ทันที</span>
+              </button>
+            </div>
+          </DialogPanel>
+        </div>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* HIDDEN REPORT PRINT TEMPLATE (Exact Match to Student Report Design)        */}
       {/* ========================================================================= */}
       <div className="hidden">
-        <div ref={reportPrintRef} className="bg-white text-slate-900 p-8 font-sans">
-          {/* Official Document Header */}
-          <div className="text-center pb-4 border-b-2 border-slate-900 mb-6">
-            <h1 className="text-xl font-bold text-slate-900">
-              {printDocType === "groups" && `รายงานการจัดกลุ่มนักเรียน (${activityName})`}
-              {printDocType === "sizes" && `ใบสรุปยอดการสั่งตัดเสื้อกิจกรรม (${activityName})`}
-              {printDocType === "roles" && `เอกสารมอบหมายหน้าที่นักเรียนในกิจกรรม (${activityName})`}
-            </h1>
-            <p className="text-xs text-slate-700 mt-1">
-              ชั้นมัธยมศึกษาปีที่ 2/3 • โรงเรียนมัธยมศึกษา • ภาคเรียนปัจจุบัน
-            </p>
-            <div className="flex justify-between items-center text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-200">
-              <span>จำนวนนักเรียนทั้งหมด: {students.length} คน</span>
-              <span>วันที่พิมพ์: {new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}</span>
+        <div
+          ref={reportPrintRef}
+          className="bg-white text-slate-900 p-8 sm:p-12 w-[794px] min-w-[794px] min-h-[1123px] text-xs font-sans flex flex-col justify-between"
+          style={{ fontFamily: "'LINE Seed Sans TH', 'Sarabun', sans-serif" }}
+        >
+          <div>
+            {/* Header: Logo, Vertical Navy Line, Title, Meta (Exact Match to Student Report) */}
+            <div className="grid grid-cols-[48px_1fr_auto] gap-3.5 items-start pb-4">
+              <div className="w-12 h-12 border-2 border-slate-300 rounded-sm flex items-center justify-center text-slate-400">
+                <ShieldAlert size={28} />
+              </div>
+              <div className="border-l-2 border-[#1c2a66] pl-3">
+                <div className="text-[11px] font-bold text-slate-700 leading-tight">
+                  ระบบข้อมูลนักเรียน
+                </div>
+                <h1 className="text-xl font-bold text-slate-900 leading-tight mt-0.5">
+                  ระดับชั้นมัธยมศึกษาปีที่ 2
+                </h1>
+              </div>
+              <div className="text-right text-[11px] leading-tight text-slate-700">
+                <div className="font-bold">ประเภทข้อมูล</div>
+                <div>
+                  {printDocType === "groups" && "รายงานการจัดกลุ่ม"}
+                  {printDocType === "sizes" && "รายงานใบสั่งเสื้อ"}
+                  {printDocType === "roles" && "รายงานหน้าที่กิจกรรม"}
+                </div>
+                <div className="font-bold mt-1">วันที่พิมพ์</div>
+                <div>{formatThaiFullDate(new Date())}</div>
+              </div>
             </div>
-          </div>
 
-          {/* 1. REPORT CONTENT: GROUPS */}
-          {printDocType === "groups" && (
-            <div className="space-y-6">
-              {groups.length === 0 ? (
-                <div className="py-12 text-center text-slate-400">ยังไม่มีข้อมูลการจัดกลุ่ม</div>
-              ) : (
+            {/* Fields: ชื่อกิจกรรม, ห้อง, เลขที่, จำนวนนักเรียน with underlines */}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 mt-4 text-xs sm:text-sm">
+              <div className="col-span-2 flex items-end gap-2">
+                <strong className="whitespace-nowrap font-bold">ชื่อกิจกรรม / ข้อมูล</strong>
+                <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
+                  {activityName} (ข้อมูลนักเรียนชั้น ม.2/3 ทั้งหมด {students.length} คน)
+                </span>
+              </div>
+              <div className="flex items-end gap-2">
+                <strong className="whitespace-nowrap font-bold">ระดับชั้น / ห้อง</strong>
+                <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
+                  ห้องเรียน ม.2/3
+                </span>
+              </div>
+              <div className="flex items-end gap-3">
+                <div className="flex items-end gap-1.5 flex-1">
+                  <strong className="whitespace-nowrap font-bold">จำนวนนักเรียน</strong>
+                  <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
+                    {students.length} คน
+                  </span>
+                </div>
+                <div className="flex items-end gap-1.5 flex-1">
+                  <strong className="whitespace-nowrap font-bold">เลขที่</strong>
+                  <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
+                    1 - {students.length}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Dashed line */}
+            <div className="border-t-2 border-dashed border-slate-700 my-6" />
+
+            {/* Summary KPI Box if Sizes */}
+            {printDocType === "sizes" && (
+              <div className="mb-4 p-2.5 border border-slate-400 rounded bg-slate-50 text-[11px] text-slate-800">
+                <div className="font-bold border-b border-slate-300 pb-1 mb-1.5">
+                  สรุปยอดรวมขนาดเสื้อ (จำนวนที่สั่งตัดทั้งหมด):
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {STANDARD_SHIRT_SIZES.map((size) => {
+                    const count = shirtSummary.counts[size] || 0;
+                    if (count === 0) return null;
+                    return (
+                      <span key={size}>
+                        ไซส์ {size}: <strong>{count}</strong> ตัว
+                      </span>
+                    );
+                  })}
+                  <span className="font-bold border-l border-slate-400 pl-3">
+                    รวมทั้งสิ้น: {shirtSummary.totalSpecified} ตัว
+                  </span>
+                  <span>(ชำระเงินแล้ว: {shirtSummary.paidCount} คน)</span>
+                </div>
+              </div>
+            )}
+
+            {/* Summary KPI Box if Roles */}
+            {printDocType === "roles" && (
+              <div className="mb-4 p-2.5 border border-slate-400 rounded bg-slate-50 text-[11px] text-slate-800">
+                <div className="font-bold border-b border-slate-300 pb-1 mb-1.5">
+                  สรุปยอดการจัดสรรหน้าที่ในกิจกรรม:
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {(Object.keys(ROLE_CONFIGS) as ActivityRoleType[])
+                    .filter((r) => r !== "none")
+                    .map((roleKey) => {
+                      const count = roleSummary[roleKey] || 0;
+                      if (count === 0) return null;
+                      return (
+                        <span key={roleKey}>
+                          {ROLE_CONFIGS[roleKey].label}: <strong>{count}</strong> คน
+                        </span>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* Middle Content: Table Header Bar */}
+            <div className="space-y-4">
+              <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-900 border-b border-slate-300 pb-1.5">
+                <div>
+                  {printDocType === "groups" && `ตารางแบ่งกลุ่มนักเรียน ม.2/3 (${groups.length} กลุ่ม)`}
+                  {printDocType === "sizes" && "ตารางบันทึกไซส์เสื้อและลายมือชื่อผู้รับเสื้อ"}
+                  {printDocType === "roles" && "ตารางบันทึกหน้าที่และการดำเนินงานกิจกรรม"}
+                </div>
+                <div>จำนวนรวม : {students.length} คน</div>
+              </div>
+
+              {printDocType === "groups" ? (
+                /* Group Cards in Report */
                 <div className="grid grid-cols-2 gap-4">
-                  {groups.map((group, idx) => (
-                    <div key={group.id} className="border border-slate-400 rounded-lg p-3 break-inside-avoid">
-                      <div className="flex justify-between items-center border-b border-slate-300 pb-1 mb-2 font-bold text-xs">
+                  {groups.map((group) => (
+                    <div key={group.id} className="border border-slate-400 rounded p-2.5 break-inside-avoid">
+                      <div className="flex justify-between items-center border-b border-slate-300 pb-1 mb-1.5 font-bold text-xs">
                         <span>{group.name}</span>
                         <span className="text-[10px] text-slate-600 font-normal">({group.members.length} คน)</span>
                       </div>
                       <table className="w-full text-left text-[11px] border-collapse">
                         <thead>
-                          <tr className="border-b border-slate-200 text-slate-600">
-                            <th className="py-0.5 w-8">เลขที่</th>
-                            <th className="py-0.5">ชื่อ - สกุล</th>
-                            <th className="py-0.5 w-14">ชื่อเล่น</th>
-                            <th className="py-0.5 w-14 text-right">ตำแหน่ง</th>
+                          <tr className="border-b-2 border-slate-800 font-bold text-slate-800">
+                            {printColumns.studentNo && <th className="py-1 px-1 w-8 text-center">เลขที่</th>}
+                            {printColumns.studentId && <th className="py-1 px-1 w-14 text-center">รหัส</th>}
+                            {printColumns.name && <th className="py-1 px-1">ชื่อ - สกุล</th>}
+                            {printColumns.nickname && <th className="py-1 px-1 w-12 text-center">ชื่อเล่น</th>}
+                            {printColumns.secondaryData && <th className="py-1 px-1 w-14 text-right">ตำแหน่ง</th>}
+                            {printColumns.signatureCell && <th className="py-1 px-1 w-16 text-center">ลายมือชื่อ</th>}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-200">
                           {group.members.map((m) => {
                             const isLeader = group.leaderId === m.student_id;
                             return (
                               <tr key={m.student_id}>
-                                <td className="py-1 text-slate-500 font-mono">#{m.student_no}</td>
-                                <td className="py-1 font-medium">{formatStudentFullName(m)}</td>
-                                <td className="py-1 text-slate-600">{m.nickname || "-"}</td>
-                                <td className="py-1 text-right">
-                                  {isLeader ? (
-                                    <span className="font-bold text-slate-900">[หัวหน้า]</span>
-                                  ) : (
-                                    <span className="text-slate-400">สมาชิก</span>
-                                  )}
-                                </td>
+                                {printColumns.studentNo && <td className="py-1 px-1 text-center text-slate-600 font-mono">#{m.student_no}</td>}
+                                {printColumns.studentId && <td className="py-1 px-1 text-center text-slate-500 font-mono">{m.student_id}</td>}
+                                {printColumns.name && <td className="py-1 px-1 font-bold text-slate-900">{formatStudentFullName(m)}</td>}
+                                {printColumns.nickname && <td className="py-1 px-1 text-center text-slate-700">{m.nickname || "-"}</td>}
+                                {printColumns.secondaryData && (
+                                  <td className="py-1 px-1 text-right">
+                                    {isLeader ? <span className="font-bold text-[#16453d]">[หัวหน้า]</span> : <span className="text-slate-500">สมาชิก</span>}
+                                  </td>
+                                )}
+                                {printColumns.signatureCell && <td className="py-1 px-1 border-b border-slate-200"></td>}
                               </tr>
                             );
                           })}
@@ -1612,148 +1985,126 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                     </div>
                   ))}
                 </div>
+              ) : (
+                /* Formal Table (Sizes / Roles) */
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-slate-800 font-bold text-slate-800">
+                      {printColumns.studentNo && <th className="py-1.5 px-2 w-10 text-center">เลขที่</th>}
+                      {printColumns.studentId && <th className="py-1.5 px-2 w-16 text-center">รหัส</th>}
+                      {printColumns.name && <th className="py-1.5 px-2">ชื่อ - สกุล</th>}
+                      {printColumns.nickname && <th className="py-1.5 px-2 w-14 text-center">ชื่อเล่น</th>}
+                      {printDocType === "sizes" && printColumns.mainData && (
+                        <th className="py-1.5 px-2 w-14 text-center">ไซส์</th>
+                      )}
+                      {printDocType === "sizes" && printColumns.secondaryData && (
+                        <th className="py-1.5 px-2 w-20 text-center">ชำระเงิน</th>
+                      )}
+                      {printDocType === "roles" && printColumns.mainData && (
+                        <th className="py-1.5 px-2 w-36">หน้าที่ที่ได้รับมอบหมาย</th>
+                      )}
+                      {printDocType === "roles" && printColumns.secondaryData && (
+                        <th className="py-1.5 px-2">รายละเอียดหน้าที่</th>
+                      )}
+                      {printColumns.note && <th className="py-1.5 px-2 w-28">หมายเหตุ</th>}
+                      {printColumns.signatureCell && <th className="py-1.5 px-2 w-28 text-center">ลายมือชื่อผู้รับ / ตรวจ</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {students.map((student) => {
+                      const shirt = shirtRecords[student.student_id];
+                      const assignment = roleRecords[student.student_id];
+                      const roleKey = assignment?.role || "none";
+
+                      return (
+                        <tr key={student.student_id} className="break-inside-avoid">
+                          {printColumns.studentNo && (
+                            <td className="py-1.5 px-2 text-center text-slate-600 font-mono">
+                              #{student.student_no}
+                            </td>
+                          )}
+                          {printColumns.studentId && (
+                            <td className="py-1.5 px-2 text-center text-slate-500 font-mono">
+                              {student.student_id}
+                            </td>
+                          )}
+                          {printColumns.name && (
+                            <td className="py-1.5 px-2 font-bold text-slate-900">
+                              {formatStudentFullName(student)}
+                            </td>
+                          )}
+                          {printColumns.nickname && (
+                            <td className="py-1.5 px-2 text-center text-slate-700">
+                              {student.nickname || "-"}
+                            </td>
+                          )}
+                          {printDocType === "sizes" && printColumns.mainData && (
+                            <td className="py-1.5 px-2 text-center font-bold text-[#16453d]">
+                              {shirt?.size || "-"}
+                            </td>
+                          )}
+                          {printDocType === "sizes" && printColumns.secondaryData && (
+                            <td className="py-1.5 px-2 text-center text-slate-700">
+                              {shirt?.paid ? "✓ ชำระแล้ว" : "ค้างชำระ"}
+                            </td>
+                          )}
+                          {printDocType === "roles" && printColumns.mainData && (
+                            <td className="py-1.5 px-2 font-bold text-[#16453d]">
+                              {ROLE_CONFIGS[roleKey].label}
+                            </td>
+                          )}
+                          {printDocType === "roles" && printColumns.secondaryData && (
+                            <td className="py-1.5 px-2 text-slate-800">
+                              {assignment?.role_detail || "-"}
+                            </td>
+                          )}
+                          {printColumns.note && (
+                            <td className="py-1.5 px-2 text-slate-600">
+                              {(printDocType === "sizes" ? shirt?.note : assignment?.note) || "-"}
+                            </td>
+                          )}
+                          {printColumns.signatureCell && (
+                            <td className="py-1.5 px-2 border-b border-slate-200"></td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               )}
             </div>
-          )}
+          </div>
 
-          {/* 2. REPORT CONTENT: SHIRT SIZES */}
-          {printDocType === "sizes" && (
-            <div className="space-y-4">
-              {/* Summary Stats Table */}
-              <div className="border border-slate-300 rounded-lg p-3 bg-slate-50 mb-4">
-                <div className="text-xs font-bold text-slate-800 mb-1.5">สรุปยอดสั่งเสื้อแต่ละขนาด:</div>
-                <div className="flex flex-wrap gap-4 text-xs">
-                  {STANDARD_SHIRT_SIZES.map((size) => {
-                    const count = shirtSummary.counts[size] || 0;
-                    if (count === 0) return null;
-                    return (
-                      <span key={size} className="font-semibold">
-                        ไซส์ {size}: <strong className="text-slate-900">{count}</strong> ตัว
-                      </span>
-                    );
-                  })}
-                  <span className="font-bold border-l border-slate-300 pl-3">
-                    รวมสั่งทั้งหมด: <strong className="text-slate-900">{shirtSummary.totalSpecified}</strong> ตัว
-                  </span>
-                  <span>
-                    (ชำระเงินแล้ว: {shirtSummary.paidCount} คน)
-                  </span>
+          {/* Footer Summary & Signatures (Matching Student Report Style) */}
+          <div className="mt-8 pt-4 break-inside-avoid">
+            <div className="text-right text-xs sm:text-sm font-bold text-slate-900">
+              รวมทั้งหมด : {students.length} คน
+            </div>
+            <div className="text-right text-[11px] text-slate-500 mb-2">
+              หน้าที่ 1/1
+            </div>
+
+            <div className="border-t-2 border-dashed border-slate-700 my-2" />
+
+            <div className="text-[11px] sm:text-xs text-slate-700">
+              ข้อมูลตั้งแต่ : วันที่ 1 พฤษภาคม 2569 - {formatThaiFullDate(new Date())}
+            </div>
+
+            {/* Bottom Signatures (if toggled on) */}
+            {showBottomSignatures && (
+              <div className="grid grid-cols-2 gap-10 pt-6 mt-4 text-xs text-slate-800 border-t border-slate-300">
+                <div className="text-center">
+                  <div className="pb-1">ลงชื่อ ...........................................................</div>
+                  <div className="text-[11px] text-slate-500 mt-1.5">( ........................................................... )</div>
+                  <div className="font-bold mt-1 text-slate-900">{signature1Title}</div>
+                </div>
+                <div className="text-center">
+                  <div className="pb-1">ลงชื่อ ...........................................................</div>
+                  <div className="text-[11px] text-slate-500 mt-1.5">( ........................................................... )</div>
+                  <div className="font-bold mt-1 text-slate-900">{signature2Title}</div>
                 </div>
               </div>
-
-              {/* Roster Table */}
-              <table className="w-full text-left text-[11px] border-collapse border border-slate-300">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-800">
-                    <th className="py-1 px-2 w-10 text-center border-r border-slate-300">เลขที่</th>
-                    <th className="py-1 px-2 w-48 border-r border-slate-300">ชื่อ - สกุล</th>
-                    <th className="py-1 px-2 w-16 border-r border-slate-300 text-center">ชื่อเล่น</th>
-                    <th className="py-1 px-2 w-16 border-r border-slate-300 text-center">ไซส์</th>
-                    <th className="py-1 px-2 w-20 border-r border-slate-300 text-center">การชำระเงิน</th>
-                    <th className="py-1 px-2 w-28 border-r border-slate-300">หมายเหตุ</th>
-                    <th className="py-1 px-2 w-28 text-center">ลายมือชื่อผู้รับเสื้อ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {students.map((student) => {
-                    const shirt = shirtRecords[student.student_id];
-                    return (
-                      <tr key={student.student_id} className="break-inside-avoid">
-                        <td className="py-1 px-2 text-center text-slate-500 font-mono border-r border-slate-200">
-                          #{student.student_no}
-                        </td>
-                        <td className="py-1 px-2 font-medium border-r border-slate-200">
-                          {formatStudentFullName(student)}
-                        </td>
-                        <td className="py-1 px-2 text-center text-slate-600 border-r border-slate-200">
-                          {student.nickname || "-"}
-                        </td>
-                        <td className="py-1 px-2 text-center font-bold border-r border-slate-200">
-                          {shirt?.size || "-"}
-                        </td>
-                        <td className="py-1 px-2 text-center border-r border-slate-200">
-                          {shirt?.paid ? "ชำระแล้ว" : "ค้างชำระ"}
-                        </td>
-                        <td className="py-1 px-2 text-slate-600 border-r border-slate-200">
-                          {shirt?.note || "-"}
-                        </td>
-                        <td className="py-1 px-2 border-b border-slate-100"></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* 3. REPORT CONTENT: ACTIVITY ROLES */}
-          {printDocType === "roles" && (
-            <div className="space-y-4">
-              {/* Summary Stats */}
-              <div className="border border-slate-300 rounded-lg p-3 bg-slate-50 mb-4 flex flex-wrap gap-3 text-xs">
-                {(Object.keys(ROLE_CONFIGS) as ActivityRoleType[])
-                  .filter((r) => r !== "none")
-                  .map((roleKey) => {
-                    const count = roleSummary[roleKey] || 0;
-                    if (count === 0) return null;
-                    return (
-                      <span key={roleKey} className="font-semibold">
-                        {ROLE_CONFIGS[roleKey].label}: <strong>{count}</strong> คน
-                      </span>
-                    );
-                  })}
-              </div>
-
-              {/* Roster Table */}
-              <table className="w-full text-left text-[11px] border-collapse border border-slate-300">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-800">
-                    <th className="py-1 px-2 w-10 text-center border-r border-slate-300">เลขที่</th>
-                    <th className="py-1 px-2 w-48 border-r border-slate-300">ชื่อ - สกุล</th>
-                    <th className="py-1 px-2 w-16 border-r border-slate-300 text-center">ชื่อเล่น</th>
-                    <th className="py-1 px-2 w-44 border-r border-slate-300">หน้าที่ที่ได้รับมอบหมาย</th>
-                    <th className="py-1 px-2">รายละเอียดหน้าที่เพิ่มเติม</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {students.map((student) => {
-                    const assignment = roleRecords[student.student_id];
-                    const roleKey = assignment?.role || "none";
-                    return (
-                      <tr key={student.student_id} className="break-inside-avoid">
-                        <td className="py-1 px-2 text-center text-slate-500 font-mono border-r border-slate-200">
-                          #{student.student_no}
-                        </td>
-                        <td className="py-1 px-2 font-medium border-r border-slate-200">
-                          {formatStudentFullName(student)}
-                        </td>
-                        <td className="py-1 px-2 text-center text-slate-600 border-r border-slate-200">
-                          {student.nickname || "-"}
-                        </td>
-                        <td className="py-1 px-2 font-bold border-r border-slate-200">
-                          {ROLE_CONFIGS[roleKey].label}
-                        </td>
-                        <td className="py-1 px-2 text-slate-700">
-                          {assignment?.role_detail || "-"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Signature Footer */}
-          <div className="mt-8 pt-6 border-t border-slate-400 flex justify-between items-end text-xs text-slate-800 break-inside-avoid">
-            <div className="text-center w-52">
-              <div className="border-b border-slate-600 pb-1 mb-1"></div>
-              <span>หัวหน้าห้อง ม.2/3</span>
-            </div>
-            <div className="text-center w-52">
-              <div className="border-b border-slate-600 pb-1 mb-1"></div>
-              <span>ครูประจำชั้น ม.2/3</span>
-            </div>
+            )}
           </div>
         </div>
       </div>
