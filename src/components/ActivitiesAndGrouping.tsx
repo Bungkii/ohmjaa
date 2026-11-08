@@ -210,6 +210,26 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
     return students.filter((s) => !excludedStudentIds.includes(s.student_id));
   }, [students, excludedStudentIds]);
 
+  // Breakdown of group sizes (e.g. 7 คน 5 กลุ่ม, 6 คน 3 กลุ่ม)
+  const groupSizeBreakdown = useMemo(() => {
+    if (groups.length === 0) return "";
+    const sizeMap: Record<number, number> = {};
+    groups.forEach((g) => {
+      const sz = g.members.length;
+      sizeMap[sz] = (sizeMap[sz] || 0) + 1;
+    });
+
+    const sortedSizes = Object.keys(sizeMap)
+      .map(Number)
+      .sort((a, b) => b - a);
+
+    if (sortedSizes.length <= 1) {
+      return sortedSizes.length === 1 ? `กลุ่มละ ${sortedSizes[0]} คนเท่ากันทุกกลุ่ม` : "";
+    }
+
+    return sortedSizes.map((sz) => `${sz} คน ${sizeMap[sz]} กลุ่ม`).join(", ");
+  }, [groups]);
+
   // ==========================================
   // GROUPING LOGIC
   // ==========================================
@@ -231,6 +251,22 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       // Create group buckets
       const groupBuckets: Student[][] = Array.from({ length: numGroups }, () => []);
 
+      // Helper to push student into the group bucket with the fewest students (random tie-breaker)
+      const pushToLeastFilled = (buckets: Student[][], student: Student) => {
+        let minLength = Infinity;
+        for (let i = 0; i < buckets.length; i++) {
+          if (buckets[i].length < minLength) minLength = buckets[i].length;
+        }
+        const candidateIndices: number[] = [];
+        for (let i = 0; i < buckets.length; i++) {
+          if (buckets[i].length === minLength) {
+            candidateIndices.push(i);
+          }
+        }
+        const chosenIndex = candidateIndices[Math.floor(Math.random() * candidateIndices.length)];
+        buckets[chosenIndex].push(student);
+      };
+
       if (balanceGender) {
         // Split boys and girls
         const boys = activeStudentsForGrouping
@@ -243,27 +279,17 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
           .filter((s) => s.prefix !== "ด.ช." && s.prefix !== "นาย" && s.prefix !== "ด.ญ." && s.prefix !== "น.ส.")
           .sort(() => Math.random() - 0.5);
 
-        // Round-robin distribution
-        let idx = 0;
-        boys.forEach((b) => {
-          groupBuckets[idx % numGroups].push(b);
-          idx++;
-        });
-        // Start girls distribution from a random offset to prevent same gender-skewed ordering
-        idx = Math.floor(Math.random() * numGroups);
-        girls.forEach((g) => {
-          groupBuckets[idx % numGroups].push(g);
-          idx++;
-        });
-        others.forEach((o) => {
-          groupBuckets[idx % numGroups].push(o);
-          idx++;
-        });
+        // Distribute boys first so each group gets an equal base of boys
+        boys.forEach((b) => pushToLeastFilled(groupBuckets, b));
+        // Distribute girls into the least-filled groups to balance total group sizes & gender
+        girls.forEach((g) => pushToLeastFilled(groupBuckets, g));
+        // Distribute others
+        others.forEach((o) => pushToLeastFilled(groupBuckets, o));
       } else {
-        // Pure random shuffle
+        // Pure random shuffle with guaranteed even distribution
         const shuffled = [...activeStudentsForGrouping].sort(() => Math.random() - 0.5);
-        shuffled.forEach((student, index) => {
-          groupBuckets[index % numGroups].push(student);
+        shuffled.forEach((student) => {
+          pushToLeastFilled(groupBuckets, student);
         });
       }
 
@@ -286,9 +312,20 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
         };
       });
 
+      // Calculate summary for toast
+      const sizeMap: Record<number, number> = {};
+      results.forEach((g) => {
+        const sz = g.members.length;
+        sizeMap[sz] = (sizeMap[sz] || 0) + 1;
+      });
+      const sortedSizes = Object.keys(sizeMap).map(Number).sort((a, b) => b - a);
+      const summaryText = sortedSizes.length > 1
+        ? sortedSizes.map((sz) => `${sz} คน ${sizeMap[sz]} กลุ่ม`).join(", ")
+        : `กลุ่มละ ${sortedSizes[0]} คนเท่ากัน`;
+
       saveGroupsState(results);
       setIsShuffling(false);
-      toast.success(`สุ่มจัด ${results.length} กลุ่มเรียบร้อย! 🎉`);
+      toast.success(`สุ่มจัด ${results.length} กลุ่มเรียบร้อย! (${summaryText}) 🎉`);
     }, 400);
   };
 
@@ -320,7 +357,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       return;
     }
     let text = `📋 ผลการจัดกลุ่ม ${activityName} (ห้อง ม.2/3)\n`;
-    text += `จำนวนทั้งหมด ${groups.length} กลุ่ม | สมาชิกรวม ${activeStudentsForGrouping.length} คน\n`;
+    text += `จำนวนทั้งหมด ${groups.length} กลุ่ม | สมาชิกรวม ${activeStudentsForGrouping.length} คน${groupSizeBreakdown ? ` (${groupSizeBreakdown})` : ""}\n`;
     text += `------------------------------------\n`;
 
     groups.forEach((g) => {
@@ -820,13 +857,20 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
           {/* Group Results Display */}
           {groups.length > 0 ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
-                  <span>ผลลัพธ์การแบ่งกลุ่ม ({groups.length} กลุ่ม)</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                    <span>ผลลัพธ์การแบ่งกลุ่ม ({groups.length} กลุ่ม)</span>
+                  </h4>
                   <span className="text-xs font-normal text-slate-400">
                     • เฉลี่ยกลุ่มละ {Math.round(activeStudentsForGrouping.length / groups.length)} คน
                   </span>
-                </h4>
+                  {groupSizeBreakdown && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                      {groupSizeBreakdown}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1935,7 +1979,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
             <div className="space-y-4">
               <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-900 border-b border-slate-300 pb-1.5">
                 <div>
-                  {printDocType === "groups" && `ตารางแบ่งกลุ่มนักเรียน ม.2/3 (${groups.length} กลุ่ม)`}
+                  {printDocType === "groups" && `ตารางแบ่งกลุ่มนักเรียน ม.2/3 (${groups.length} กลุ่ม${groupSizeBreakdown ? ` • ${groupSizeBreakdown}` : ""})`}
                   {printDocType === "sizes" && "ตารางบันทึกไซส์เสื้อและลายมือชื่อผู้รับเสื้อ"}
                   {printDocType === "roles" && "ตารางบันทึกหน้าที่และการดำเนินงานกิจกรรม"}
                 </div>
