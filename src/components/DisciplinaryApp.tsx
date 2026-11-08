@@ -952,7 +952,7 @@ export default function DisciplinaryApp({
   ];
 
   return (
-    <div className="min-h-screen bg-[#f7faf8] text-[#151b2e] flex flex-col pb-[calc(96px+env(safe-area-inset-bottom,16px))] xl:pb-0">
+    <div className="min-h-screen bg-[#f7faf8] text-[#151b2e] flex flex-col pb-[calc(96px+env(safe-area-inset-bottom,16px))] lg:pb-0">
       <Toaster position="top-center" toastOptions={{ duration: 2500 }} />
 
       {/* ========================================================================= */}
@@ -977,10 +977,10 @@ export default function DisciplinaryApp({
           </div>
 
           {/* Segmented Switch Tabs (Desktop) */}
-          <nav className="hidden xl:flex items-center gap-1 bg-slate-100/90 p-1 rounded-full border border-slate-200/80 text-xs font-bold shadow-inner" aria-label="เมนูหลักบนคอมพิวเตอร์">
+          <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 bg-slate-100/90 p-1 rounded-full border border-slate-200/80 text-xs font-bold shadow-inner" aria-label="เมนูหลักบนคอมพิวเตอร์">
             <button
               onClick={() => setActiveView("overview")}
-              className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+              className={`px-2 xl:px-4 py-2 rounded-full transition-all cursor-pointer ${
                 activeView === "overview"
                   ? "bg-[#16453d] text-white shadow-sm"
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
@@ -990,7 +990,7 @@ export default function DisciplinaryApp({
             </button>
             <button
               onClick={() => setActiveView("today")}
-              className={`px-3.5 py-2 rounded-full transition-all cursor-pointer ${
+              className={`px-2 xl:px-3.5 py-2 rounded-full transition-all cursor-pointer ${
                 activeView === "today"
                   ? "bg-[#16453d] text-white shadow-sm"
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
@@ -1000,7 +1000,7 @@ export default function DisciplinaryApp({
             </button>
             <button
               onClick={() => setActiveView("assignments")}
-              className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+              className={`px-2 xl:px-4 py-2 rounded-full transition-all cursor-pointer ${
                 activeView === "assignments"
                   ? "bg-[#16453d] text-white shadow-sm"
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
@@ -1010,7 +1010,7 @@ export default function DisciplinaryApp({
             </button>
             <button
               onClick={() => setActiveView("student")}
-              className={`px-3.5 py-2 rounded-full transition-all cursor-pointer ${
+              className={`px-2 xl:px-3.5 py-2 rounded-full transition-all cursor-pointer ${
                 activeView === "student"
                   ? "bg-[#16453d] text-white shadow-sm"
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
@@ -1020,7 +1020,7 @@ export default function DisciplinaryApp({
             </button>
             <button
               onClick={() => setActiveView("disciplinary")}
-              className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+              className={`px-2 xl:px-4 py-2 rounded-full transition-all cursor-pointer ${
                 activeView === "disciplinary"
                   ? "bg-[#16453d] text-white shadow-sm"
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
@@ -1030,7 +1030,7 @@ export default function DisciplinaryApp({
             </button>
             <button
               onClick={() => setActiveView("history")}
-              className={`px-4 py-2 rounded-full transition-all cursor-pointer ${
+              className={`px-2 xl:px-4 py-2 rounded-full transition-all cursor-pointer ${
                 activeView === "history"
                   ? "bg-[#16453d] text-white shadow-sm"
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
@@ -3267,7 +3267,7 @@ export default function DisciplinaryApp({
       {/* 4. MOBILE & RESPONSIVE BOTTOM NAVIGATION (Fits all phones, tablets & desktop) */}
       {/* ========================================================================= */}
       <nav
-        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] inset-x-2.5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 xl:hidden rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-1.5 sm:px-3 py-1.5 sm:py-2 flex items-center justify-between gap-0.5 sm:gap-1.5 w-auto max-w-[420px] sm:max-w-md md:max-w-lg"
+        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] inset-x-2.5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 lg:hidden rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-1.5 sm:px-3 py-1.5 sm:py-2 flex items-center justify-between gap-0.5 sm:gap-1.5 w-auto max-w-[420px] sm:max-w-md md:max-w-lg"
         aria-label="เมนูหลัก"
       >
         <button
