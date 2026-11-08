@@ -27,6 +27,7 @@ import {
   HelpCircle,
   SlidersHorizontal,
   ChevronRight,
+  ArrowLeft,
   Download,
   Share2,
   Eye,
@@ -89,8 +90,8 @@ interface ActivitiesAndGroupingProps {
 }
 
 export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupingProps) {
-  // Top-level sub-view: "gadgets" | "wheel" | "grouping" | "sizes" | "roles"
-  const [subView, setSubView] = useState<"gadgets" | "wheel" | "grouping" | "sizes" | "roles">("gadgets");
+  // Top-level sub-view: "hub" | "gadgets" | "wheel" | "grouping" | "sizes" | "roles"
+  const [subView, setSubView] = useState<"hub" | "gadgets" | "wheel" | "grouping" | "sizes" | "roles">("hub");
 
   // ==========================================
   // 1. STATE FOR GROUP GENERATOR
@@ -577,104 +578,175 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
     setPendingResetDialog(null);
   };
 
+  // 5 Main Menu Cards in Hub
+  const menuCards = useMemo(
+    () => [
+      {
+        id: "gadgets" as const,
+        icon: "⏱️",
+        title: "แกดเจ็ตในห้องเรียน (Classroom Gadgets)",
+        shortTitle: "⏱️ แกดเจ็ต",
+        description:
+          "นาฬิกาจับเวลานับถอยหลังเต็มจอ, กระดิ่งครูสั่นเรียกสมาธิ & ซาวด์บอร์ด 6 เสียง, และทอยลูกเต๋า 2 ลูกแบบสุ่ม",
+        badge: "3 เครื่องมือพร้อมใช้",
+        badgeColor: "bg-amber-50 text-amber-800 border-amber-200",
+        gradient: "from-amber-500 to-orange-600",
+      },
+      {
+        id: "wheel" as const,
+        icon: "🎡",
+        title: "วงล้อสุ่มนักเรียน ม.2/3 (Spin Wheel)",
+        shortTitle: "🎡 วงล้อสุ่ม",
+        description:
+          "หมุนวงล้อสุ่มนักเรียนตอบคำถาม ทำกิจกรรม ตัวหนังสือตั้งตรงอ่านง่าย ฟิสิกส์ 60fps และเสียงเชียร์",
+        badge: `${students.length} คนในวงล้อ`,
+        badgeColor: "bg-emerald-50 text-emerald-800 border-emerald-200",
+        gradient: "from-emerald-500 to-teal-600",
+      },
+      {
+        id: "grouping" as const,
+        icon: "🎲",
+        title: "สุ่มจัดกลุ่มนักเรียน (Random Group Generator)",
+        shortTitle: "🎲 สุ่มจัดกลุ่ม",
+        description:
+          "สุ่มแบ่งกลุ่มคละเพศชาย-หญิง สุ่มหัวหน้ากลุ่ม พร้อมสรุปแจกแจงจำนวนคน (เช่น 7 คน 5 กลุ่ม, 6 คน 3 กลุ่ม) คัดลอกและพิมพ์ A4",
+        badge: groups.length > 0 ? `${groups.length} กลุ่มล่าสุด` : "แบ่งกลุ่มคละเพศ",
+        badgeColor: "bg-sky-50 text-sky-800 border-sky-200",
+        gradient: "from-sky-500 to-blue-600",
+      },
+      {
+        id: "sizes" as const,
+        icon: "👕",
+        title: "ข้อมูลไซส์เสื้อกิจกรรม (Classroom Shirt Sizes)",
+        shortTitle: "👕 ไซส์เสื้อ",
+        description:
+          "รวบรวมไซส์เสื้อนักเรียน (S ถึง 4XL) สรุปยอดสั่งตัดเสื้ออัตโนมัติ เช็คการจ่ายเงิน และพิมพ์ใบเซ็นชื่อรับเสื้อ A4",
+        badge:
+          shirtSummary.totalSpecified > 0
+            ? `ระบุแล้ว ${shirtSummary.totalSpecified} ตัว`
+            : "สรุปยอดตัดเสื้อ",
+        badgeColor: "bg-purple-50 text-purple-800 border-purple-200",
+        gradient: "from-purple-500 to-indigo-600",
+      },
+      {
+        id: "roles" as const,
+        icon: "🏆",
+        title: "มอบหมายหน้าที่กิจกรรมพิเศษ (Activity Roles & Duties)",
+        shortTitle: "🏆 หน้าที่กิจกรรม",
+        description:
+          "จัดสรรหน้าที่นักเรียนในงานกีฬาสี/กิจกรรม (นักกีฬา, กองเชียร์, พาเหรด, สวัสดิการ, ช่างภาพ ฯลฯ) พร้อมพิมพ์รายงาน A4",
+        badge: "จัดสรรหน้าที่",
+        badgeColor: "bg-rose-50 text-rose-800 border-rose-200",
+        gradient: "from-rose-500 to-pink-600",
+      },
+    ],
+    [students.length, groups.length, shirtSummary.totalSpecified]
+  );
+
   return (
     <div className="space-y-6 pb-24">
       {/* ========================================================================= */}
-      {/* HEADER BANNER & SUB-NAVIGATION                                             */}
+      {/* TOP HEADER & BACK NAVIGATION                                               */}
       {/* ========================================================================= */}
-      <div className="bg-gradient-to-r from-[#16453d] to-[#0d2a25] rounded-3xl p-4 sm:p-6 text-white shadow-md relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-0.5">
-              <Sparkles className="w-3.5 h-3.5" />
+      {subView === "hub" ? (
+        // Hub Banner
+        <div className="bg-gradient-to-r from-[#16453d] to-[#0d2a25] rounded-3xl p-5 sm:p-7 text-white shadow-md relative overflow-hidden">
+          <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-1">
+              <Sparkles className="w-4 h-4" />
               <span>ห้อง ม.2/3 • เครื่องมือห้องเรียน & กิจกรรม</span>
             </div>
-            <h2 className="text-lg sm:text-2xl font-black flex items-center gap-2">
-              แกดเจ็ตห้องเรียน & กิจกรรม
+            <h2 className="text-xl sm:text-2xl font-black">
+              เมนูเครื่องมือ & กิจกรรมห้องเรียน
             </h2>
-            <p className="text-slate-300 text-xs mt-0.5 max-w-xl">
-              นาฬิกาจับเวลานับถอยหลัง, กระดิ่งครู & ซาวด์บอร์ด, ทอยลูกเต๋า 2 ลูก, วงล้อสุ่ม, สุ่มจัดกลุ่ม และไซส์เสื้อ
+            <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-xl">
+              รวมเมนูเครื่องมือช่วยสอนและกิจกรรมประจำห้อง ม.2/3 แตะที่การ์ดเพื่อกดเข้าใช้งานได้ทันทีครับ
             </p>
           </div>
+        </div>
+      ) : (
+        // Active Sub-view Header with "Back to Hub" button
+        <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setSubView("hub")}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#16453d] hover:bg-[#0f352e] text-white text-xs sm:text-sm font-bold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>← กลับหน้ารวมทุกเมนู</span>
+          </button>
 
-          {/* Quick Sub-view Buttons (Horizontal scrollable on mobile) */}
-          <div className="w-full md:w-auto overflow-x-auto no-scrollbar py-0.5">
-            <div className="flex items-center gap-1.5 bg-white/10 p-1.5 rounded-2xl backdrop-blur-md border border-white/10 min-w-max">
+          {/* Quick horizontal switcher */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            {menuCards.map((m) => (
               <button
+                key={m.id}
                 type="button"
-                onClick={() => setSubView("gadgets")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  subView === "gadgets"
-                    ? "bg-white text-[#16453d] shadow-sm scale-100"
-                    : "text-white/80 hover:text-white hover:bg-white/10"
+                onClick={() => setSubView(m.id)}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  subView === m.id
+                    ? "bg-[#16453d] text-white shadow-2xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                <span className="text-xs">⏱️</span>
-                <span>แกดเจ็ตในห้อง</span>
+                <span>{m.shortTitle}</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => setSubView("wheel")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  subView === "wheel"
-                    ? "bg-white text-[#16453d] shadow-sm scale-100"
-                    : "text-white/80 hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <span className="text-xs">🎡</span>
-                <span>วงล้อสุ่ม</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSubView("grouping")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  subView === "grouping"
-                    ? "bg-white text-[#16453d] shadow-sm scale-100"
-                    : "text-white/80 hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <Shuffle className="w-3.5 h-3.5" />
-                <span>สุ่มจัดกลุ่ม</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSubView("sizes")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  subView === "sizes"
-                    ? "bg-white text-[#16453d] shadow-sm scale-100"
-                    : "text-white/80 hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <Shirt className="w-3.5 h-3.5" />
-                <span>ไซส์เสื้อ</span>
-                {shirtSummary.totalSpecified > 0 && (
-                  <span className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-                    {shirtSummary.totalSpecified}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSubView("roles")}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  subView === "roles"
-                    ? "bg-white text-[#16453d] shadow-sm scale-100"
-                    : "text-white/80 hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <Trophy className="w-3.5 h-3.5" />
-                <span>หน้าที่กิจกรรม</span>
-              </button>
-            </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 0. MAIN HUB: ALL MENU CARDS (ครบทุกเมนู กดลงไปได้)                           */}
+      {/* ========================================================================= */}
+      {subView === "hub" && (
+        <div className="space-y-3.5">
+          {menuCards.map((item, index) => (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setSubView(item.id)}
+              className="group bg-white rounded-3xl border-2 border-slate-200 hover:border-[#16453d]/50 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between gap-3 sm:gap-4 select-none"
+            >
+              <div className="flex items-center gap-3.5 sm:gap-5 min-w-0">
+                <div
+                  className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr ${item.gradient} text-white flex items-center justify-center shrink-0 shadow-md text-2xl sm:text-3xl group-hover:scale-105 transition-transform`}
+                >
+                  <span>{item.icon}</span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 group-hover:text-[#16453d] transition-colors">
+                      {item.title}
+                    </h3>
+                    <span
+                      className={`text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${item.badgeColor}`}
+                    >
+                      {item.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                    {item.description}
+                  </p>
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center gap-1.5 text-slate-400 group-hover:text-[#16453d] transition-colors font-bold text-xs">
+                <span className="hidden sm:inline">กดเปิด</span>
+                <div className="w-9 h-9 rounded-xl bg-slate-50 group-hover:bg-emerald-50 flex items-center justify-center border border-slate-200 group-hover:border-emerald-200 transition-colors">
+                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-[#16453d]" />
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 0. SUB-VIEW: SPIN WHEEL (วงล้อสุ่ม)                                      */}
