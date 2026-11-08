@@ -50,10 +50,13 @@ import {
   Table,
   Download,
   Printer,
+  Shuffle,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Description, Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { Student, PenaltyRecord, SeverityLevel } from "@/types/penalty";
+import { motion, AnimatePresence } from "framer-motion";
+import ActivitiesAndGrouping from "./ActivitiesAndGrouping";
 import { getChoreSchedule, parseHolidayDates } from "@/lib/choreSchedule";
 import {
   createPenaltyRecord,
@@ -185,7 +188,7 @@ export default function DisciplinaryApp({
 
   // View state
   const [activeView, setActiveView] = useState<
-    "overview" | "today" | "student" | "disciplinary" | "history" | "audit"
+    "overview" | "today" | "student" | "activities" | "disciplinary" | "history" | "audit"
   >("overview");
 
   // Selected Student for Persistent Tracking
@@ -215,6 +218,7 @@ export default function DisciplinaryApp({
   const [editingRecord, setEditingRecord] = useState<PenaltyRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editIncident, setEditIncident] = useState("");
   const [editSeverity, setEditSeverity] = useState<SeverityLevel>("medium");
   const [editStatus, setEditStatus] = useState<PenaltyRecord["status"]>("pending");
@@ -670,6 +674,7 @@ export default function DisciplinaryApp({
   const handleDeleteRecord = async () => {
     if (!pendingDelete || isDeleting) return;
     const { id } = pendingDelete;
+    setDeletingId(id);
     setIsDeleting(true);
     try {
       await deletePenaltyRecord(id);
@@ -681,6 +686,7 @@ export default function DisciplinaryApp({
       toast.error("ไม่สามารถลบรายการได้");
     } finally {
       setIsDeleting(false);
+      setDeletingId(null);
     }
   };
 
@@ -819,6 +825,16 @@ export default function DisciplinaryApp({
               นักเรียน
             </button>
             <button
+              onClick={() => setActiveView("activities")}
+              className={`px-2 xl:px-3 py-2 rounded-full transition-all cursor-pointer ${
+                activeView === "activities"
+                  ? "bg-[#16453d] text-white shadow-sm"
+                  : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
+              }`}
+            >
+              กิจกรรม & สุ่มกลุ่ม
+            </button>
+            <button
               onClick={() => setActiveView("disciplinary")}
               className={`px-2 xl:px-4 py-2 rounded-full transition-all cursor-pointer ${
                 activeView === "disciplinary"
@@ -903,6 +919,7 @@ export default function DisciplinaryApp({
               {activeView === "overview" && "ภาพรวมห้องเรียนและวินัย"}
               {activeView === "today" && "วินัยที่ต้องติดตาม"}
               {activeView === "student" && "ข้อมูลและประวัตินักเรียน"}
+              {activeView === "activities" && "กิจกรรมพิเศษ & สุ่มจัดกลุ่ม"}
               {activeView === "disciplinary" && "บันทึกพฤติกรรมและวินัย"}
               {activeView === "history" && "รายงานและประวัติบันทึก"}
               {activeView === "audit" && "บันทึกการแก้ไขข้อมูล"}
@@ -941,6 +958,7 @@ export default function DisciplinaryApp({
                 <div className="grid grid-cols-2 sm:flex gap-2 shrink-0">
                   <button onClick={() => setActiveView("today")} className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-[#16453d] shadow-sm hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><CalendarDays size={17} /> ติดตามวินัย</button>
                   <button onClick={() => setIsSearchOpen(true)} className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-[#16453d] shadow-sm hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><Search size={17} /> ค้นหานักเรียน</button>
+                  <button onClick={() => setActiveView("activities")} className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-bold text-[#16453d] shadow-sm hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><Shuffle size={17} /> สุ่มกลุ่ม/เสื้อ</button>
                   <button onClick={() => setActiveView("disciplinary")} className="col-span-2 min-h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-[#16453d] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#0f352e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16453d]"><PlusCircle size={17} /> เพิ่มบันทึก</button>
                 </div>
               </div>
@@ -1257,6 +1275,13 @@ export default function DisciplinaryApp({
             )}
 
           </div>
+        )}
+
+        {/* ------------------------------------------------------------------------- */}
+        {/* VIEW: ACTIVITIES & RANDOM GROUP GENERATOR                                 */}
+        {/* ------------------------------------------------------------------------- */}
+        {activeView === "activities" && (
+          <ActivitiesAndGrouping students={students} />
         )}
 
         {/* ------------------------------------------------------------------------- */}
@@ -1784,8 +1809,15 @@ export default function DisciplinaryApp({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
+                    <AnimatePresence>
                     {records.slice(0, 8).map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                      <motion.tr
+                        key={r.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0, x: -30, backgroundColor: "#fee2e2", transition: { duration: 0.25 } }}
+                        className={`hover:bg-slate-50 transition-colors ${deletingId === r.id ? "bg-rose-100 opacity-60" : ""}`}
+                      >
                         <td className="py-2.5 px-2 font-medium text-slate-900">
                           <span className="font-mono text-[10px] text-slate-400 mr-1.5">#{r.student_no}</span>
                           {r.student_name}
@@ -1811,8 +1843,9 @@ export default function DisciplinaryApp({
                             <Trash2 size={13} />
                           </button>
                         </td>
-                      </tr>
+                      </motion.tr>
                     ))}
+                    </AnimatePresence>
                     {records.length === 0 && (
                       <tr>
                         <td colSpan={4} className="py-10 text-center text-slate-400">
@@ -2320,8 +2353,15 @@ export default function DisciplinaryApp({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
+                    <AnimatePresence>
                     {filteredHistoryRecords.map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                      <motion.tr
+                        key={r.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0, x: -30, backgroundColor: "#fee2e2", transition: { duration: 0.25 } }}
+                        className={`hover:bg-slate-50 transition-colors ${deletingId === r.id ? "bg-rose-100 opacity-60" : ""}`}
+                      >
                         <td className="py-3 px-3 font-bold text-slate-900">
                           <span className="font-mono text-slate-400 mr-1.5">#{r.student_no}</span>
                           {r.student_name}
@@ -2363,8 +2403,9 @@ export default function DisciplinaryApp({
                             <Trash2 size={13} />
                           </button>
                         </td>
-                      </tr>
+                      </motion.tr>
                     ))}
+                    </AnimatePresence>
                     {filteredHistoryRecords.length === 0 && (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-slate-400">
@@ -2536,17 +2577,31 @@ export default function DisciplinaryApp({
       )}
 
       <Dialog open={pendingDelete !== null} onClose={() => { if (!isDeleting) setPendingDelete(null); }} className="relative z-[60]">
-        <DialogBackdrop className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" />
+        <DialogBackdrop transition className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity duration-300 ease-out data-[closed]:opacity-0" />
         <div className="fixed inset-0 flex items-center justify-center p-4">
-          <DialogPanel className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><Trash2 size={21} /></div>
-            <DialogTitle className="text-lg font-bold text-slate-900">ลบบันทึกวินัย?</DialogTitle>
-            <Description className="mt-2 text-sm leading-relaxed text-slate-600">
+          <DialogPanel transition className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl transition-all duration-300 ease-out data-[closed]:scale-95 data-[closed]:opacity-0">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 mx-auto">
+              <Trash2 className={`w-6 h-6 ${isDeleting ? "animate-spin" : "animate-bounce"}`} />
+            </div>
+            <DialogTitle className="text-lg font-bold text-slate-900 text-center">ลบบันทึกวินัย?</DialogTitle>
+            <Description className="mt-2 text-sm leading-relaxed text-slate-600 text-center">
               ต้องการลบบันทึกของ <strong className="text-slate-900">{pendingDelete?.name}</strong> ใช่หรือไม่? รายการที่ลบแล้วจะไม่แสดงในประวัติ
             </Description>
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" data-autofocus onClick={() => setPendingDelete(null)} disabled={isDeleting} className="min-h-11 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">ยกเลิก</button>
-              <button type="button" onClick={handleDeleteRecord} disabled={isDeleting} className="min-h-11 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50">{isDeleting ? "กำลังลบ..." : "ยืนยันลบ"}</button>
+              <button type="button" data-autofocus onClick={() => setPendingDelete(null)} disabled={isDeleting} className="min-h-11 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 cursor-pointer">ยกเลิก</button>
+              <button type="button" onClick={handleDeleteRecord} disabled={isDeleting} className="min-h-11 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95">
+                {isDeleting ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    <span>กำลังลบ...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    <span>ยืนยันลบ</span>
+                  </>
+                )}
+              </button>
             </div>
           </DialogPanel>
         </div>
@@ -2595,6 +2650,18 @@ export default function DisciplinaryApp({
         >
           <UserCheck className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0" />
           <span className="text-[10px] sm:text-[11px] leading-tight mt-0.5 truncate w-full text-center tracking-tight">นักเรียน</span>
+        </button>
+
+        <button
+          onClick={() => setActiveView("activities")}
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-2 rounded-2xl sm:rounded-full transition-all cursor-pointer ${
+            activeView === "activities"
+              ? "bg-[#16453d] text-white shadow-xs font-bold"
+              : "text-slate-500 hover:text-[#16453d] font-medium"
+          }`}
+        >
+          <Shirt className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0" />
+          <span className="text-[10px] sm:text-[11px] leading-tight mt-0.5 truncate w-full text-center tracking-tight">กิจกรรม</span>
         </button>
 
         <button

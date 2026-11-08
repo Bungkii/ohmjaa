@@ -8,7 +8,9 @@ Ohmjaa เป็นเว็บสำหรับครูห้อง ม.2/3 �
 
 - Next.js 16 App Router, React 19, TypeScript และ Tailwind CSS 4
 - `src/app/page.tsx` อ่านนักเรียน บันทึกวินัย และวันเวรประจำจาก Supabase แล้วส่งให้ `DisciplinaryApp` ถ้าอ่านไม่สำเร็จจะใช้รายชื่อนักเรียนสำรองและชุดข้อมูลอื่นเป็นค่าว่าง
-- `DisciplinaryApp` เป็น client component ที่มีหน้า ภาพรวม, ติดตามวินัย, นักเรียน, บันทึกวินัย, ประวัติ/รายงาน และการแก้ไข ไม่มีหน้าและตัวติดตามการบ้านใน UI ปัจจุบัน
+- `DisciplinaryApp` เป็น client component ที่มีหน้า ภาพรวม, ติดตามวินัย, นักเรียน, กิจกรรม & สุ่มกลุ่ม, บันทึกวินัย, ประวัติ/รายงาน และการแก้ไข
+- หน้ากิจกรรม & สุ่มกลุ่มใช้คอมโพเนนต์ `src/components/ActivitiesAndGrouping.tsx` และวงล้อสุ่ม `src/components/SpinWheel.tsx` รองรับการหมุนวงล้อสุ่มนักเรียน (ฟิสิกส์ชะลอความเร็ว, เสียงสังเคราะห์ Web Audio, ตัดชื่อออก), สุ่มกลุ่ม (คละเพศ, สุ่มหัวหน้า) และระบบข้อมูลกิจกรรมพิเศษ/ไซส์เสื้อ (สรุปยอดรวม, เช็คชำระเงิน, มอบหมายหน้าที่) บันทึกสถานะใน `localStorage`
+- การลบรายการวินัยและไดอะล็อกยืนยันรองรับแอนิเมชั่น (Framer Motion `AnimatePresence` slide/fade out และ Headless UI transition) พร้อมสถานะกำลังลบ
 - การบันทึก ลบ และแก้ไขจาก UI ปัจจุบันเรียก `src/app/actions.ts` ซึ่งใช้ browser Supabase client และมี local cache บางส่วน
 - การถามยืนยันก่อนลบใช้ Headless UI Dialog; การแจ้งผลใช้ `react-hot-toast`
 - รายงานพิมพ์ด้วย `window.print()` และ print CSS ใน `src/app/globals.css`; หน้า HTML แยก `html/report.html` มี print stylesheet ของตนเอง
@@ -19,9 +21,9 @@ Ohmjaa เป็นเว็บสำหรับครูห้อง ม.2/3 �
 | พื้นที่ | ไฟล์ |
 | --- | --- |
 | หน้าและ layout | `src/app/page.tsx`, `src/app/layout.tsx`, `src/app/globals.css` |
-| UI หลัก | `src/components/DisciplinaryApp.tsx` |
+| UI หลัก | `src/components/DisciplinaryApp.tsx`, `src/components/ActivitiesAndGrouping.tsx`, `src/components/SpinWheel.tsx` |
 | การทำงานกับข้อมูล | `src/app/actions.ts`, `src/app/teacherActions.ts`, `src/utils/supabase/` |
-| ชนิดข้อมูลและการคำนวณ | `src/types/penalty.ts`, `src/lib/choreSchedule.ts` |
+| ชนิดข้อมูลและการคำนวณ | `src/types/penalty.ts`, `src/types/activities.ts`, `src/lib/choreSchedule.ts` |
 | ข้อมูลสำรอง | `src/data/students.json` |
 | SQL | `supabase/` |
 | หน้า HTML แยก | `html/report.html`, `index.html` |
