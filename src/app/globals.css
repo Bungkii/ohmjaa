@@ -1,3 +1,5 @@
+@import url("https://cdn.jsdelivr.net/gh/lazywasabi/thai-web-fonts@7/fonts/LINESeedSansTH/LINESeedSansTH.css");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -11,17 +13,24 @@
   --safe-right: env(safe-area-inset-right, 0px);
 }
 
+@theme inline {
+  --font-sans: "LINE Seed Sans TH", "IBM Plex Sans Thai", "Noto Sans Thai", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+html, body, *, button, input, select, textarea {
+  font-family: "LINE Seed Sans TH", "IBM Plex Sans Thai", "Noto Sans Thai", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  box-sizing: border-box;
+}
+
 html, body {
   background-color: #ffffff;
   color: #151b2e;
-  font-family: "LINE Seed Sans TH", "IBM Plex Sans Thai", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
 }
 
 * {
-  box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
 
