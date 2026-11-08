@@ -422,22 +422,82 @@ export default function DisciplinaryApp({
   const handleDownloadPdf = async () => {
     if (!reportPrintRef.current) return;
     setIsDownloadingPdf(true);
-    const loadingToast = toast.loading("กำลังสร้างเอกสาร PDF ความละเอียดสูง...");
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
+    const loadingToast = toast.loading("กำลังจัดทำไฟล์ PDF คุณภาพสูงสำหรับโทรศัพท์...");
 
-      const element = reportPrintRef.current;
-      const canvas = await html2canvas(element, {
-        scale: 3,
+    let exportLayer: HTMLDivElement | null = null;
+    try {
+      // 1. Dynamic imports with fallback resolution for Turbopack & mobile
+      const html2canvasMod = await import("html2canvas");
+      const html2canvas = html2canvasMod.default || html2canvasMod;
+      const jspdfMod = await import("jspdf");
+      const jsPDF = jspdfMod.jsPDF || (jspdfMod as any).default?.jsPDF || (jspdfMod as any).default;
+
+      if (!html2canvas || !jsPDF) {
+        throw new Error("ไม่สามารถโหลดไลบรารีสร้าง PDF ได้");
+      }
+
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
+
+      // 2. Create offscreen container with exact fixed A4 width (794px)
+      // This completely solves mobile viewport clipping, scale down, and layout distortion
+      exportLayer = document.createElement("div");
+      exportLayer.id = "pdf-export-layer";
+      exportLayer.style.position = "fixed";
+      exportLayer.style.left = "-9999px";
+      exportLayer.style.top = "0";
+      exportLayer.style.width = "794px";
+      exportLayer.style.background = "#ffffff";
+      exportLayer.style.overflow = "visible";
+      exportLayer.style.pointerEvents = "none";
+      exportLayer.style.zIndex = "-9999";
+
+      // 3. Clone target sheet and force exact 1:1 A4 styles
+      const clone = reportPrintRef.current.cloneNode(true) as HTMLElement;
+      clone.style.width = "794px";
+      clone.style.minHeight = "1123px";
+      clone.style.maxWidth = "794px";
+      clone.style.margin = "0";
+      clone.style.padding = "48px 56px";
+      clone.style.boxSizing = "border-box";
+      clone.style.transform = "none";
+      clone.style.zoom = "1";
+      clone.style.boxShadow = "none";
+      clone.style.border = "none";
+      clone.style.backgroundColor = "#ffffff";
+      clone.style.color = "#000000";
+
+      exportLayer.appendChild(clone);
+      document.body.appendChild(exportLayer);
+
+      // Wait 2 animation frames and short timeout for font & DOM settlement
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await new Promise((r) => setTimeout(r, 220));
+
+      // 4. Capture with Scale 2 (1588x2246 px)
+      // Crystal clear typography, perfectly fits mobile browser canvas memory limits without crashing
+      const canvas = await html2canvas(clone, {
+        scale: 2,
         useCORS: true,
+        allowTaint: false,
         backgroundColor: "#ffffff",
         logging: false,
-        scrollX: 0,
-        scrollY: 0,
+        width: 794,
+        height: 1123,
+        windowWidth: 794,
+        windowHeight: 1123,
       });
 
+      if (!canvas || !canvas.width || !canvas.height) {
+        throw new Error("ไม่สามารถจับภาพหน้าเอกสารได้");
+      }
+
       const imgData = canvas.toDataURL("image/png");
+      if (!imgData || imgData === "data:,") {
+        throw new Error("ข้อมูลรูปภาพเอกสารไม่ถูกต้อง");
+      }
+
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -452,12 +512,35 @@ export default function DisciplinaryApp({
           ? `รายงานวินัย_ม2-3_เลขที่${currentReportStudent.student_no}_${currentReportStudent.first_name}.pdf`
           : `รายงานวินัย_ห้องม2-3.pdf`;
 
-      pdf.save(fileName);
+      // 5. Universal cross-device download (iOS Safari, Android Chrome, Desktop)
+      const pdfBlob = pdf.output("blob");
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+        URL.revokeObjectURL(blobUrl);
+      }, 5000);
+
       toast.success("ดาวน์โหลด PDF เรียบร้อยแล้ว", { id: loadingToast });
     } catch (err) {
       console.error("PDF generation failed:", err);
-      toast.error("ดาวน์โหลด PDF ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", { id: loadingToast });
+      toast.error(
+        "ดาวน์โหลด PDF ไม่สำเร็จ: " + (err instanceof Error ? err.message : String(err)),
+        { id: loadingToast }
+      );
     } finally {
+      if (exportLayer && document.body.contains(exportLayer)) {
+        document.body.removeChild(exportLayer);
+      }
       setIsDownloadingPdf(false);
     }
   };
@@ -927,7 +1010,7 @@ export default function DisciplinaryApp({
   ];
 
   return (
-    <div className="min-h-screen bg-white text-[#151b2e] flex flex-col pb-[calc(100px+env(safe-area-inset-bottom,24px))]">
+    <div className="min-h-screen bg-white text-[#151b2e] flex flex-col pb-[calc(180px+env(safe-area-inset-bottom,34px))]">
       <Toaster position="top-center" toastOptions={{ duration: 2500 }} />
 
       {/* ========================================================================= */}
@@ -2442,23 +2525,23 @@ export default function DisciplinaryApp({
           <div className="space-y-6">
 
             {/* 1. PDF REPORT GENERATOR CARD (Modeled on html/report.html & User Image 2) */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-7 shadow-sm space-y-5">
+            <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-7 shadow-sm space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-[#16453d] flex items-center justify-center font-bold">
+                  <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-[#16453d] flex items-center justify-center font-bold shrink-0">
                     <FileText size={20} />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-slate-900">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900">
                       ระบบสร้างเอกสารรายงาน (PDF Report)
                     </h2>
-                    <p className="text-xs text-slate-500">
-                      สร้างรายงานวินัยรายบุคคลหรือรายห้อง พร้อมพรีวิวและดาวน์โหลดแบบ A4
+                    <p className="text-[11px] sm:text-xs text-slate-500">
+                      ประเภทข้อมูล: รายบุคคล หรือ รายห้อง (เฉพาะ ม.2/3) พร้อมดาวน์โหลดแบบ A4
                     </p>
                   </div>
                 </div>
 
-                {/* Individual vs Room Mode Toggle */}
+                {/* Individual vs Room Mode Toggle (Specific to Room ม.2/3) */}
                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full text-xs font-bold self-start">
                   <button
                     type="button"
@@ -2480,17 +2563,39 @@ export default function DisciplinaryApp({
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    รายห้อง
+                    รายห้อง (ม.2/3)
                   </button>
                 </div>
               </div>
 
               {/* Individual Student Picker if in Person mode */}
-              {reportMode === "person" && (
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-slate-800">
-                    เลือกนักเรียนที่ต้องการออกรายงาน
-                  </label>
+              {reportMode === "person" ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-800">
+                      เลือกนักเรียนห้อง ม.2/3 ที่ต้องการออกรายงาน
+                    </label>
+                    <span className="text-[11px] text-slate-400">
+                      (มี 53 คน)
+                    </span>
+                  </div>
+
+                  {/* Native Mobile Select Dropdown for effortless phone interaction */}
+                  <div className="sm:hidden">
+                    <select
+                      value={reportStudentId}
+                      onChange={(e) => setReportStudentId(e.target.value)}
+                      className="w-full py-2.5 px-3 text-xs bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-[#16453d]"
+                    >
+                      {students.map((s) => (
+                        <option key={`opt-mobile-${s.student_id}`} value={s.student_id}>
+                          เลขที่ {s.student_no}: {s.prefix}{s.first_name} {s.last_name} {s.nickname ? `(${s.nickname})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Search input for quick lookup */}
                   <div className="relative max-w-md">
                     <Search className="absolute left-3.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
                     <input
@@ -2502,6 +2607,7 @@ export default function DisciplinaryApp({
                     />
                   </div>
 
+                  {/* Desktop / Tablet Chip List */}
                   <div className="max-h-36 overflow-y-auto border border-slate-100 rounded-2xl p-2 bg-slate-50/50 flex flex-wrap gap-1.5">
                     {reportStudentSearchResults.map((s) => {
                       const isSelected = currentReportStudent?.student_id === s.student_id;
@@ -2526,9 +2632,9 @@ export default function DisciplinaryApp({
                   </div>
 
                   {currentReportStudent && (
-                    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
+                    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-[#16453d] text-white font-mono text-[11px] flex items-center justify-center font-bold">
+                        <div className="w-6 h-6 rounded-full bg-[#16453d] text-white font-mono text-[11px] flex items-center justify-center font-bold shrink-0">
                           {currentReportStudent.student_no}
                         </div>
                         <span className="font-bold text-slate-900">
@@ -2537,13 +2643,28 @@ export default function DisciplinaryApp({
                         {currentReportStudent.nickname && (
                           <span className="text-slate-500 font-semibold">({currentReportStudent.nickname})</span>
                         )}
-                        <span className="text-slate-400 font-mono text-[11px]">เลขประจำตัว: {currentReportStudent.student_id}</span>
+                        <span className="text-slate-400 font-mono text-[11px] hidden sm:inline">ห้อง ม.2/3</span>
                       </div>
-                      <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 text-[11px]">
+                      <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 text-[11px] self-start sm:self-auto">
                         บันทึกวินัย {studentReportRecords.length} ครั้ง
                       </span>
                     </div>
                   )}
+                </div>
+              ) : (
+                /* Room Mode Banner (Only Room M.2/3) */
+                <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 text-xs space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full font-bold bg-[#16453d] text-white text-[11px]">
+                      ม.2/3 เท่านั้น
+                    </span>
+                    <span className="font-bold text-slate-800 text-sm">
+                      รายงานสรุปวินัยนักเรียนทั้งห้อง ม.2/3 (รวม 53 คน)
+                    </span>
+                  </div>
+                  <p className="text-slate-600 leading-relaxed">
+                    ระบบจะจัดทำเอกสารแบบทางการสำหรับระดับชั้นมัธยมศึกษาปีที่ 2 ห้อง 3 (ม.2/3) เพื่อส่งรายงานต่อฝ่ายปกครองหรือครูประจำชั้น
+                  </p>
                 </div>
               )}
 
@@ -2591,12 +2712,12 @@ export default function DisciplinaryApp({
               )}
 
               {/* Primary Action Button: สร้างเอกสาร (User Image 2) */}
-              <div className="pt-2 flex justify-center">
+              <div className="pt-3 pb-2 flex justify-center">
                 <button
                   type="button"
                   onClick={handleGenerateReport}
                   disabled={isGeneratingDoc}
-                  className="w-full sm:w-auto min-w-[240px] px-8 py-3.5 rounded-full font-bold text-sm bg-gradient-to-r from-[#16453d] to-[#1f5c51] text-white hover:opacity-95 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full sm:w-auto min-w-[260px] px-8 py-3.5 rounded-full font-bold text-sm bg-gradient-to-r from-[#16453d] to-[#1f5c51] text-white hover:opacity-95 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isGeneratingDoc ? (
                     <>
@@ -2606,7 +2727,7 @@ export default function DisciplinaryApp({
                   ) : (
                     <>
                       <FileText size={16} />
-                      <span>สร้างเอกสาร</span>
+                      <span>สร้างเอกสาร (เปิดตัวอย่าง PDF)</span>
                     </>
                   )}
                 </button>
@@ -2615,12 +2736,12 @@ export default function DisciplinaryApp({
 
             {/* PREVIEW MODAL (Modeled on html/report.html & User Image 3, 4) */}
             {isPreviewModalOpen && (
-              <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+              <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-6 overflow-y-auto">
                 <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
                   {/* Top Bar with circular close button (Image 4) */}
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white">
+                  <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 bg-white">
                     <h3 className="font-bold text-base sm:text-lg text-slate-800">
-                      ตัวอย่างเอกสาร
+                      ตัวอย่างเอกสาร ({reportMode === "room" ? "รายห้อง ม.2/3" : `รายบุคคล: ${currentReportStudent?.first_name || ""}`})
                     </h3>
                     <button
                       type="button"
@@ -2632,137 +2753,168 @@ export default function DisciplinaryApp({
                     </button>
                   </div>
 
-                  {/* Scrollable Document Preview Body */}
-                  <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-100/70 flex justify-center">
-                    {/* A4 Sheet Print Preview Container (Exact match to User Image 3) */}
-                    <div
-                      ref={reportPrintRef}
-                      className="bg-white shadow-xl p-8 sm:p-12 w-full max-w-[210mm] min-h-[297mm] text-slate-900 border border-slate-200 flex flex-col justify-between"
-                      style={{ fontFamily: "'LINE Seed Sans TH', 'Sarabun', sans-serif" }}
-                    >
-                      <div>
-                        {/* Header: Logo, Vertical Blue Line, Title, Meta */}
-                        <div className="grid grid-cols-[48px_1fr_auto] gap-3.5 items-start pb-4">
-                          <div className="w-12 h-12 border-2 border-slate-300 rounded-sm flex items-center justify-center text-slate-400">
-                            <ShieldAlert size={28} />
-                          </div>
-                          <div className="border-l-2 border-[#1c2a66] pl-3">
-                            <div className="text-[11px] font-bold text-slate-700 leading-tight">
-                              ระบบข้อมูลนักเรียน
+                  {/* Scrollable Document Preview Body with Mobile Responsive Scaling */}
+                  <div className="flex-1 overflow-y-auto p-2 sm:p-8 bg-slate-100/70 flex justify-center">
+                    <div className="w-full flex justify-center overflow-x-hidden py-1">
+                      {/* A4 Sheet Print Preview Container (Exact match to User Image 3) */}
+                      <div
+                        ref={reportPrintRef}
+                        className="bg-white shadow-xl p-6 sm:p-12 w-[794px] min-w-[794px] min-h-[1123px] text-slate-900 border border-slate-200 flex flex-col justify-between origin-top scale-[0.43] xs:scale-[0.48] sm:scale-100 -mb-[580px] sm:mb-0"
+                        style={{ fontFamily: "'LINE Seed Sans TH', 'Sarabun', sans-serif" }}
+                      >
+                        <div>
+                          {/* Header: Logo, Vertical Blue Line, Title, Meta */}
+                          <div className="grid grid-cols-[48px_1fr_auto] gap-3.5 items-start pb-4">
+                            <div className="w-12 h-12 border-2 border-slate-300 rounded-sm flex items-center justify-center text-slate-400">
+                              <ShieldAlert size={28} />
                             </div>
-                            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight mt-0.5">
-                              ระดับชั้นมัธยมศึกษาปีที่ 2
-                            </h1>
+                            <div className="border-l-2 border-[#1c2a66] pl-3">
+                              <div className="text-[11px] font-bold text-slate-700 leading-tight">
+                                ระบบข้อมูลนักเรียน
+                              </div>
+                              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight mt-0.5">
+                                ระดับชั้นมัธยมศึกษาปีที่ 2
+                              </h1>
+                            </div>
+                            <div className="text-right text-[11px] leading-tight text-slate-700">
+                              <div className="font-bold">ประเภทข้อมูล</div>
+                              <div>{reportMode === "room" ? "รายห้อง" : "รายบุคคล"}</div>
+                              <div className="font-bold mt-1">วันที่พิมพ์</div>
+                              <div>{formatThaiFullDate(new Date())}</div>
+                            </div>
                           </div>
-                          <div className="text-right text-[11px] leading-tight text-slate-700">
-                            <div className="font-bold">ประเภทข้อมูล</div>
-                            <div>{reportMode === "room" ? "รายห้อง" : "รายบุคคล"}</div>
-                            <div className="font-bold mt-1">วันที่พิมพ์</div>
-                            <div>{formatThaiFullDate(new Date())}</div>
-                          </div>
-                        </div>
 
-                        {/* Fields: ชื่อ-สกุล, เลขประจำตัว, ห้อง, เลขที่ with underlines */}
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 mt-4 text-xs sm:text-sm">
-                          <div className="col-span-2 flex items-end gap-2">
-                            <strong className="whitespace-nowrap font-bold">ชื่อ - สกุล</strong>
-                            <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
-                              {reportMode === "room"
-                                ? "นักเรียนชั้นมัธยมศึกษาปีที่ 2/3 ทุกคน"
-                                : currentReportStudent
-                                ? `${currentReportStudent.prefix}${currentReportStudent.first_name} ${currentReportStudent.last_name}`
-                                : "-"}
-                            </span>
-                          </div>
-                          <div className="flex items-end gap-2">
-                            <strong className="whitespace-nowrap font-bold">เลขประจำตัว</strong>
-                            <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
-                              {reportMode === "room" ? "30233 - 37825" : currentReportStudent?.student_id || "-"}
-                            </span>
-                          </div>
-                          <div className="flex items-end gap-3">
-                            <div className="flex items-end gap-1.5 flex-1">
-                              <strong className="whitespace-nowrap font-bold">ห้อง</strong>
+                          {/* Fields: ชื่อ-สกุล, เลขประจำตัว, ห้อง, เลขที่ with underlines */}
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 mt-4 text-xs sm:text-sm">
+                            <div className="col-span-2 flex items-end gap-2">
+                              <strong className="whitespace-nowrap font-bold">ชื่อ - สกุล</strong>
                               <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
-                                ม.2/3
+                                {reportMode === "room"
+                                  ? "ข้อมูลสรุปนักเรียนชั้นมัธยมศึกษาปีที่ 2/3 (ทั้งหมด 53 คน)"
+                                  : currentReportStudent
+                                  ? `${currentReportStudent.prefix}${currentReportStudent.first_name} ${currentReportStudent.last_name}`
+                                  : "-"}
                               </span>
                             </div>
-                            <div className="flex items-end gap-1.5 flex-1">
-                              <strong className="whitespace-nowrap font-bold">เลขที่</strong>
+                            <div className="flex items-end gap-2">
+                              <strong className="whitespace-nowrap font-bold">เลขประจำตัว</strong>
                               <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
-                                {reportMode === "room" ? "1 - 53" : currentReportStudent?.student_no || "-"}
+                                {reportMode === "room" ? "ห้องเรียน ม.2/3" : currentReportStudent?.student_id || "-"}
                               </span>
                             </div>
-                          </div>
-                        </div>
-
-                        {/* Dashed line */}
-                        <div className="border-t-2 border-dashed border-slate-700 my-6" />
-
-                        {/* Middle Content: Records Table or "ไม่ปรากฏข้อมูล" (Exact match to User Image 3) */}
-                        <div className="min-h-[280px]">
-                          {studentReportRecords.length === 0 ? (
-                            <div className="py-12 pl-6 sm:pl-24 text-slate-500 text-sm font-medium">
-                              ไม่ปรากฏข้อมูล
+                            <div className="flex items-end gap-3">
+                              <div className="flex items-end gap-1.5 flex-1">
+                                <strong className="whitespace-nowrap font-bold">ห้อง</strong>
+                                <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
+                                  ม.2/3
+                                </span>
+                              </div>
+                              <div className="flex items-end gap-1.5 flex-1">
+                                <strong className="whitespace-nowrap font-bold">เลขที่</strong>
+                                <span className="flex-1 border-b border-slate-600 pb-0.5 text-center font-medium">
+                                  {reportMode === "room" ? "1 - 53" : currentReportStudent?.student_no || "-"}
+                                </span>
+                              </div>
                             </div>
-                          ) : (
-                            <div className="space-y-6">
-                              {Object.entries(groupedStudentRecords).map(([behaviorName, items]) => (
-                                <div key={behaviorName} className="space-y-2">
-                                  <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-900">
-                                    <div>ประเภทพฤติกรรม : {behaviorName}</div>
-                                    <div>จำนวน : {items.length} ครั้ง</div>
-                                  </div>
-                                  <table className="w-full text-left text-xs border-collapse">
-                                    <thead>
-                                      <tr className="border-b-2 border-slate-800 font-bold text-slate-800">
-                                        <th className="py-1.5 px-2 w-12 text-center">ครั้งที่</th>
-                                        <th className="py-1.5 px-2 w-28">วันที่</th>
-                                        <th className="py-1.5 px-2">การดำเนินการ</th>
-                                        <th className="py-1.5 px-2">หมายเหตุ</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                      {items.map((r, idx) => (
-                                        <tr key={r.id}>
-                                          <td className="py-1.5 px-2 text-center text-slate-600">{idx + 1}</td>
-                                          <td className="py-1.5 px-2 text-slate-700">{formatThaiFullDate(new Date(r.created_at))}</td>
-                                          <td className="py-1.5 px-2 font-bold text-slate-900">{r.punishment}</td>
-                                          <td className="py-1.5 px-2 text-slate-600">{r.follow_up_note || "-"}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
+                          </div>
+
+                          {/* Dashed line */}
+                          <div className="border-t-2 border-dashed border-slate-700 my-6" />
+
+                          {/* Middle Content: Records Table or "ไม่ปรากฏข้อมูล" (Exact match to User Image 3) */}
+                          <div className="min-h-[280px]">
+                            {studentReportRecords.length === 0 ? (
+                              <div className="py-12 pl-6 sm:pl-24 text-slate-500 text-sm font-medium">
+                                {reportMode === "room" ? "ไม่ปรากฏข้อมูลบันทึกวินัยในห้อง ม.2/3" : "ไม่ปรากฏข้อมูล"}
+                              </div>
+                            ) : reportMode === "room" ? (
+                              <div className="space-y-4">
+                                <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-900 border-b border-slate-300 pb-1.5">
+                                  <div>รายการบันทึกวินัย ห้อง ม.2/3 ทั้งหมด</div>
+                                  <div>จำนวนรวม : {records.length} ครั้ง</div>
                                 </div>
-                              ))}
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="border-b-2 border-slate-800 font-bold text-slate-800">
+                                      <th className="py-1.5 px-2 w-10 text-center">เลขที่</th>
+                                      <th className="py-1.5 px-2 w-36">ชื่อ - สกุล</th>
+                                      <th className="py-1.5 px-2 w-28">วันที่</th>
+                                      <th className="py-1.5 px-2">พฤติกรรม / เหตุการณ์</th>
+                                      <th className="py-1.5 px-2">การดำเนินการ</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-200">
+                                    {records.map((r, idx) => (
+                                      <tr key={`room-r-${r.id}-${idx}`}>
+                                        <td className="py-1.5 px-2 text-center text-slate-600 font-mono">#{r.student_no}</td>
+                                        <td className="py-1.5 px-2 font-bold text-slate-900">{r.student_name}</td>
+                                        <td className="py-1.5 px-2 text-slate-700">{formatThaiFullDate(new Date(r.created_at))}</td>
+                                        <td className="py-1.5 px-2 text-slate-800">{r.incident}</td>
+                                        <td className="py-1.5 px-2 font-bold text-[#16453d]">{r.punishment}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="space-y-6">
+                                {Object.entries(groupedStudentRecords).map(([behaviorName, items]) => (
+                                  <div key={behaviorName} className="space-y-2">
+                                    <div className="flex justify-between text-xs sm:text-sm font-bold text-slate-900">
+                                      <div>ประเภทพฤติกรรม : {behaviorName}</div>
+                                      <div>จำนวน : {items.length} ครั้ง</div>
+                                    </div>
+                                    <table className="w-full text-left text-xs border-collapse">
+                                      <thead>
+                                        <tr className="border-b-2 border-slate-800 font-bold text-slate-800">
+                                          <th className="py-1.5 px-2 w-12 text-center">ครั้งที่</th>
+                                          <th className="py-1.5 px-2 w-28">วันที่</th>
+                                          <th className="py-1.5 px-2">การดำเนินการ</th>
+                                          <th className="py-1.5 px-2">หมายเหตุ</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-200">
+                                        {items.map((r, idx) => (
+                                          <tr key={r.id}>
+                                            <td className="py-1.5 px-2 text-center text-slate-600">{idx + 1}</td>
+                                            <td className="py-1.5 px-2 text-slate-700">{formatThaiFullDate(new Date(r.created_at))}</td>
+                                            <td className="py-1.5 px-2 font-bold text-slate-900">{r.punishment}</td>
+                                            <td className="py-1.5 px-2 text-slate-600">{r.follow_up_note || "-"}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Footer: รวมทั้งหมด, หน้าที่, เส้นประ, ช่วงข้อมูล, หมายเหตุ (Image 3) */}
+                        <div className="mt-8 pt-4">
+                          <div className="text-right text-xs sm:text-sm font-bold text-slate-900">
+                            รวมทั้งหมด : {studentReportRecords.length} ครั้ง
+                          </div>
+                          <div className="text-right text-[11px] text-slate-500 mb-2">
+                            หน้าที่ 1/1
+                          </div>
+
+                          <div className="border-t-2 border-dashed border-slate-700 my-2" />
+
+                          <div className="text-[11px] sm:text-xs text-slate-700">
+                            ข้อมูลตั้งแต่ : วันที่ 1 พฤษภาคม 2569 - {formatThaiFullDate(new Date())}
+                          </div>
+
+                          <div className="mt-2 text-[11px] sm:text-xs text-slate-900">
+                            <strong>หมายเหตุ :</strong>
+                            <div className="mt-1 space-y-1">
+                              <div className="border-b border-dashed border-slate-400 h-5 px-1 truncate text-slate-700">
+                                {reportNote || ""}
+                              </div>
+                              <div className="border-b border-dashed border-slate-400 h-5" />
+                              <div className="border-b border-dashed border-slate-400 h-5" />
                             </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Footer: รวมทั้งหมด, หน้าที่, เส้นประ, ช่วงข้อมูล, หมายเหตุ (Image 3) */}
-                      <div className="mt-8 pt-4">
-                        <div className="text-right text-xs sm:text-sm font-bold text-slate-900">
-                          รวมทั้งหมด : {studentReportRecords.length} ครั้ง
-                        </div>
-                        <div className="text-right text-[11px] text-slate-500 mb-2">
-                          หน้าที่ 1/1
-                        </div>
-
-                        <div className="border-t-2 border-dashed border-slate-700 my-2" />
-
-                        <div className="text-[11px] sm:text-xs text-slate-700">
-                          ข้อมูลตั้งแต่ : วันที่ 1 พฤษภาคม 2569 - {formatThaiFullDate(new Date())}
-                        </div>
-
-                        <div className="mt-2 text-[11px] sm:text-xs text-slate-900">
-                          <strong>หมายเหตุ :</strong>
-                          <div className="mt-1 space-y-1">
-                            <div className="border-b border-dashed border-slate-400 h-5 px-1 truncate text-slate-700">
-                              {reportNote || ""}
-                            </div>
-                            <div className="border-b border-dashed border-slate-400 h-5" />
-                            <div className="border-b border-dashed border-slate-400 h-5" />
                           </div>
                         </div>
                       </div>
@@ -2775,7 +2927,7 @@ export default function DisciplinaryApp({
                       type="button"
                       onClick={handleDownloadPdf}
                       disabled={isDownloadingPdf}
-                      className="bg-gradient-to-r from-[#ff5e3a] to-[#ff3b30] text-white px-9 py-3 rounded-full font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all text-sm sm:text-base flex items-center gap-2 cursor-pointer"
+                      className="w-full sm:w-auto max-w-xs mx-auto bg-gradient-to-r from-[#ff5e3a] to-[#ff3b30] text-white px-9 py-3.5 rounded-full font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all text-sm sm:text-base flex items-center justify-center gap-2 cursor-pointer"
                     >
                       {isDownloadingPdf ? (
                         <>
