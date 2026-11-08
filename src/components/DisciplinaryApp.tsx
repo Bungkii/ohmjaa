@@ -468,7 +468,7 @@ export default function DisciplinaryApp({
   // Disciplinary student search results
   const penaltyStudentResults = useMemo(() => {
     const q = penaltySearch.trim().toLowerCase();
-    if (!q) return students.slice(0, 14);
+    if (!q) return students;
     return students.filter(
       (s) =>
         s.first_name.toLowerCase().includes(q) ||
@@ -1372,7 +1372,7 @@ export default function DisciplinaryApp({
                     />
                   </div>
 
-                  <div className="mt-2 max-h-36 overflow-y-auto border border-slate-100 rounded-2xl p-1.5 bg-slate-50/50 flex flex-wrap gap-1">
+                  <div className="mt-2 max-h-56 overflow-y-auto border border-slate-100 rounded-2xl p-2 bg-slate-50/50 flex flex-wrap gap-1.5 custom-scrollbar">
                     {penaltyStudentResults.map((s) => {
                       const isSelected = isGroupMode
                         ? selectedGroupStudents.has(s.student_id)
