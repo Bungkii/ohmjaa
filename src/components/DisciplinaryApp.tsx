@@ -1017,7 +1017,7 @@ export default function DisciplinaryApp({
       {/* 1. TOP HEADER & SEGMENTED CONTROLS (html/index.html & dashboard.html)    */}
       {/* ========================================================================= */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <div className={`${activeView === "assignments" ? "w-full px-3 sm:px-6" : "max-w-7xl mx-auto px-4 sm:px-6"} py-3 flex items-center justify-between gap-3`}>
           
           {/* Brand Logo & Live Pill */}
           <div className="flex items-center gap-3">
@@ -1147,7 +1147,7 @@ export default function DisciplinaryApp({
       {/* ========================================================================= */}
       {/* 2. MAIN CONTENT AREA                                                      */}
       {/* ========================================================================= */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-6 flex-1 w-full">
+      <main className={`${activeView === "assignments" ? "w-full max-w-none px-2 sm:px-6" : "max-w-7xl mx-auto px-4 sm:px-6"} pt-6 space-y-6 flex-1 w-full`}>
 
         {/* View Title & Breadcrumbs */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
@@ -1554,10 +1554,10 @@ export default function DisciplinaryApp({
               </div>
             </div>
 
-            {/* TAB 1: VERTICAL ROTATED MATRIX TABLE (Exact match to User Image 1) */}
+            {/* TAB 1: VERTICAL ROTATED MATRIX TABLE (Exact match to User Image 1 - ยาวไปสุดขอบฟ้า) */}
             {assignmentViewMode === "table" ? (
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto overflow-y-auto max-h-[74vh]">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden w-full">
+                <div className="overflow-x-auto overflow-y-auto max-h-[82vh] w-full">
                   <table className="border-collapse text-left select-none w-full min-w-max">
                     <thead>
                       {/* Row 1: กำหนดส่ง + Short Thai Due Dates */}
@@ -3291,70 +3291,70 @@ export default function DisciplinaryApp({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. FLOATING BOTTOM PILL NAVIGATION (Modeled on html/dashboard.html)        */}
+      {/* 4. MOBILE-STYLE BOTTOM PILL NAVIGATION (Icon Top, Small Label Underneath) */}
       {/* ========================================================================= */}
       <nav
-        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] left-1/2 -translate-x-1/2 z-50 rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-2xl px-2.5 sm:px-3 py-1.5 flex items-center gap-1 sm:gap-2 max-w-[calc(100vw-20px)] overflow-x-auto custom-scrollbar"
+        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] left-1/2 -translate-x-1/2 z-50 rounded-full bg-white/95 backdrop-blur-lg border border-slate-200/90 shadow-2xl px-2 py-1.5 flex items-center justify-between gap-1 w-[calc(100vw-20px)] max-w-md sm:max-w-lg"
         aria-label="เมนูหลัก"
       >
         <button
           onClick={() => setActiveView("overview")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
             activeView === "overview"
-              ? "bg-[#16453d] text-white shadow-xs"
-              : "text-slate-600 hover:text-[#16453d]"
+              ? "bg-[#16453d] text-white shadow-xs font-bold"
+              : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <LayoutDashboard size={16} />
-          <span>ภาพรวม</span>
+          <LayoutDashboard size={20} />
+          <span className="text-[10px] mt-0.5 whitespace-nowrap">ภาพรวม</span>
         </button>
 
         <button
           onClick={() => setActiveView("assignments")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
             activeView === "assignments"
-              ? "bg-[#16453d] text-white shadow-xs"
-              : "text-slate-600 hover:text-[#16453d]"
+              ? "bg-[#16453d] text-white shadow-xs font-bold"
+              : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <BookOpen size={16} />
-          <span>การบ้าน</span>
+          <BookOpen size={20} />
+          <span className="text-[10px] mt-0.5 whitespace-nowrap">การบ้าน</span>
         </button>
 
         <button
           onClick={() => setActiveView("disciplinary")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
             activeView === "disciplinary"
-              ? "bg-[#16453d] text-white shadow-xs"
-              : "text-slate-600 hover:text-[#16453d]"
+              ? "bg-[#16453d] text-white shadow-xs font-bold"
+              : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <Gavel size={16} />
-          <span>วินัย</span>
+          <Gavel size={20} />
+          <span className="text-[10px] mt-0.5 whitespace-nowrap">วินัย</span>
         </button>
 
         <button
           onClick={() => setActiveView("student")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
             activeView === "student"
-              ? "bg-[#16453d] text-white shadow-xs"
-              : "text-slate-600 hover:text-[#16453d]"
+              ? "bg-[#16453d] text-white shadow-xs font-bold"
+              : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <UserCheck size={16} />
-          <span>นักเรียน</span>
+          <UserCheck size={20} />
+          <span className="text-[10px] mt-0.5 whitespace-nowrap">นักเรียน</span>
         </button>
 
         <button
           onClick={() => setActiveView("history")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
             activeView === "history"
-              ? "bg-[#16453d] text-white shadow-xs"
-              : "text-slate-600 hover:text-[#16453d]"
+              ? "bg-[#16453d] text-white shadow-xs font-bold"
+              : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <FileText size={16} />
-          <span>รายงาน</span>
+          <FileText size={20} />
+          <span className="text-[10px] mt-0.5 whitespace-nowrap">รายงาน</span>
         </button>
       </nav>
 
