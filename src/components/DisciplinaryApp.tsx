@@ -2044,24 +2044,6 @@ export default function DisciplinaryApp({
               </div>
             </div>
 
-            <section className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4" aria-label="สรุปการทำเวร">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">สรุปการทำเวร</h2>
-                <p className="text-xs text-slate-600 mt-1">เริ่มนับจากวันที่บันทึก ข้ามเสาร์–อาทิตย์และวันหยุดโรงเรียนที่ระบุด้านล่าง</p>
-              </div>
-              <label className="block text-xs font-bold text-slate-700" htmlFor="school-holidays">วันหยุดโรงเรียน (รูปแบบ YYYY-MM-DD คั่นด้วยจุลภาคหรือขึ้นบรรทัดใหม่)</label>
-              <textarea id="school-holidays" rows={2} value={schoolHolidays} onChange={(event) => setSchoolHolidays(event.target.value)} placeholder="เช่น 2026-12-05, 2026-12-10" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:outline-2 focus:outline-[#16453d]" />
-              <p className="text-xs text-slate-500">วันที่กรอกจะจำไว้ในเบราว์เซอร์เครื่องนี้ · 1 สัปดาห์ = 5 วันเรียน · 1 เดือน = วันเรียนในเดือนปฏิทิน · เทอม/ปีการศึกษาหรือระยะเวลาที่ไม่ระบุจำนวนวันยังไม่นำมารวม</p>
-              {choreSummary.length ? (
-                <div className="overflow-x-auto rounded-xl border border-slate-200">
-                  <table className="w-full min-w-[600px] text-sm text-left">
-                    <thead className="bg-emerald-50 text-[#16453d]"><tr><th className="p-3">นักเรียน</th><th className="p-3">เริ่ม</th><th className="p-3">รวมวันทำเวร</th><th className="p-3">สิ้นสุดล่าสุด</th></tr></thead>
-                    <tbody className="divide-y divide-slate-100">{choreSummary.map((item) => <tr key={item.no}><td className="p-3 font-semibold">#{item.no} {item.name}</td><td className="p-3">{item.start}</td><td className="p-3">{item.days} วัน{item.uncounted ? ` (อีก ${item.uncounted} รายการต้องกำหนดจำนวนวัน)` : ""}</td><td className="p-3">{item.end ?? "—"}</td></tr>)}</tbody>
-                  </table>
-                </div>
-              ) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">ยังไม่มีรายการทำเวรในรายงานนี้</p>}
-            </section>
-
             {/* PREVIEW MODAL (Modeled on html/report.html & User Image 3, 4) */}
             {isPreviewModalOpen && (
               <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-6 overflow-y-auto">
