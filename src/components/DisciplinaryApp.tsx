@@ -869,7 +869,7 @@ export default function DisciplinaryApp({
   ];
 
   return (
-    <div className="min-h-screen bg-white text-[#151b2e] flex flex-col pb-28 font-sans">
+    <div className="min-h-screen bg-white text-[#151b2e] flex flex-col pb-[calc(100px+env(safe-area-inset-bottom,24px))] font-sans">
       <Toaster position="top-center" toastOptions={{ duration: 2500 }} />
 
       {/* ========================================================================= */}
@@ -892,7 +892,7 @@ export default function DisciplinaryApp({
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
-                ระบบติดตามการบ้านและวินัย ห้อง ม.2/3 (เลขที่ 1-53)
+                ระบบติดตามการบ้านและวินัย ห้อง ม.2/3
               </p>
             </div>
           </div>
@@ -917,7 +917,7 @@ export default function DisciplinaryApp({
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
               }`}
             >
-              ตารางการบ้าน (1-53)
+              การบ้าน
             </button>
             <button
               onClick={() => setActiveView("student")}
@@ -927,7 +927,7 @@ export default function DisciplinaryApp({
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
               }`}
             >
-              นักเรียนทุกคน
+              นักเรียน
             </button>
             <button
               onClick={() => setActiveView("disciplinary")}
@@ -937,7 +937,7 @@ export default function DisciplinaryApp({
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
               }`}
             >
-              บันทึกวินัย
+              วินัย
             </button>
             <button
               onClick={() => setActiveView("today")}
@@ -957,7 +957,7 @@ export default function DisciplinaryApp({
                   : "text-slate-600 hover:text-[#16453d] hover:bg-white/60"
               }`}
             >
-              ประวัติ ({records.length})
+              ประวัติ
             </button>
             <button
               onClick={() => setActiveView("audit")}
@@ -977,7 +977,7 @@ export default function DisciplinaryApp({
             <button
               onClick={() => setIsSearchOpen(true)}
               className="w-10 h-10 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-[#16453d] shadow-sm flex items-center justify-center transition-all active:scale-95 cursor-pointer"
-              title="ค้นหานักเรียนในห้อง (1-53)"
+              title="ค้นหานักเรียน"
               aria-label="ค้นหานักเรียน"
             >
               <Search size={17} />
@@ -1018,12 +1018,12 @@ export default function DisciplinaryApp({
             <div className="flex items-center gap-2 text-xs font-bold text-[#16453d] uppercase tracking-wider">
               <span>ห้องเรียน ม.2/3</span>
               <span>•</span>
-              <span>นักเรียนเลขที่ 1-53 ({students.length} คน)</span>
+              <span>{students.length} คน</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
               {activeView === "overview" && "ภาพรวมห้องเรียนและวินัย"}
-              {activeView === "assignments" && "กระดานติดตามการบ้าน (นักเรียน 1-53)"}
-              {activeView === "student" && "รายชื่อนักเรียนและข้อมูลรายคน"}
+              {activeView === "assignments" && "กระดานติดตามการบ้าน"}
+              {activeView === "student" && "ข้อมูลและประวัตินักเรียน"}
               {activeView === "disciplinary" && "บันทึกพฤติกรรมและวินัย"}
               {activeView === "today" && "งานที่ต้องจัดการวันนี้"}
               {activeView === "history" && "รายงานและประวัติบันทึก"}
@@ -1250,7 +1250,7 @@ export default function DisciplinaryApp({
                     type="text"
                     value={tableSearchStudent}
                     onChange={(e) => setTableSearchStudent(e.target.value)}
-                    placeholder="ค้นหาชื่อ หรือเลขที่นักเรียนในตาราง (1-53)..."
+                    placeholder="ค้นหาชื่อ หรือเลขที่นักเรียน..."
                     className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#16453d]/20 focus:border-[#16453d]"
                   />
                   {tableSearchStudent && (
@@ -1276,7 +1276,7 @@ export default function DisciplinaryApp({
                       }`}
                     >
                       <TableIcon size={14} />
-                      <span>ตารางติดตาม (1-53)</span>
+                      <span>ตาราง</span>
                     </button>
                     <button
                       type="button"
@@ -1288,7 +1288,7 @@ export default function DisciplinaryApp({
                       }`}
                     >
                       <ColumnsIcon size={14} />
-                      <span>กระดาน Kanban</span>
+                      <span>กระดาน</span>
                     </button>
                   </div>
                 </div>
@@ -1332,13 +1332,13 @@ export default function DisciplinaryApp({
                     <thead className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md border-b border-slate-200 text-slate-700 shadow-xs">
                       <tr>
                         {/* Pinned Column: เลขที่ */}
-                        <th className="py-3.5 px-3 font-mono font-black text-center w-14 shrink-0 border-r border-slate-200 bg-slate-50 sticky left-0 z-20">
+                        <th className="py-3.5 px-2 font-mono font-black text-center w-11 min-w-[44px] shrink-0 border-r border-slate-200 bg-slate-50 sticky left-0 top-0 z-30">
                           เลขที่
                         </th>
 
                         {/* Pinned Column: ชื่อนักเรียน */}
-                        <th className="py-3.5 px-4 font-bold min-w-[180px] sm:min-w-[210px] border-r border-slate-200 bg-slate-50 sticky left-14 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.03)]">
-                          ชื่อ - นามสกุล (ม.2/3)
+                        <th className="py-3.5 px-3 sm:px-4 font-bold min-w-[130px] sm:min-w-[190px] max-w-[150px] sm:max-w-none border-r border-slate-200 bg-slate-50 sticky left-11 top-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.03)] truncate">
+                          ชื่อ - นามสกุล
                         </th>
 
                         {/* Dynamic Columns: Each Homework Task */}
@@ -1416,13 +1416,13 @@ export default function DisciplinaryApp({
                           <tr key={s.student_id} className="hover:bg-slate-50/80 transition-colors group">
                             
                             {/* Pinned: Student No */}
-                            <td className="py-2.5 px-3 font-mono font-bold text-center text-slate-700 border-r border-slate-200 bg-white group-hover:bg-slate-50 sticky left-0 z-10">
+                            <td className="py-2.5 px-2 font-mono font-bold text-center text-slate-700 border-r border-slate-200 bg-white group-hover:bg-slate-50 sticky left-0 z-20 w-11 min-w-[44px]">
                               #{s.student_no}
                             </td>
 
                             {/* Pinned: Student Name */}
-                            <td className="py-2.5 px-4 font-bold text-slate-900 border-r border-slate-200 bg-white group-hover:bg-slate-50 sticky left-14 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.03)] truncate">
-                              <div className="flex items-center gap-2">
+                            <td className="py-2.5 px-3 sm:px-4 font-bold text-slate-900 border-r border-slate-200 bg-white group-hover:bg-slate-50 sticky left-11 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.03)] truncate min-w-[130px] sm:min-w-[190px] max-w-[150px] sm:max-w-none">
+                              <div className="flex items-center gap-1.5 sm:gap-2">
                                 <span className="truncate">{formatStudentFullName(s)}</span>
                                 {s.nickname && (
                                   <span className="text-[11px] text-slate-400 font-normal shrink-0">
@@ -1444,7 +1444,7 @@ export default function DisciplinaryApp({
                                       type="button"
                                       onClick={() => handleCycleCellStatus(s.student_id, task.id)}
                                       title="คลิกเพื่อเปลี่ยนสถานะ: ส่งแล้ว (เขียว) ⇄ ค้างส่ง (แดง) ⇄ กำลังทำ (เหลือง) ⇄ ไม่มีสี (-)"
-                                      className={`w-full py-1.5 px-2.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none active:scale-95 ${
+                                      className={`min-h-[34px] w-full py-1.5 px-2 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none active:scale-95 ${
                                         status === "done"
                                           ? "bg-emerald-500 text-white shadow-xs hover:bg-emerald-600"
                                           : status === "todo"
@@ -1510,13 +1510,13 @@ export default function DisciplinaryApp({
                     </tbody>
 
                     {/* Table Footer: Column Summary */}
-                    <tfoot className="bg-slate-50/90 font-bold border-t border-slate-200 text-slate-700">
+                    <tfoot className="bg-slate-50/95 font-bold border-t border-slate-200 text-slate-700 sticky bottom-0 z-20 shadow-xs">
                       <tr>
-                        <td className="py-3 px-3 text-center font-mono border-r border-slate-200 sticky left-0 z-10 bg-slate-50">
+                        <td className="py-3 px-2 text-center font-mono border-r border-slate-200 sticky left-0 bottom-0 z-20 bg-slate-50 w-11 min-w-[44px]">
                           รวม
                         </td>
-                        <td className="py-3 px-4 border-r border-slate-200 sticky left-14 z-10 bg-slate-50 shadow-[2px_0_5px_rgba(0,0,0,0.03)]">
-                          สรุปภาพรวมทั้งห้อง ({students.length} คน)
+                        <td className="py-3 px-3 sm:px-4 border-r border-slate-200 sticky left-11 bottom-0 z-20 bg-slate-50 shadow-[2px_0_5px_rgba(0,0,0,0.03)] min-w-[130px] sm:min-w-[190px] max-w-[150px] sm:max-w-none truncate">
+                          สรุปภาพรวม ({students.length} คน)
                         </td>
                         {tasks.map((task) => {
                           const doneCount = students.filter(
@@ -1531,10 +1531,16 @@ export default function DisciplinaryApp({
 
                           return (
                             <td key={task.id} className="py-2.5 px-3 text-center border-r border-slate-200 text-[11px]">
-                              <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                <span className="text-emerald-700 font-bold">🟢 {doneCount}</span>
-                                <span className="text-rose-700 font-bold">🔴 {todoCount}</span>
-                                <span className="text-amber-800 font-bold">🟡 {inProgCount}</span>
+                              <div className="flex items-center justify-center gap-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1 text-emerald-700 font-bold" title="ส่งแล้ว">
+                                  <CheckCircle2 size={12} strokeWidth={2.5} /> {doneCount}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-rose-700 font-bold" title="ค้างส่ง">
+                                  <AlertCircle size={12} strokeWidth={2.5} /> {todoCount}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-amber-700 font-bold" title="กำลังทำ">
+                                  <Clock size={12} strokeWidth={2.5} /> {inProgCount}
+                                </span>
                               </div>
                             </td>
                           );
@@ -1638,7 +1644,7 @@ export default function DisciplinaryApp({
                     type="text"
                     value={searchStudentInput}
                     onChange={(e) => setSearchStudentInput(e.target.value)}
-                    placeholder="ค้นหาชื่อ, เลขที่ (1-53), หรือรหัสประจำตัว..."
+                    placeholder="ค้นหาชื่อ, เลขที่, หรือรหัสประจำตัว..."
                     className="w-full pl-9 pr-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#16453d]/20 focus:border-[#16453d]"
                   />
                   {searchStudentInput && (
@@ -1654,7 +1660,7 @@ export default function DisciplinaryApp({
                 {/* Classroom Count Badge */}
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 text-[#16453d] font-bold text-xs border border-emerald-200 shrink-0">
                   <Users size={14} />
-                  <span>ทุกคนในห้อง ({students.length} คน)</span>
+                  <span>{students.length} คน</span>
                 </div>
               </div>
 
@@ -1991,24 +1997,24 @@ export default function DisciplinaryApp({
                   onClick={toggleGroupMode}
                   className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border ${
                     isGroupMode
-                      ? "bg-[#16453d] text-white border-[#16453d] shadow-sm ring-2 ring-[#16453d]/20"
-                      : "bg-white text-slate-700 border-slate-200 hover:border-[#16453d]/40 hover:bg-slate-50"
+                      ? "bg-[#16453d] text-white border-[#16453d] shadow-sm ring-2 ring-[#16453d]/20 scale-105"
+                      : "bg-[#dcfce7] text-[#16453d] border-[#86efac] hover:bg-[#bbf7d0] shadow-xs"
                   }`}
-                  title={isGroupMode ? "โหมดกลุ่มเปิดอยู่" : "เปิดโหมดเลือกเป็นกลุ่ม"}
+                  title={isGroupMode ? "โหมดกลุ่มเปิดอยู่ (คลิกเพื่อปิด)" : "เปิดโหมดเลือกเป็นกลุ่ม"}
                 >
-                  <Users size={15} className={isGroupMode ? "text-white" : "text-[#16453d]"} />
+                  <Users size={16} className={isGroupMode ? "text-white" : "text-[#16453d]"} />
                   <span>กลุ่ม</span>
-                  {isGroupMode && <span className="w-2 h-2 rounded-full bg-emerald-300" />}
+                  {isGroupMode && <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />}
                 </button>
               </div>
 
               <form onSubmit={handlePenaltySubmit} className="space-y-5">
                 
-                {/* 1. Student Selector: ALL 53 Students accessible */}
+                {/* 1. Student Selector */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-bold text-slate-800">
-                      {isGroupMode ? "นักเรียนในกลุ่ม (เลือกได้หลายคน หรือทุกคน)" : "เลือกนักเรียนในห้อง (1-53)"} <span className="text-rose-600">*</span>
+                      {isGroupMode ? "นักเรียนในกลุ่ม" : "เลือกนักเรียน"} <span className="text-rose-600">*</span>
                     </label>
                     {isGroupMode ? (
                       <div className="flex items-center gap-2">
@@ -2846,9 +2852,9 @@ export default function DisciplinaryApp({
                             : "bg-rose-50 text-rose-700 border-rose-200"
                         }`}
                       >
-                        <option value="todo">🔴 ค้างส่ง</option>
-                        <option value="in_progress">🟡 กำลังทำ</option>
-                        <option value="done">🟢 ส่งแล้ว</option>
+                        <option value="todo">ค้างส่ง</option>
+                        <option value="in_progress">กำลังทำ</option>
+                        <option value="done">ส่งแล้ว</option>
                       </select>
                     </div>
                   );
@@ -2938,7 +2944,7 @@ export default function DisciplinaryApp({
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="font-bold text-slate-900 text-sm">ค้นหานักเรียนในห้อง (1-53)</h3>
+                <h3 className="font-bold text-slate-900 text-sm">ค้นหานักเรียน</h3>
                 <p className="text-[11px] text-slate-500">เลือกนักเรียนเพื่อดูข้อมูลหรือบันทึกวินัย</p>
               </div>
               <button onClick={() => setIsSearchOpen(false)} className="cursor-pointer text-slate-400 hover:text-slate-700">
@@ -2952,7 +2958,7 @@ export default function DisciplinaryApp({
                 type="text"
                 value={searchStudentInput}
                 onChange={(e) => setSearchStudentInput(e.target.value)}
-                placeholder="ค้นหาชื่อ เลขประจำตัว หรือเลขที่ (1-53)..."
+                placeholder="ค้นหาชื่อ เลขประจำตัว หรือเลขที่..."
                 className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-full focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#16453d]"
                 autoFocus
               />
@@ -2991,70 +2997,70 @@ export default function DisciplinaryApp({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. FLOATING BOTTOM PILL NAVIGATION                                        */}
+      {/* 4. FLOATING BOTTOM PILL NAVIGATION (iPhone & Mobile Optimized)            */}
       {/* ========================================================================= */}
       <nav
-        className="fixed bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-50 rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-2xl px-3 py-1.5 flex items-center gap-1 sm:gap-2"
+        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] left-1/2 -translate-x-1/2 z-50 rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-2xl px-2 sm:px-3 py-1.5 flex items-center gap-1 sm:gap-2 max-w-[calc(100vw-20px)] overflow-x-auto custom-scrollbar"
         aria-label="เมนูหลัก"
       >
         <button
           onClick={() => setActiveView("overview")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
             activeView === "overview"
               ? "bg-[#16453d] text-white shadow-xs"
               : "text-slate-600 hover:text-[#16453d]"
           }`}
         >
-          <LayoutDashboard size={16} />
+          <LayoutDashboard size={15} />
           <span>ภาพรวม</span>
         </button>
 
         <button
           onClick={() => setActiveView("assignments")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
             activeView === "assignments"
               ? "bg-[#16453d] text-white shadow-xs"
               : "text-slate-600 hover:text-[#16453d]"
           }`}
         >
-          <TableIcon size={16} />
-          <span>ตารางการบ้าน (1-53)</span>
+          <BookOpen size={15} />
+          <span>การบ้าน</span>
         </button>
 
         <button
           onClick={() => setActiveView("student")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
             activeView === "student"
               ? "bg-[#16453d] text-white shadow-xs"
               : "text-slate-600 hover:text-[#16453d]"
           }`}
         >
-          <UserCheck size={16} />
+          <UserCheck size={15} />
           <span>นักเรียน</span>
         </button>
 
         <button
           onClick={() => setActiveView("disciplinary")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
             activeView === "disciplinary"
               ? "bg-[#16453d] text-white shadow-xs"
               : "text-slate-600 hover:text-[#16453d]"
           }`}
         >
-          <Gavel size={16} />
+          <Gavel size={15} />
           <span>วินัย</span>
         </button>
 
         <button
           onClick={() => setActiveView("history")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
             activeView === "history"
               ? "bg-[#16453d] text-white shadow-xs"
               : "text-slate-600 hover:text-[#16453d]"
           }`}
         >
-          <FileText size={16} />
-          <span>รายงาน</span>
+          <FileText size={15} />
+          <span>ประวัติ</span>
         </button>
       </nav>
 

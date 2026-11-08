@@ -1,9 +1,26 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#ffffff",
+};
 
 export const metadata: Metadata = {
   title: "โอมจ๋า ม.2/3 | การบ้านและบันทึกวินัย",
   description: "ระบบติดตามการบ้านและบันทึกวินัยนักเรียน ห้อง ม.2/3",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "โอมจ๋า ม.2/3",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
@@ -25,7 +42,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col bg-white text-[#151b2e] selection:bg-[#dce9e2] selection:text-[#16453d]">
+      <body className="min-h-full flex flex-col bg-white text-[#151b2e] selection:bg-[#dce9e2] selection:text-[#16453d] font-sans">
         {children}
       </body>
     </html>

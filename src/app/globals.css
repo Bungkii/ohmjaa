@@ -5,6 +5,10 @@
   --foreground: #151b2e;
   --dark-green: #16453d;
   --dark-green-hover: #0f352e;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 html, body {
@@ -13,10 +17,31 @@ html, body {
   font-family: "LINE Seed Sans TH", "IBM Plex Sans Thai", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
 }
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iPhone & iOS Touch Ergonomics */
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Prevent iOS Safari auto-zoom on input focus (requires font-size >= 16px on mobile) */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Smooth momentum scrolling on iOS */
+.overflow-x-auto,
+.overflow-y-auto,
+.smooth-scroll {
+  -webkit-overflow-scrolling: touch;
 }
 
 ::-webkit-scrollbar {
@@ -36,6 +61,7 @@ html, body {
 
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
+  height: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
