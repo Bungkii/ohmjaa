@@ -26,13 +26,6 @@ export default function NotFound() {
             <Home className="w-3.5 h-3.5" />
             <span>กลับสู่หน้าหลัก</span>
           </Link>
-
-          <Link
-            href="/shirt-order"
-            className="w-full py-2 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <span>ไปหน้าสั่งเสื้อห้อง (ผู้ปกครอง)</span>
-          </Link>
         </div>
       </div>
 
