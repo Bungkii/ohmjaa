@@ -330,6 +330,19 @@ export default function DisciplinaryApp({
     }
   };
 
+  const getTaskOverdueLevel = (dueDateStr: string): "none" | "overdue" | "critical" => {
+    if (!dueDateStr) return "none";
+    try {
+      const due = startOfDay(new Date(dueDateStr));
+      const today = startOfDay(new Date());
+      if (!isBefore(due, today)) return "none";
+      const days = differenceInDays(today, due);
+      return days >= 7 ? "critical" : "overdue";
+    } catch {
+      return "none";
+    }
+  };
+
   const isTaskOverdue = (dueDateStr: string) => {
     if (!dueDateStr) return false;
     try {
@@ -425,6 +438,9 @@ export default function DisciplinaryApp({
     const loadingToast = toast.loading("กำลังจัดทำไฟล์ PDF คุณภาพสูงสำหรับโทรศัพท์...");
 
     let exportLayer: HTMLDivElement | null = null;
+    const origWindowGCS = window.getComputedStyle;
+    const origCSSProtoGetPropertyValue = CSSStyleDeclaration.prototype.getPropertyValue;
+
     try {
       // 1. Dynamic imports with fallback resolution for Turbopack & mobile
       const html2canvasMod = await import("html2canvas");
@@ -440,8 +456,72 @@ export default function DisciplinaryApp({
         await document.fonts.ready;
       }
 
-      // 2. Create offscreen container with exact fixed A4 width (794px)
-      // This completely solves mobile viewport clipping, scale down, and layout distortion
+      // Helper canvas using raw 8-bit framebuffer read (getImageData) to guarantee sRGB rgba(...)
+      const helperCanvas = document.createElement("canvas");
+      helperCanvas.width = 1;
+      helperCanvas.height = 1;
+      const helperCtx = helperCanvas.getContext("2d", { willReadFrequently: true });
+
+      const sanitizeColor = (val: string, fallback: string): string => {
+        if (!val || typeof val !== "string") return fallback;
+        if (!val.includes("lab") && !val.includes("oklch") && !val.includes("color(") && !val.includes("color-mix(")) {
+          return val;
+        }
+        if (helperCtx) {
+          try {
+            helperCtx.clearRect(0, 0, 1, 1);
+            helperCtx.fillStyle = val;
+            helperCtx.fillRect(0, 0, 1, 1);
+            const [r, g, b, a] = helperCtx.getImageData(0, 0, 1, 1).data;
+            return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(2)})`;
+          } catch {}
+        }
+        return fallback;
+      };
+
+      // 2. Globally patch CSSStyleDeclaration.prototype.getPropertyValue & window.getComputedStyle
+      // This completely shields html2canvas from ANY "lab" or "oklch" color strings
+      CSSStyleDeclaration.prototype.getPropertyValue = function (name: string) {
+        const raw = origCSSProtoGetPropertyValue.call(this, name);
+        if (raw && (raw.includes("lab") || raw.includes("oklch") || raw.includes("color("))) {
+          if (name.includes("shadow")) return "none";
+          if (name.includes("background")) return sanitizeColor(raw, "rgb(255, 255, 255)");
+          if (name.includes("border")) return sanitizeColor(raw, "rgb(226, 232, 240)");
+          return sanitizeColor(raw, "rgb(21, 27, 46)");
+        }
+        return raw;
+      };
+
+      window.getComputedStyle = function (el: Element, pseudo?: string | null) {
+        const style = origWindowGCS.call(window, el, pseudo);
+        return new Proxy(style, {
+          get(target, prop: string) {
+            if (prop === "getPropertyValue") {
+              return (name: string) => {
+                const raw = target.getPropertyValue(name);
+                if (raw && (raw.includes("lab") || raw.includes("oklch") || raw.includes("color("))) {
+                  if (name.includes("background")) return sanitizeColor(raw, "rgb(255, 255, 255)");
+                  if (name.includes("shadow")) return "none";
+                  if (name.includes("border")) return sanitizeColor(raw, "rgb(226, 232, 240)");
+                  return sanitizeColor(raw, "rgb(21, 27, 46)");
+                }
+                return raw;
+              };
+            }
+            const val = (target as any)[prop];
+            if (typeof val === "string" && (val.includes("lab") || val.includes("oklch") || val.includes("color("))) {
+              if (prop.includes("background") || prop.includes("Background")) return sanitizeColor(val, "rgb(255, 255, 255)");
+              if (prop.includes("shadow") || prop.includes("Shadow")) return "none";
+              if (prop.includes("border") || prop.includes("Border")) return sanitizeColor(val, "rgb(226, 232, 240)");
+              return sanitizeColor(val, "rgb(21, 27, 46)");
+            }
+            if (typeof val === "function") return val.bind(target);
+            return val;
+          },
+        });
+      };
+
+      // 3. Create dedicated offscreen container with exact fixed A4 width (794px)
       exportLayer = document.createElement("div");
       exportLayer.id = "pdf-export-layer";
       exportLayer.style.position = "fixed";
@@ -453,7 +533,7 @@ export default function DisciplinaryApp({
       exportLayer.style.pointerEvents = "none";
       exportLayer.style.zIndex = "-9999";
 
-      // 3. Clone target sheet and force exact 1:1 A4 styles
+      // 4. Clone target sheet and force standard hex styles
       const clone = reportPrintRef.current.cloneNode(true) as HTMLElement;
       clone.style.width = "794px";
       clone.style.minHeight = "1123px";
@@ -468,6 +548,28 @@ export default function DisciplinaryApp({
       clone.style.backgroundColor = "#ffffff";
       clone.style.color = "#000000";
 
+      // Explicitly convert computed styles of all cloned elements to inline sRGB
+      const allCloned = clone.querySelectorAll("*");
+      allCloned.forEach((node) => {
+        const el = node as HTMLElement;
+        el.style.boxShadow = "none";
+        el.style.textShadow = "none";
+        try {
+          const cs = origWindowGCS.call(window, el);
+          if (cs.color && (cs.color.includes("lab") || cs.color.includes("oklch"))) {
+            el.style.color = sanitizeColor(cs.color, "rgb(0, 0, 0)");
+          }
+          if (cs.backgroundColor && (cs.backgroundColor.includes("lab") || cs.backgroundColor.includes("oklch"))) {
+            el.style.backgroundColor = cs.backgroundColor.includes("0, 0, 0, 0") || cs.backgroundColor.includes("transparent")
+              ? "transparent"
+              : sanitizeColor(cs.backgroundColor, "rgb(255, 255, 255)");
+          }
+          if (cs.borderColor && (cs.borderColor.includes("lab") || cs.borderColor.includes("oklch"))) {
+            el.style.borderColor = sanitizeColor(cs.borderColor, "rgb(226, 232, 240)");
+          }
+        } catch {}
+      });
+
       exportLayer.appendChild(clone);
       document.body.appendChild(exportLayer);
 
@@ -475,8 +577,7 @@ export default function DisciplinaryApp({
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       await new Promise((r) => setTimeout(r, 220));
 
-      // 4. Capture with Scale 2 (1588x2246 px)
-      // Crystal clear typography, perfectly fits mobile browser canvas memory limits without crashing
+      // 5. Capture with html2canvas and sanitize iframe environment
       const canvas = await html2canvas(clone, {
         scale: 2,
         useCORS: true,
@@ -487,6 +588,63 @@ export default function DisciplinaryApp({
         height: 1123,
         windowWidth: 794,
         windowHeight: 1123,
+        onclone: (clonedDoc) => {
+          // Remove all stylesheets that may define lab/oklch colors in Tailwind
+          const styles = Array.from(clonedDoc.querySelectorAll("style, link[rel='stylesheet']"));
+          styles.forEach((s) => s.remove());
+
+          // Inject safe print stylesheet with standard sRGB hex colors
+          const safeStyle = clonedDoc.createElement("style");
+          safeStyle.textContent = `
+            * {
+              box-sizing: border-box !important;
+              font-family: 'LINE Seed Sans TH', 'Sarabun', Arial, sans-serif !important;
+              box-shadow: none !important;
+              text-shadow: none !important;
+            }
+            body, html {
+              background: #ffffff !important;
+              color: #000000 !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+          `;
+          clonedDoc.head.appendChild(safeStyle);
+
+          // Proxy getComputedStyle inside the iframe
+          if (clonedDoc.defaultView) {
+            const win = clonedDoc.defaultView;
+            const origIframeGCS = win.getComputedStyle.bind(win);
+            win.getComputedStyle = function (targetEl: Element, pseudo?: string | null) {
+              const res = origIframeGCS(targetEl, pseudo);
+              return new Proxy(res, {
+                get(target, prop: string) {
+                  if (prop === "getPropertyValue") {
+                    return (name: string) => {
+                      const raw = target.getPropertyValue(name);
+                      if (raw && (raw.includes("lab") || raw.includes("oklch") || raw.includes("color("))) {
+                        if (name.includes("background")) return sanitizeColor(raw, "rgb(255, 255, 255)");
+                        if (name.includes("shadow")) return "none";
+                        if (name.includes("border")) return sanitizeColor(raw, "rgb(51, 51, 51)");
+                        return sanitizeColor(raw, "rgb(0, 0, 0)");
+                      }
+                      return raw;
+                    };
+                  }
+                  const val = (target as any)[prop];
+                  if (typeof val === "string" && (val.includes("lab") || val.includes("oklch") || val.includes("color("))) {
+                    if (prop.includes("background") || prop.includes("Background")) return sanitizeColor(val, "rgb(255, 255, 255)");
+                    if (prop.includes("shadow") || prop.includes("Shadow")) return "none";
+                    if (prop.includes("border") || prop.includes("Border")) return sanitizeColor(val, "rgb(51, 51, 51)");
+                    return sanitizeColor(val, "rgb(0, 0, 0)");
+                  }
+                  if (typeof val === "function") return val.bind(target);
+                  return val;
+                },
+              });
+            };
+          }
+        },
       });
 
       if (!canvas || !canvas.width || !canvas.height) {
@@ -512,7 +670,7 @@ export default function DisciplinaryApp({
           ? `รายงานวินัย_ม2-3_เลขที่${currentReportStudent.student_no}_${currentReportStudent.first_name}.pdf`
           : `รายงานวินัย_ห้องม2-3.pdf`;
 
-      // 5. Universal cross-device download (iOS Safari, Android Chrome, Desktop)
+      // 6. Universal cross-device download (iOS Safari, Android Chrome, Desktop)
       const pdfBlob = pdf.output("blob");
       const blobUrl = URL.createObjectURL(pdfBlob);
       const link = document.createElement("a");
@@ -538,6 +696,8 @@ export default function DisciplinaryApp({
         { id: loadingToast }
       );
     } finally {
+      window.getComputedStyle = origWindowGCS;
+      CSSStyleDeclaration.prototype.getPropertyValue = origCSSProtoGetPropertyValue;
       if (exportLayer && document.body.contains(exportLayer)) {
         document.body.removeChild(exportLayer);
       }
@@ -1557,18 +1717,18 @@ export default function DisciplinaryApp({
             {/* TAB 1: VERTICAL ROTATED MATRIX TABLE (Exact match to User Image 1 - ยาวไปสุดขอบฟ้า) */}
             {assignmentViewMode === "table" ? (
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden w-full">
-                <div className="overflow-x-auto overflow-y-auto max-h-[82vh] w-full">
+                <div className="overflow-x-auto overflow-y-auto max-h-[82vh] w-full smooth-scroll">
                   <table className="border-collapse text-left select-none w-full min-w-max">
                     <thead>
                       {/* Row 1: กำหนดส่ง + Short Thai Due Dates */}
-                      <tr className="bg-slate-50/80 border-b border-slate-200">
-                        <th className="sticky left-0 top-0 z-30 bg-slate-50 border-r border-slate-200 p-2.5 text-center text-xs font-bold text-slate-500 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#e2e8f0]">
+                      <tr className="bg-[#f8fafc] border-b border-slate-200 h-9">
+                        <th className="sticky left-0 top-0 z-30 bg-[#f8fafc] border-r border-slate-200 px-3 py-1.5 text-center text-xs font-bold text-slate-500 min-w-[130px] sm:min-w-[150px] w-[130px] sm:w-[150px] shadow-[2px_0_4px_rgba(0,0,0,0.03)]">
                           กำหนดส่ง
                         </th>
                         {activeTasks.map((t) => (
                           <th
                             key={`due-${t.id}`}
-                            className="sticky top-0 z-20 bg-slate-50 border-r border-slate-200 p-2 text-center text-[10px] sm:text-[11px] font-medium text-slate-500 min-w-[48px] w-[48px] whitespace-nowrap"
+                            className="sticky top-0 z-20 bg-[#f8fafc] border-r border-slate-200 px-1 py-1.5 text-center text-[10px] sm:text-[11px] font-medium text-slate-500 min-w-[46px] w-[46px] whitespace-nowrap"
                           >
                             {formatThaiShortDate(t.due_date)}
                           </th>
@@ -1576,14 +1736,14 @@ export default function DisciplinaryApp({
                       </tr>
 
                       {/* Row 2: นักเรียน + Vertical Rotated Column Headers reading upwards */}
-                      <tr className="bg-slate-50 border-b-2 border-slate-200">
-                        <th className="sticky left-0 top-[37px] z-30 bg-slate-50 border-r border-slate-200 p-3 text-center text-xs sm:text-sm font-black text-slate-800 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#e2e8f0]">
+                      <tr className="bg-[#f8fafc] border-b-2 border-slate-300">
+                        <th className="sticky left-0 top-[36px] z-30 bg-[#f8fafc] border-r border-slate-200 px-3 py-2 text-center text-xs sm:text-sm font-black text-slate-800 min-w-[130px] sm:min-w-[150px] w-[130px] sm:w-[150px] shadow-[2px_0_4px_rgba(0,0,0,0.03)]">
                           นักเรียน
                         </th>
                         {activeTasks.map((t) => (
                           <th
                             key={`header-${t.id}`}
-                            className="sticky top-[37px] z-20 bg-slate-50 border-r border-slate-200 p-1.5 min-w-[48px] w-[48px] h-[175px] align-bottom"
+                            className="sticky top-[36px] z-20 bg-[#f8fafc] border-r border-slate-200 p-1 min-w-[46px] w-[46px] h-[175px] align-bottom"
                           >
                             <div className="h-full flex items-end justify-center pb-2.5">
                               <span
@@ -1605,13 +1765,13 @@ export default function DisciplinaryApp({
                     <tbody className="divide-y divide-slate-100">
                       {filteredTableStudents.map((s) => (
                         <tr key={s.student_id} className="hover:bg-slate-50/70 transition-colors">
-                          {/* Sticky Left Pinned Column: [เลขที่]ชื่อเล่น / ชื่อ-สกุล */}
-                          <td className="sticky left-0 z-10 bg-white border-r border-slate-100 px-3 py-1.5 min-w-[150px] w-[150px] h-[52px] shadow-[1px_0_0_0_#f1f5f9]">
+                          {/* Sticky Left Pinned Column: [เลขที่]ชื่อเล่น / ชื่อ-สกุล (Exact Image 1) */}
+                          <td className="sticky left-0 z-20 bg-white border-r border-slate-200 px-3 py-1.5 min-w-[130px] sm:min-w-[150px] w-[130px] sm:w-[150px] h-[52px] shadow-[2px_0_4px_rgba(0,0,0,0.03)]">
                             <div className="flex flex-col justify-center leading-tight">
                               <span className="font-bold text-slate-900 text-xs sm:text-[13px] truncate">
                                 [{s.student_no}]{s.nickname || s.first_name}
                               </span>
-                              <span className="text-[11px] text-slate-400 truncate mt-0.5">
+                              <span className="text-[10px] sm:text-[11px] text-slate-400 truncate mt-0.5">
                                 {s.first_name} {s.last_name}
                               </span>
                             </div>
@@ -1620,23 +1780,25 @@ export default function DisciplinaryApp({
                           {/* Status Cells (Interactive Tiles matching Image 1) */}
                           {activeTasks.map((t) => {
                             const status = completionMap.get(`${s.student_id}_${t.id}`) || "todo";
-                            const isOverdue = isTaskOverdue(t.due_date);
+                            const overdueLevel = getTaskOverdueLevel(t.due_date);
 
                             return (
                               <td
                                 key={`cell-${s.student_id}-${t.id}`}
-                                className="border-r border-slate-100 p-1.5 text-center align-middle h-[52px] min-w-[48px] w-[48px]"
+                                className="border-r border-slate-100 p-1.5 text-center align-middle h-[52px] min-w-[46px] w-[46px]"
                               >
                                 <button
                                   type="button"
                                   onClick={() => handleCycleStatus(s.student_id, t.id)}
-                                  className={`w-8 h-8 rounded-lg mx-auto flex items-center justify-center transition-all transform active:scale-85 cursor-pointer ${
+                                  className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg mx-auto flex items-center justify-center transition-all transform active:scale-85 cursor-pointer ${
                                     status === "done"
-                                      ? "bg-[#5cd489] text-white shadow-2xs"
+                                      ? "bg-[#5cd489] text-white shadow-2xs border border-[#48bb78]/30"
                                       : status === "in_progress"
-                                      ? "bg-[#f97316] text-white shadow-2xs"
-                                      : isOverdue
-                                      ? "bg-white border border-rose-200 text-[#e11d48] font-black text-xs shadow-2xs"
+                                      ? "bg-[#f97316] text-white shadow-2xs border border-[#ea580c]/30"
+                                      : overdueLevel === "critical"
+                                      ? "bg-white border-2 border-rose-300 text-[#e11d48] font-black text-xs shadow-2xs"
+                                      : overdueLevel === "overdue"
+                                      ? "bg-white border-2 border-rose-300 text-[#e11d48] font-black text-xs shadow-2xs"
                                       : "bg-white border border-slate-200 hover:border-slate-400"
                                   }`}
                                   title={`เลขที่ ${s.student_no} ${s.first_name} - ${t.details} (แตะเพื่อเปลี่ยนสถานะ)`}
@@ -1645,8 +1807,10 @@ export default function DisciplinaryApp({
                                     null
                                   ) : status === "in_progress" ? (
                                     null
-                                  ) : isOverdue ? (
-                                    "!!!"
+                                  ) : overdueLevel === "critical" ? (
+                                    <span className="text-[#e11d48] font-black text-[11px] leading-none tracking-tight">!!!</span>
+                                  ) : overdueLevel === "overdue" ? (
+                                    <span className="text-[#e11d48] font-black text-xs leading-none">!</span>
                                   ) : null}
                                 </button>
                               </td>
@@ -1666,7 +1830,7 @@ export default function DisciplinaryApp({
                     {/* Footer Summary Row */}
                     <tfoot>
                       <tr className="bg-slate-100 border-t-2 border-slate-200">
-                        <td className="sticky left-0 bottom-0 z-30 bg-slate-100 border-r border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 min-w-[150px] w-[150px] shadow-[1px_0_0_0_#cbd5e1]">
+                        <td className="sticky left-0 bottom-0 z-30 bg-slate-100 border-r border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 min-w-[130px] sm:min-w-[150px] w-[130px] sm:w-[150px] shadow-[2px_0_4px_rgba(0,0,0,0.03)]">
                           ส่งแล้ว / รวม
                         </td>
                         {activeTasks.map((t) => {
@@ -1677,7 +1841,7 @@ export default function DisciplinaryApp({
                           return (
                             <td
                               key={`summary-${t.id}`}
-                              className="sticky bottom-0 z-20 bg-slate-100 border-r border-slate-200 py-2 text-center text-[10px] font-bold text-slate-700 min-w-[48px] w-[48px]"
+                              className="sticky bottom-0 z-20 bg-slate-100 border-r border-slate-200 py-2 text-center text-[10px] font-bold text-slate-700 min-w-[46px] w-[46px]"
                             >
                               <div>{doneCount}/{students.length}</div>
                               <div className="text-[9px] text-[#16453d]">{pct}%</div>
@@ -2764,23 +2928,28 @@ export default function DisciplinaryApp({
                       >
                         <div>
                           {/* Header: Logo, Vertical Blue Line, Title, Meta */}
-                          <div className="grid grid-cols-[48px_1fr_auto] gap-3.5 items-start pb-4">
-                            <div className="w-12 h-12 border-2 border-slate-300 rounded-sm flex items-center justify-center text-slate-400">
-                              <ShieldAlert size={28} />
+                          <div className="grid grid-cols-[56px_1fr_auto] gap-3.5 items-center pb-4 border-b border-slate-200">
+                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#16453d] to-[#0f352e] flex items-center justify-center text-white shadow-xs">
+                              <svg viewBox="0 0 48 48" fill="none" className="w-9 h-9" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M24 4L7 11V22C7 32.5 14.3 42.2 24 44C33.7 42.2 41 32.5 41 22V11L24 4Z" fill="#ffffff" fillOpacity="0.18" stroke="#ffffff" strokeWidth="2.5" strokeLinejoin="round"/>
+                                <path d="M24 14V34M17 21L24 14L31 21M16 28H32" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
                             </div>
-                            <div className="border-l-2 border-[#1c2a66] pl-3">
-                              <div className="text-[11px] font-bold text-slate-700 leading-tight">
+                            <div className="border-l-3 border-[#16453d] pl-3.5">
+                              <div className="text-xs font-bold text-slate-600 tracking-wide uppercase">
                                 ระบบข้อมูลนักเรียน
                               </div>
-                              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight mt-0.5">
+                              <h1 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight mt-0.5">
                                 ระดับชั้นมัธยมศึกษาปีที่ 2
                               </h1>
+                              <div className="text-xs font-semibold text-[#16453d]">
+                                ห้องเรียน ม.2/3
+                              </div>
                             </div>
-                            <div className="text-right text-[11px] leading-tight text-slate-700">
-                              <div className="font-bold">ประเภทข้อมูล</div>
-                              <div>{reportMode === "room" ? "รายห้อง" : "รายบุคคล"}</div>
-                              <div className="font-bold mt-1">วันที่พิมพ์</div>
-                              <div>{formatThaiFullDate(new Date())}</div>
+                            <div className="text-right text-[11px] sm:text-xs leading-tight text-slate-700 space-y-0.5">
+                              <div><strong className="font-bold text-slate-900">ประเภทข้อมูล:</strong> {reportMode === "room" ? "รายห้อง (ม.2/3)" : "รายบุคคล"}</div>
+                              <div><strong className="font-bold text-slate-900">วันที่พิมพ์:</strong> {formatThaiFullDate(new Date())}</div>
+                              <div className="text-slate-500 text-[10px]">เอกสารทางการประจำชั้น</div>
                             </div>
                           </div>
 
@@ -3294,67 +3463,67 @@ export default function DisciplinaryApp({
       {/* 4. MOBILE-STYLE BOTTOM PILL NAVIGATION (Icon Top, Small Label Underneath) */}
       {/* ========================================================================= */}
       <nav
-        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] left-1/2 -translate-x-1/2 z-50 rounded-full bg-white/95 backdrop-blur-lg border border-slate-200/90 shadow-2xl px-2 py-1.5 flex items-center justify-between gap-1 w-[calc(100vw-20px)] max-w-md sm:max-w-lg"
+        className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,8px))] inset-x-2.5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-1 sm:px-2 py-1 flex items-center justify-between gap-0.5 sm:gap-1 max-w-md w-auto"
         aria-label="เมนูหลัก"
       >
         <button
           onClick={() => setActiveView("overview")}
-          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-2xl transition-all cursor-pointer ${
             activeView === "overview"
               ? "bg-[#16453d] text-white shadow-xs font-bold"
               : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <LayoutDashboard size={20} />
-          <span className="text-[10px] mt-0.5 whitespace-nowrap">ภาพรวม</span>
+          <LayoutDashboard size={19} className="shrink-0" />
+          <span className="text-[10px] leading-tight mt-0.5 truncate w-full text-center">ภาพรวม</span>
         </button>
 
         <button
           onClick={() => setActiveView("assignments")}
-          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-2xl transition-all cursor-pointer ${
             activeView === "assignments"
               ? "bg-[#16453d] text-white shadow-xs font-bold"
               : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <BookOpen size={20} />
-          <span className="text-[10px] mt-0.5 whitespace-nowrap">การบ้าน</span>
+          <BookOpen size={19} className="shrink-0" />
+          <span className="text-[10px] leading-tight mt-0.5 truncate w-full text-center">การบ้าน</span>
         </button>
 
         <button
           onClick={() => setActiveView("disciplinary")}
-          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-2xl transition-all cursor-pointer ${
             activeView === "disciplinary"
               ? "bg-[#16453d] text-white shadow-xs font-bold"
               : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <Gavel size={20} />
-          <span className="text-[10px] mt-0.5 whitespace-nowrap">วินัย</span>
+          <Gavel size={19} className="shrink-0" />
+          <span className="text-[10px] leading-tight mt-0.5 truncate w-full text-center">วินัย</span>
         </button>
 
         <button
           onClick={() => setActiveView("student")}
-          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-2xl transition-all cursor-pointer ${
             activeView === "student"
               ? "bg-[#16453d] text-white shadow-xs font-bold"
               : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <UserCheck size={20} />
-          <span className="text-[10px] mt-0.5 whitespace-nowrap">นักเรียน</span>
+          <UserCheck size={19} className="shrink-0" />
+          <span className="text-[10px] leading-tight mt-0.5 truncate w-full text-center">นักเรียน</span>
         </button>
 
         <button
           onClick={() => setActiveView("history")}
-          className={`flex-1 flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all cursor-pointer ${
+          className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-1.5 rounded-2xl transition-all cursor-pointer ${
             activeView === "history"
               ? "bg-[#16453d] text-white shadow-xs font-bold"
               : "text-slate-500 hover:text-[#16453d] font-medium"
           }`}
         >
-          <FileText size={20} />
-          <span className="text-[10px] mt-0.5 whitespace-nowrap">รายงาน</span>
+          <FileText size={19} className="shrink-0" />
+          <span className="text-[10px] leading-tight mt-0.5 truncate w-full text-center">รายงาน</span>
         </button>
       </nav>
 
