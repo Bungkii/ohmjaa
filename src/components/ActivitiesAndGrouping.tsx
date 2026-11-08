@@ -33,6 +33,8 @@ import {
   Eye,
   Info,
   ShieldAlert,
+  Timer,
+  Dice5,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, Description } from "@headlessui/react";
@@ -583,9 +585,9 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
     () => [
       {
         id: "gadgets" as const,
-        icon: "⏱️",
+        icon: Timer,
         title: "แกดเจ็ตในห้องเรียน (Classroom Gadgets)",
-        shortTitle: "⏱️ แกดเจ็ต",
+        shortTitle: "แกดเจ็ต",
         description:
           "นาฬิกาจับเวลานับถอยหลังเต็มจอ, กระดิ่งครูสั่นเรียกสมาธิ & ซาวด์บอร์ด 6 เสียง, และทอยลูกเต๋า 2 ลูกแบบสุ่ม",
         badge: "3 เครื่องมือพร้อมใช้",
@@ -594,9 +596,9 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       },
       {
         id: "wheel" as const,
-        icon: "🎡",
+        icon: RotateCw,
         title: "วงล้อสุ่มนักเรียน ม.2/3 (Spin Wheel)",
-        shortTitle: "🎡 วงล้อสุ่ม",
+        shortTitle: "วงล้อสุ่ม",
         description:
           "หมุนวงล้อสุ่มนักเรียนตอบคำถาม ทำกิจกรรม ตัวหนังสือตั้งตรงอ่านง่าย ฟิสิกส์ 60fps และเสียงเชียร์",
         badge: `${students.length} คนในวงล้อ`,
@@ -605,9 +607,9 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       },
       {
         id: "grouping" as const,
-        icon: "🎲",
+        icon: Dice5,
         title: "สุ่มจัดกลุ่มนักเรียน (Random Group Generator)",
-        shortTitle: "🎲 สุ่มจัดกลุ่ม",
+        shortTitle: "สุ่มจัดกลุ่ม",
         description:
           "สุ่มแบ่งกลุ่มคละเพศชาย-หญิง สุ่มหัวหน้ากลุ่ม พร้อมสรุปแจกแจงจำนวนคน (เช่น 7 คน 5 กลุ่ม, 6 คน 3 กลุ่ม) คัดลอกและพิมพ์ A4",
         badge: groups.length > 0 ? `${groups.length} กลุ่มล่าสุด` : "แบ่งกลุ่มคละเพศ",
@@ -616,9 +618,9 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       },
       {
         id: "sizes" as const,
-        icon: "👕",
+        icon: Shirt,
         title: "ข้อมูลไซส์เสื้อกิจกรรม (Classroom Shirt Sizes)",
-        shortTitle: "👕 ไซส์เสื้อ",
+        shortTitle: "ไซส์เสื้อ",
         description:
           "รวบรวมไซส์เสื้อนักเรียน (S ถึง 4XL) สรุปยอดสั่งตัดเสื้ออัตโนมัติ เช็คการจ่ายเงิน และพิมพ์ใบเซ็นชื่อรับเสื้อ A4",
         badge:
@@ -630,9 +632,9 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       },
       {
         id: "roles" as const,
-        icon: "🏆",
+        icon: Trophy,
         title: "มอบหมายหน้าที่กิจกรรมพิเศษ (Activity Roles & Duties)",
-        shortTitle: "🏆 หน้าที่กิจกรรม",
+        shortTitle: "หน้าที่กิจกรรม",
         description:
           "จัดสรรหน้าที่นักเรียนในงานกีฬาสี/กิจกรรม (นักกีฬา, กองเชียร์, พาเหรด, สวัสดิการ, ช่างภาพ ฯลฯ) พร้อมพิมพ์รายงาน A4",
         badge: "จัดสรรหน้าที่",
@@ -680,20 +682,24 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
 
           {/* Quick horizontal switcher */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            {menuCards.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setSubView(m.id)}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                  subView === m.id
-                    ? "bg-[#16453d] text-white shadow-2xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                <span>{m.shortTitle}</span>
-              </button>
-            ))}
+            {menuCards.map((m) => {
+              const IconComponent = m.icon;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setSubView(m.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                    subView === m.id
+                      ? "bg-[#16453d] text-white shadow-2xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <IconComponent className="w-3.5 h-3.5" />
+                  <span>{m.shortTitle}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -703,48 +709,51 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       {/* ========================================================================= */}
       {subView === "hub" && (
         <div className="space-y-3.5">
-          {menuCards.map((item, index) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setSubView(item.id)}
-              className="group bg-white rounded-3xl border-2 border-slate-200 hover:border-[#16453d]/50 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between gap-3 sm:gap-4 select-none"
-            >
-              <div className="flex items-center gap-3.5 sm:gap-5 min-w-0">
-                <div
-                  className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr ${item.gradient} text-white flex items-center justify-center shrink-0 shadow-md text-2xl sm:text-3xl group-hover:scale-105 transition-transform`}
-                >
-                  <span>{item.icon}</span>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-sm sm:text-base font-black text-slate-900 group-hover:text-[#16453d] transition-colors">
-                      {item.title}
-                    </h3>
-                    <span
-                      className={`text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${item.badgeColor}`}
-                    >
-                      {item.badge}
-                    </span>
+          {menuCards.map((item, index) => {
+            const ItemIcon = item.icon;
+            return (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setSubView(item.id)}
+                className="group bg-white rounded-3xl border-2 border-slate-200 hover:border-[#16453d]/50 p-4 sm:p-5 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between gap-3 sm:gap-4 select-none"
+              >
+                <div className="flex items-center gap-3.5 sm:gap-5 min-w-0">
+                  <div
+                    className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr ${item.gradient} text-white flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform`}
+                  >
+                    <ItemIcon className="w-7 h-7 sm:w-8 sm:h-8" />
                   </div>
-                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                    {item.description}
-                  </p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm sm:text-base font-black text-slate-900 group-hover:text-[#16453d] transition-colors">
+                        {item.title}
+                      </h3>
+                      <span
+                        className={`text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${item.badgeColor}`}
+                      >
+                        {item.badge}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                      {item.description}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="shrink-0 flex items-center gap-1.5 text-slate-400 group-hover:text-[#16453d] transition-colors font-bold text-xs">
-                <span className="hidden sm:inline">กดเปิด</span>
-                <div className="w-9 h-9 rounded-xl bg-slate-50 group-hover:bg-emerald-50 flex items-center justify-center border border-slate-200 group-hover:border-emerald-200 transition-colors">
-                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-[#16453d]" />
+                <div className="shrink-0 flex items-center gap-1.5 text-slate-400 group-hover:text-[#16453d] transition-colors font-bold text-xs">
+                  <span className="hidden sm:inline">กดเปิด</span>
+                  <div className="w-9 h-9 rounded-xl bg-slate-50 group-hover:bg-emerald-50 flex items-center justify-center border border-slate-200 group-hover:border-emerald-200 transition-colors">
+                    <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-[#16453d]" />
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
