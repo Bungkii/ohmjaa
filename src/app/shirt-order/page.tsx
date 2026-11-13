@@ -190,7 +190,7 @@ export default function ShirtOrderPage() {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (Date.now() > SHIRT_ORDER_DEADLINE_MS) {
-      toast.error(`แบบฟอร์มปิดรับสั่งเสื้อแล้ว (หมดเขต ${SHIRT_ORDER_DEADLINE_TEXT})`);
+      toast.error("ฟอร์มนี้หมดอายุแล้ว กรุณาติดต่อผู้ดูแลระบบ");
       setIsExpired(true);
       return;
     }
@@ -296,14 +296,14 @@ export default function ShirtOrderPage() {
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">
-                ปิดรับแบบฟอร์มสั่งเสื้อแล้ว
+                ฟอร์มนี้หมดอายุแล้ว
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                แบบฟอร์มหมดเขตเมื่อ {SHIRT_ORDER_DEADLINE_TEXT}
+                กรุณาติดต่อผู้ดูแลระบบ
               </p>
             </div>
             <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-200 leading-relaxed">
-              หากต้องการสั่งเพิ่มเติมหรือแก้ไขข้อมูล กรุณาติดต่อคุณครูประจำชั้น ม.2/3 โดยตรงครับ
+              ฟอร์มนี้หมดอายุแล้ว กรุณาติดต่อผู้ดูแลระบบ (หมดเขต {SHIRT_ORDER_DEADLINE_TEXT})
             </p>
           </div>
         ) : !isSuccess ? (

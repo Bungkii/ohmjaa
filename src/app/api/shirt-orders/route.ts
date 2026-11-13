@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   try {
     if (Date.now() > SHIRT_ORDER_DEADLINE_MS) {
       return NextResponse.json(
-        { ok: false, error: "ระบบปิดรับสั่งเสื้อกิจกรรมแล้ว (หมดเขต 20 พ.ย. 2569 เวลา 23:59 น.)" },
+        { ok: false, error: "ฟอร์มนี้หมดอายุแล้ว กรุณาติดต่อผู้ดูแลระบบ" },
         { status: 403 }
       );
     }
