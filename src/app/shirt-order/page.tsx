@@ -69,6 +69,7 @@ export default function ShirtOrderPage() {
   // Payment Slip
   const [slipImage, setSlipImage] = useState<string | null>(null);
   const [slipFileName, setSlipFileName] = useState<string>("");
+  const [isUploadingSlip, setIsUploadingSlip] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Multi-step Flow: step 1 (กรอกข้อมูลสั่งเสื้อ) -> step 2 (หน้าชำระเงิน & แนบสลิป) -> step 3 (สำเร็จ)
@@ -152,7 +153,7 @@ export default function ShirtOrderPage() {
     }
   };
 
-  const handleSlipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSlipChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -161,18 +162,48 @@ export default function ShirtOrderPage() {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("ไฟล์ต้องไม่เกิน 5 MB");
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("ไฟล์ต้องไม่เกิน 10 MB");
       return;
     }
 
     setSlipFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setSlipImage(reader.result as string);
-      toast.success("แนบรูปสลิปแล้ว");
+
+    // สร้าง local preview ทันทีเพื่อให้ผู้ใช้เห็นรูป
+    const localReader = new FileReader();
+    localReader.onload = () => {
+      setSlipImage(localReader.result as string);
     };
-    reader.readAsDataURL(file);
+    localReader.readAsDataURL(file);
+
+    // อัปโหลดไฟล์สลิปขึ้น Cloudflare Storage (https://storage.cnintercon.tech/)
+    setIsUploadingSlip(true);
+    const toastId = toast.loading("กำลังอัปโหลดสลิปไปยังระบบคลาวด์...");
+    try {
+      const formData = new FormData();
+      formData.append("file", file, file.name);
+
+      const res = await fetch("https://storage.cnintercon.tech/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        if (result.url) {
+          setSlipImage(result.url);
+          toast.success("อัปโหลดสลิปสำเร็จเรียบร้อย", { id: toastId });
+        } else {
+          toast.success("แนบรูปสลิปแล้ว", { id: toastId });
+        }
+      } else {
+        toast.success("แนบรูปสลิปแล้ว (บันทึกรูปในเครื่อง)", { id: toastId });
+      }
+    } catch {
+      toast.success("แนบรูปสลิปแล้ว", { id: toastId });
+    } finally {
+      setIsUploadingSlip(false);
+    }
   };
 
   // Step 1 -> Step 2 Validation
@@ -822,21 +853,31 @@ export default function ShirtOrderPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-4 border-2 border-dashed border-rose-200 hover:border-[#a31e1e] bg-rose-50/20 hover:bg-rose-50/40 rounded-xl text-xs text-slate-600 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  disabled={isUploadingSlip}
+                  className="w-full py-4 border-2 border-dashed border-rose-200 hover:border-[#a31e1e] bg-rose-50/20 hover:bg-rose-50/40 rounded-xl text-xs text-slate-600 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
                 >
-                  <Upload className="w-5 h-5 text-[#a31e1e]" />
-                  <span className="font-semibold text-slate-800">กดเพื่ออัปโหลดสลิปการโอนเงิน</span>
-                  <span className="text-[11px] text-slate-400">รองรับไฟล์ JPG, PNG (ไม่เกิน 5 MB)</span>
+                  {isUploadingSlip ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 text-[#a31e1e] animate-spin" />
+                      <span className="font-semibold text-slate-800">กำลังอัปโหลดรูปภาพสลิปไปยังเซิร์ฟเวอร์...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5 text-[#a31e1e]" />
+                      <span className="font-semibold text-slate-800">กดเพื่ออัปโหลดสลิปการโอนเงิน</span>
+                      <span className="text-[11px] text-slate-400">รองรับไฟล์ JPG, PNG (อัปโหลดเข้าคลาวด์อัตโนมัติ)</span>
+                    </>
+                  )}
                 </button>
               ) : (
                 <div className="bg-rose-50/40 border border-rose-200 rounded-lg p-3 flex items-center justify-between">
                   <div className="flex items-center gap-3 text-xs truncate">
-                    <img src={slipImage} alt="สลิป" className="w-12 h-12 object-cover rounded-md border border-rose-200 shrink-0" />
+                    <img src={slipImage} alt="สลิป" className="w-12 h-12 object-cover rounded-md border border-rose-200 shrink-0 bg-white" />
                     <div className="truncate">
                       <span className="font-semibold text-slate-800 block truncate">{slipFileName || "สลิปโอนเงิน"}</span>
                       <span className="text-[11px] text-emerald-700 flex items-center gap-1 mt-0.5">
                         <Check className="w-3 h-3" />
-                        <span>แนบไฟล์เรียบร้อย</span>
+                        <span>{slipImage.startsWith("http") ? "อัปโหลดขึ้นคลาวด์เรียบร้อย" : "แนบไฟล์เรียบร้อย"}</span>
                       </span>
                     </div>
                   </div>
