@@ -34,6 +34,10 @@ const DEFAULT_SHIRT_PRICE = 250;
 const PROMPTPAY_ACCOUNT = "0987654321";
 const PROMPTPAY_ACCOUNT_NAME = "บัญชีกองกลางห้อง ม.2/3 (คุณครูประจำชั้น)";
 
+// กำหนดเวลาหมดเขตสั่งเสื้อ: 20 พฤศจิกายน 2569 เวลา 23:59:59 น. (Asia/Bangkok = UTC+7)
+const SHIRT_ORDER_DEADLINE_MS = new Date("2026-11-20T23:59:59+07:00").getTime();
+const SHIRT_ORDER_DEADLINE_TEXT = "20 พ.ย. 2569 เวลา 23:59 น.";
+
 export default function ShirtOrderPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,6 +60,11 @@ export default function ShirtOrderPage() {
   const [copiedPromptPay, setCopiedPromptPay] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [showSizeGuide, setShowSizeGuide] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
+
+  useEffect(() => {
+    setIsExpired(Date.now() > SHIRT_ORDER_DEADLINE_MS);
+  }, []);
 
   useEffect(() => {
     try {
@@ -167,6 +176,11 @@ export default function ShirtOrderPage() {
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (Date.now() > SHIRT_ORDER_DEADLINE_MS) {
+      toast.error(`แบบฟอร์มปิดรับสั่งเสื้อแล้ว (หมดเขต ${SHIRT_ORDER_DEADLINE_TEXT})`);
+      setIsExpired(true);
+      return;
+    }
     if (!selectedStudent) {
       toast.error("กรุณาเลือกนักเรียน");
       return;
@@ -260,8 +274,32 @@ export default function ShirtOrderPage() {
 
       {/* Main Content Form */}
       <main className="max-w-md mx-auto px-4 pt-5">
-        {!isSuccess ? (
+        {isExpired ? (
+          /* Expired Banner */
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">
+                ปิดรับแบบฟอร์มสั่งเสื้อแล้ว
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                แบบฟอร์มหมดเขตเมื่อ {SHIRT_ORDER_DEADLINE_TEXT}
+              </p>
+            </div>
+            <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-200 leading-relaxed">
+              หากต้องการสั่งเพิ่มเติมหรือแก้ไขข้อมูล กรุณาติดต่อคุณครูประจำชั้น ม.2/3 โดยตรงครับ
+            </p>
+          </div>
+        ) : !isSuccess ? (
           <form onSubmit={handleSubmitOrder} className="space-y-4">
+            {/* Deadline Notice */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 flex items-center justify-between">
+              <span>⏰ หมดเขตสั่งเสื้อ:</span>
+              <span className="font-bold">{SHIRT_ORDER_DEADLINE_TEXT}</span>
+            </div>
+
             {/* 1. Student Lookup */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3">
               <div className="flex items-center justify-between">

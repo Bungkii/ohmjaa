@@ -407,20 +407,36 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
   // SHIRT SIZES LOGIC
   // ==========================================
   const handleSetShirtSize = (studentId: string, size: ShirtSize) => {
-    const prev = shirtRecords[studentId] || { student_id: studentId, size: "" };
+    const prev = shirtRecords[studentId] || { student_id: studentId, size: "", quantity: 1 };
     const updated = {
       ...shirtRecords,
       [studentId]: {
         ...prev,
         student_id: studentId,
         size: prev.size === size ? "" : size, // Toggle off if clicked again
+        quantity: prev.quantity || 1,
+      },
+    };
+    saveShirtRecords(updated);
+  };
+
+  const handleSetShirtQuantity = (studentId: string, delta: number) => {
+    const prev = shirtRecords[studentId] || { student_id: studentId, size: "", quantity: 1 };
+    const currentQty = prev.quantity || 1;
+    const nextQty = Math.max(1, Math.min(20, currentQty + delta));
+    const updated = {
+      ...shirtRecords,
+      [studentId]: {
+        ...prev,
+        student_id: studentId,
+        quantity: nextQty,
       },
     };
     saveShirtRecords(updated);
   };
 
   const handleToggleShirtPaid = (studentId: string) => {
-    const prev = shirtRecords[studentId] || { student_id: studentId, size: "" };
+    const prev = shirtRecords[studentId] || { student_id: studentId, size: "", quantity: 1 };
     const updated = {
       ...shirtRecords,
       [studentId]: {
@@ -433,7 +449,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
   };
 
   const handleSetShirtNote = (studentId: string, note: string) => {
-    const prev = shirtRecords[studentId] || { student_id: studentId, size: "" };
+    const prev = shirtRecords[studentId] || { student_id: studentId, size: "", quantity: 1 };
     const updated = {
       ...shirtRecords,
       [studentId]: {
@@ -445,7 +461,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
     saveShirtRecords(updated);
   };
 
-  // Summary counts of shirt sizes
+  // Summary counts of shirt sizes (takes quantity per student into account)
   const shirtSummary = useMemo(() => {
     const counts: Record<string, number> = {
       S: 0,
@@ -459,19 +475,25 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       unspecified: 0,
     };
     let paidCount = 0;
+    let totalShirts = 0;
+    let studentCountWithShirt = 0;
 
     students.forEach((s) => {
       const rec = shirtRecords[s.student_id];
+      const qty = rec?.quantity && rec.quantity > 0 ? rec.quantity : 1;
+
       if (rec?.size && counts[rec.size] !== undefined) {
-        counts[rec.size]++;
+        counts[rec.size] += qty;
+        totalShirts += qty;
+        studentCountWithShirt++;
       } else {
         counts.unspecified++;
       }
       if (rec?.paid) paidCount++;
     });
 
-    const totalSpecified = students.length - counts.unspecified;
-    return { counts, totalSpecified, paidCount };
+    const totalSpecified = totalShirts;
+    return { counts, totalSpecified, paidCount, studentCountWithShirt };
   }, [students, shirtRecords]);
 
   // Copy Shirt Summary
@@ -485,7 +507,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       }
     });
     text += `------------------------------------\n`;
-    text += `รวมสั่งทั้งหมด: ${shirtSummary.totalSpecified} ตัว\n`;
+    text += `รวมสั่งทั้งหมด: ${shirtSummary.totalSpecified} ตัว (${shirtSummary.studentCountWithShirt}/${students.length} คน)\n`;
     text += `ชำระเงินแล้ว: ${shirtSummary.paidCount}/${students.length} คน\n`;
     if (shirtSummary.counts.unspecified > 0) {
       text += `(ยังไม่ระบุไซส์: ${shirtSummary.counts.unspecified} คน)\n`;
@@ -1247,6 +1269,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                     <th className="py-3 px-3">ชื่อ - สกุล</th>
                     <th className="py-3 px-3">ชื่อเล่น</th>
                     <th className="py-3 px-3 min-w-[260px]">เลือกไซส์เสื้อ</th>
+                    <th className="py-3 px-3 text-center w-28">จำนวนตัว</th>
                     <th className="py-3 px-3 text-center">ชำระเงิน</th>
                     <th className="py-3 px-3">โน้ตเพิ่มเติม</th>
                   </tr>
@@ -1304,6 +1327,29 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                             </div>
                           </td>
                           <td className="py-2.5 px-3 text-center">
+                            <div className="inline-flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-slate-50">
+                              <button
+                                type="button"
+                                onClick={() => handleSetShirtQuantity(student.student_id, -1)}
+                                className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:bg-white hover:text-slate-800 font-bold text-xs cursor-pointer"
+                                title="ลดจำนวน"
+                              >
+                                -
+                              </button>
+                              <span className="w-6 text-center font-bold font-mono text-slate-800 text-xs">
+                                {shirt?.quantity && shirt.quantity > 0 ? shirt.quantity : 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleSetShirtQuantity(student.student_id, 1)}
+                                className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:bg-white hover:text-slate-800 font-bold text-xs cursor-pointer"
+                                title="เพิ่มจำนวน"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
                             <button
                               type="button"
                               onClick={() => handleToggleShirtPaid(student.student_id)}
@@ -1331,7 +1377,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                   </AnimatePresence>
                   {filteredStudents.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-slate-400">
+                      <td colSpan={7} className="py-10 text-center text-slate-400">
                         ไม่พบข้อมูลตามตัวกรอง
                       </td>
                     </tr>
