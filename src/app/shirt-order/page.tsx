@@ -10,12 +10,12 @@ import {
   Upload,
   Receipt,
   AlertCircle,
-  HelpCircle,
-  FileText,
-  User,
-  Phone,
-  MessageSquare,
+  ArrowRight,
+  ArrowLeft,
+  ChevronRight,
   ShieldCheck,
+  QrCode,
+  FileCheck,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import fallbackStudents from "@/data/students.json";
@@ -58,6 +58,7 @@ export default function ShirtOrderPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
+  // Form Fields
   const [selectedSize, setSelectedSize] = useState<ShirtSize>("M");
   const [quantity, setQuantity] = useState<number>(1);
   const [customSize, setCustomSize] = useState<string>("");
@@ -65,12 +66,15 @@ export default function ShirtOrderPage() {
   const [parentPhone, setParentPhone] = useState("");
   const [orderNote, setOrderNote] = useState("");
 
+  // Payment Slip
   const [slipImage, setSlipImage] = useState<string | null>(null);
   const [slipFileName, setSlipFileName] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Multi-step Flow: step 1 (กรอกข้อมูลสั่งเสื้อ) -> step 2 (หน้าชำระเงิน & แนบสลิป) -> step 3 (สำเร็จ)
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [hasExistingOrder, setHasExistingOrder] = useState(false);
   const [copiedPromptPay, setCopiedPromptPay] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
@@ -171,7 +175,8 @@ export default function ShirtOrderPage() {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmitOrder = async (e: React.FormEvent) => {
+  // Step 1 -> Step 2 Validation
+  const handleProceedToPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (Date.now() > SHIRT_ORDER_DEADLINE_MS) {
       toast.error("ฟอร์มนี้หมดอายุแล้ว กรุณาติดต่อผู้ดูแลระบบ");
@@ -190,6 +195,20 @@ export default function ShirtOrderPage() {
       toast.error("กรุณาระบุขนาดรอบอกไซส์พิเศษ");
       return;
     }
+
+    // เลื่อนไปหน้าชำระเงิน
+    setCurrentStep(2);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Step 2 Final Submit
+  const handleFinalSubmitOrder = async () => {
+    if (Date.now() > SHIRT_ORDER_DEADLINE_MS) {
+      toast.error("ฟอร์มนี้หมดอายุแล้ว กรุณาติดต่อผู้ดูแลระบบ");
+      setIsExpired(true);
+      return;
+    }
+    if (!selectedStudent) return;
 
     setIsSubmitting(true);
 
@@ -235,8 +254,9 @@ export default function ShirtOrderPage() {
     } catch {}
 
     setIsSubmitting(false);
-    setIsSuccess(true);
+    setCurrentStep(3);
     toast.success("บันทึกการสั่งซื้อเรียบร้อย");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleResetForm = () => {
@@ -249,8 +269,9 @@ export default function ShirtOrderPage() {
     setOrderNote("");
     setSlipImage(null);
     setSlipFileName("");
-    setIsSuccess(false);
+    setCurrentStep(1);
     setHasExistingOrder(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -262,10 +283,10 @@ export default function ShirtOrderPage() {
 
       {/* Main Container - Google Form card structure */}
       <main className="max-w-xl mx-auto px-3 sm:px-4 pt-4 space-y-4">
-        {/* Header Card with top color accent */}
+        {/* Header Card with top color accent & Step Indicator */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs relative">
           <div className="h-2.5 bg-[#a31e1e] w-full" />
-          <div className="p-5 sm:p-6 space-y-2.5">
+          <div className="p-5 sm:p-6 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -280,27 +301,52 @@ export default function ShirtOrderPage() {
               </span>
             </div>
 
-            <div className="text-xs text-slate-600 bg-rose-50/50 border border-rose-100 rounded-lg p-3 space-y-1">
-              <div className="font-semibold text-[#a31e1e] flex items-center gap-1.5">
-                <span>👕 ราคาตัวละ 200 บาท (ไซส์ XS ถึง 2XL)</span>
+            {/* Stepper Wizard Bar */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                    currentStep === 1
+                      ? "bg-[#a31e1e] text-white ring-2 ring-rose-200"
+                      : "bg-emerald-600 text-white"
+                  }`}
+                >
+                  {currentStep > 1 ? <Check className="w-3.5 h-3.5" /> : "1"}
+                </span>
+                <span className={`font-semibold ${currentStep === 1 ? "text-slate-900" : "text-slate-500"}`}>
+                  1. เลือกไซส์ & ข้อมูลผู้สั่ง
+                </span>
               </div>
-              <div className="text-slate-600">
-                * เกินไซส์ 2XL ขึ้นไป (3XL, 4XL, 5XL) คิดเพิ่มไซส์ละ 20 บาท
-              </div>
-              <div className="text-[11px] text-slate-500 pt-1 border-t border-rose-100 flex items-center justify-between">
-                <span>⏰ กำหนดปิดรับแบบฟอร์ม:</span>
-                <span className="font-semibold text-slate-700">{SHIRT_ORDER_DEADLINE_TEXT}</span>
+
+              <ChevronRight className="w-4 h-4 text-slate-300" />
+
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                    currentStep === 2
+                      ? "bg-[#a31e1e] text-white ring-2 ring-rose-200"
+                      : currentStep === 3
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-100 text-slate-400 border border-slate-200"
+                  }`}
+                >
+                  {currentStep === 3 ? <Check className="w-3.5 h-3.5" /> : "2"}
+                </span>
+                <span className={`font-semibold ${currentStep === 2 ? "text-slate-900" : "text-slate-400"}`}>
+                  2. ชำระเงิน & แนบสลิป
+                </span>
               </div>
             </div>
 
-            <div className="text-[11px] text-rose-600 font-medium pt-1">
-              * จำเป็นต้องระบุ
+            <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1">
+              <span>⏰ ปิดรับแบบฟอร์ม: {SHIRT_ORDER_DEADLINE_TEXT}</span>
+              {currentStep === 1 && <span className="text-rose-600 font-medium">* จำเป็นต้องระบุ</span>}
             </div>
           </div>
         </div>
 
+        {/* Expired State */}
         {isExpired ? (
-          /* Expired Card */
           <div className="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 shadow-xs text-center space-y-3">
             <div className="w-14 h-14 rounded-full bg-rose-50 text-[#a31e1e] flex items-center justify-center mx-auto">
               <AlertCircle className="w-7 h-7" />
@@ -317,10 +363,11 @@ export default function ShirtOrderPage() {
               ฟอร์มนี้หมดอายุแล้ว กรุณาติดต่อผู้ดูแลระบบ (หมดเขต {SHIRT_ORDER_DEADLINE_TEXT})
             </p>
           </div>
-        ) : !isSuccess ? (
-          <form onSubmit={handleSubmitOrder} className="space-y-4">
+        ) : currentStep === 1 ? (
+          /* ================= STEP 1: ORDER DETAILS ================= */
+          <form onSubmit={handleProceedToPayment} className="space-y-4">
             {/* Card 1: Student Selection */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3 transition-shadow hover:shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-semibold text-slate-900">
                   เลือกนักเรียน <span className="text-rose-600 font-bold">*</span>
@@ -442,7 +489,7 @@ export default function ShirtOrderPage() {
               </div>
             </div>
 
-            {/* Card 3: Size Selection (Radio UX like Google Forms) */}
+            {/* Card 3: Size Selection */}
             <div className={`bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3 transition-opacity ${!selectedStudent ? "opacity-50 pointer-events-none" : ""}`}>
               <div className="flex items-center justify-between">
                 <label className="text-sm font-semibold text-slate-900">
@@ -453,7 +500,6 @@ export default function ShirtOrderPage() {
                 </span>
               </div>
 
-              {/* Radio Group styled neatly */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {SHIRT_SIZES_GUIDE.map((item) => {
                   const isChecked = selectedSize === item.size;
@@ -536,7 +582,7 @@ export default function ShirtOrderPage() {
               )}
             </div>
 
-            {/* Card 4: Quantity & Total Price */}
+            {/* Card 4: Quantity & Price */}
             <div className={`bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3 transition-opacity ${!selectedStudent ? "opacity-50 pointer-events-none" : ""}`}>
               <div className="flex items-center justify-between">
                 <div>
@@ -578,11 +624,11 @@ export default function ShirtOrderPage() {
               </div>
             </div>
 
-            {/* Card 5: Contact Info & Slip (Optional) */}
+            {/* Card 5: Contact Info */}
             <div className={`bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3 transition-opacity ${!selectedStudent ? "opacity-50 pointer-events-none" : ""}`}>
               <div>
                 <label className="text-sm font-semibold text-slate-900 block">
-                  ข้อมูลผู้สั่งและหลักฐานการโอน
+                  ข้อมูลผู้สั่งเสื้อ
                 </label>
                 <span className="text-xs text-slate-500">
                   กรอกข้อมูลติดต่อเพื่อความสะดวกในการประสานงาน (ไม่บังคับ)
@@ -628,64 +674,17 @@ export default function ShirtOrderPage() {
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#a31e1e]/20 focus:border-[#a31e1e]"
                 />
               </div>
-
-              <div>
-                <label className="text-xs font-medium text-slate-700 block mb-1">
-                  หลักฐานสลิปการโอนเงิน (ถ้ามี)
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={fileInputRef}
-                  onChange={handleSlipChange}
-                  className="hidden"
-                />
-
-                {!slipImage ? (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-3 border border-dashed border-rose-200 hover:border-[#a31e1e] bg-rose-50/20 hover:bg-rose-50/40 rounded-lg text-xs text-slate-600 flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                  >
-                    <Upload className="w-4 h-4 text-[#a31e1e]" />
-                    <span>กดเพื่อแนบไฟล์รูปภาพสลิปโอนเงิน</span>
-                  </button>
-                ) : (
-                  <div className="bg-rose-50/40 border border-rose-200 rounded-lg p-2.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5 text-xs truncate">
-                      <img src={slipImage} alt="สลิป" className="w-10 h-10 object-cover rounded border border-rose-200" />
-                      <span className="truncate text-slate-700 font-medium">{slipFileName || "สลิปโอนเงิน"}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSlipImage(null);
-                        setSlipFileName("");
-                      }}
-                      className="text-xs text-rose-600 hover:underline cursor-pointer ml-2 shrink-0 font-medium"
-                    >
-                      ลบออก
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
 
-            {/* Bottom Actions - Google Form Submit Bar */}
+            {/* Bottom Actions -> Go to Next Step (Payment) */}
             <div className="flex items-center justify-between pt-1">
               <button
                 type="submit"
-                disabled={!selectedStudent || isSubmitting}
+                disabled={!selectedStudent}
                 className="px-6 py-2.5 bg-[#a31e1e] hover:bg-[#881919] disabled:bg-slate-300 text-white font-bold text-xs sm:text-sm rounded-lg shadow-xs transition-colors cursor-pointer flex items-center gap-2"
               >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>กำลังส่งข้อมูล...</span>
-                  </>
-                ) : (
-                  <span>ส่งแบบฟอร์ม ({totalPrice.toLocaleString()} บาท)</span>
-                )}
+                <span>ถัดไป: ชำระเงิน ({totalPrice.toLocaleString()} บาท)</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
 
               {selectedStudent && (
@@ -699,57 +698,234 @@ export default function ShirtOrderPage() {
               )}
             </div>
           </form>
+        ) : currentStep === 2 ? (
+          /* ================= STEP 2: PAYMENT & SLIP ATTACHMENT ================= */
+          <div className="space-y-4">
+            {/* Order Summary Card */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <Receipt className="w-4 h-4 text-[#a31e1e]" />
+                  <span>สรุปรายการสั่งซื้อ</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(1)}
+                  className="text-xs text-[#a31e1e] hover:underline cursor-pointer font-medium flex items-center gap-1"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>แก้ไขข้อมูล</span>
+                </button>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">นักเรียน:</span>
+                  <span className="font-bold text-slate-800">
+                    {selectedStudent?.prefix}{selectedStudent?.first_name} {selectedStudent?.last_name} (เลขที่ #{selectedStudent?.student_no})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">ไซส์เสื้อ:</span>
+                  <span className="font-bold text-slate-800">
+                    {selectedSize === "Other" ? `พิเศษ (${customSize})` : selectedSize}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">จำนวน:</span>
+                  <span className="font-bold text-slate-800">{quantity} ตัว (ตัวละ {unitPrice} บาท)</span>
+                </div>
+                {parentName && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">ผู้สั่ง:</span>
+                    <span className="text-slate-700">{parentName} {parentPhone && `(${parentPhone})`}</span>
+                  </div>
+                )}
+                {orderNote && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">หมายเหตุ:</span>
+                    <span className="text-slate-700">{orderNote}</span>
+                  </div>
+                )}
+                <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-sm">
+                  <span className="font-bold text-slate-900">ยอดที่ต้องชำระ:</span>
+                  <span className="text-lg font-bold text-[#a31e1e] font-mono">
+                    ฿{totalPrice.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* PromptPay QR Code Card */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 shadow-xs text-center space-y-4">
+              <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-800">
+                <QrCode className="w-4 h-4 text-[#a31e1e]" />
+                <span>สแกน QR Code เพื่อชำระเงิน</span>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 inline-block mx-auto max-w-xs w-full">
+                <img
+                  src={promptPayQrUrl}
+                  alt="QR พร้อมเพย์"
+                  className="w-48 h-48 mx-auto rounded-lg bg-white p-1 border border-slate-200 shadow-xs"
+                />
+                <div className="mt-3 text-center">
+                  <span className="text-xs text-slate-500 block">ยอดชำระตามยอดสั่งซื้อ</span>
+                  <span className="text-2xl font-bold text-[#a31e1e] font-mono">
+                    ฿{totalPrice.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-lg p-3 text-left border border-slate-200 text-xs space-y-1.5 max-w-sm mx-auto">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">ชื่อบัญชี:</span>
+                  <span className="font-medium text-slate-800">{PROMPTPAY_ACCOUNT_NAME}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">พร้อมเพย์:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono font-bold text-slate-900">{PROMPTPAY_ACCOUNT}</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyPromptPay}
+                      className="p-1 rounded bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                      title="คัดลอกเบอร์"
+                    >
+                      {copiedPromptPay ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Slip Upload Card */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
+              <div>
+                <label className="text-sm font-semibold text-slate-900 block">
+                  แนบหลักฐานสลิปการโอนเงิน (ถ้ามี)
+                </label>
+                <span className="text-xs text-slate-500">
+                  ท่านสามารถแนบสลิปตอนนี้ หรือส่งให้ครูประจำชั้นภายหลังได้
+                </span>
+              </div>
+
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={handleSlipChange}
+                className="hidden"
+              />
+
+              {!slipImage ? (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-4 border-2 border-dashed border-rose-200 hover:border-[#a31e1e] bg-rose-50/20 hover:bg-rose-50/40 rounded-xl text-xs text-slate-600 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Upload className="w-5 h-5 text-[#a31e1e]" />
+                  <span className="font-semibold text-slate-800">กดเพื่ออัปโหลดสลิปการโอนเงิน</span>
+                  <span className="text-[11px] text-slate-400">รองรับไฟล์ JPG, PNG (ไม่เกิน 5 MB)</span>
+                </button>
+              ) : (
+                <div className="bg-rose-50/40 border border-rose-200 rounded-lg p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3 text-xs truncate">
+                    <img src={slipImage} alt="สลิป" className="w-12 h-12 object-cover rounded-md border border-rose-200 shrink-0" />
+                    <div className="truncate">
+                      <span className="font-semibold text-slate-800 block truncate">{slipFileName || "สลิปโอนเงิน"}</span>
+                      <span className="text-[11px] text-emerald-700 flex items-center gap-1 mt-0.5">
+                        <Check className="w-3 h-3" />
+                        <span>แนบไฟล์เรียบร้อย</span>
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSlipImage(null);
+                      setSlipFileName("");
+                    }}
+                    className="text-xs text-rose-600 hover:underline cursor-pointer ml-3 shrink-0 font-medium"
+                  >
+                    เปลี่ยนรูป / ลบ
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Submit & Back Action Buttons */}
+            <div className="flex items-center justify-between pt-1 gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentStep(1)}
+                className="px-4 py-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs sm:text-sm cursor-pointer flex items-center gap-1.5"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>ย้อนกลับ</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleFinalSubmitOrder}
+                disabled={isSubmitting}
+                className="flex-1 py-2.5 bg-[#a31e1e] hover:bg-[#881919] disabled:bg-slate-300 text-white font-bold text-xs sm:text-sm rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>กำลังยืนยันการสั่งซื้อ...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileCheck className="w-4 h-4" />
+                    <span>ยืนยันคำสั่งซื้อ ({totalPrice.toLocaleString()} บาท)</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         ) : (
-          /* Submission Response Card (Google Form Confirmation) */
+          /* ================= STEP 3: SUBMISSION COMPLETED ================= */
           <div className="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 shadow-xs text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-[#a31e1e] flex items-center justify-center mx-auto">
-              <Check className="w-6 h-6 stroke-[2.5]" />
+            <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
+              <Check className="w-7 h-7 stroke-[2.5]" />
             </div>
 
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                ระบบได้บันทึกคำตอบของคุณแล้ว
+              <h2 className="text-xl font-bold text-slate-900">
+                ระบบได้บันทึกคำสั่งซื้อเรียบร้อยแล้ว
               </h2>
-              <p className="text-xs text-slate-600 mt-1">
-                {selectedStudent?.prefix}{selectedStudent?.first_name} {selectedStudent?.last_name} (เลขที่ #{selectedStudent?.student_no})
-                <br />
-                สั่งเสื้อไซส์ {selectedSize === "Other" ? customSize : selectedSize} จำนวน {quantity} ตัว
+              <p className="text-xs sm:text-sm text-slate-600 mt-1">
+                ขอบคุณสำหรับการสั่งเสื้อห้อง ม.2/3 โรงเรียนอัสสัมชัญธนบุรี
               </p>
             </div>
 
-            {/* QR PromptPay Section */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 inline-block mx-auto max-w-xs w-full">
-              <img
-                src={promptPayQrUrl}
-                alt="QR พร้อมเพย์"
-                className="w-44 h-44 mx-auto rounded-lg bg-white p-1 border border-slate-200"
-              />
-              <div className="mt-3 text-center">
-                <span className="text-xs text-slate-500 block">ยอดชำระเงิน</span>
-                <span className="text-xl font-bold text-[#a31e1e] font-mono">
-                  ฿{totalPrice.toLocaleString()}
+            {/* Summary Details */}
+            <div className="bg-slate-50 rounded-xl p-4 text-left border border-slate-200 text-xs space-y-2 max-w-sm mx-auto">
+              <div className="flex justify-between">
+                <span className="text-slate-500">นักเรียน:</span>
+                <span className="font-bold text-slate-800">
+                  {selectedStudent?.prefix}{selectedStudent?.first_name} {selectedStudent?.last_name} (#{selectedStudent?.student_no})
                 </span>
               </div>
-            </div>
-
-            <div className="bg-slate-50 rounded-lg p-3 text-left border border-slate-200 text-xs space-y-1.5 max-w-sm mx-auto">
               <div className="flex justify-between">
-                <span className="text-slate-500">ชื่อบัญชี:</span>
-                <span className="font-medium text-slate-800">{PROMPTPAY_ACCOUNT_NAME}</span>
+                <span className="text-slate-500">ขนาดไซส์ & จำนวน:</span>
+                <span className="font-bold text-slate-800">
+                  ไซส์ {selectedSize === "Other" ? customSize : selectedSize} ({quantity} ตัว)
+                </span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">พร้อมเพย์:</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-mono font-bold text-slate-900">{PROMPTPAY_ACCOUNT}</span>
-                  <button
-                    type="button"
-                    onClick={handleCopyPromptPay}
-                    className="p-1 rounded bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
-                    title="คัดลอกเบอร์"
-                  >
-                    {copiedPromptPay ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                  </button>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">ยอดชำระ:</span>
+                <span className="font-bold text-[#a31e1e] font-mono text-sm">
+                  {totalPrice.toLocaleString()} บาท
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">สถานะสลิป:</span>
+                <span className={slipImage ? "text-emerald-700 font-medium" : "text-amber-700 font-medium"}>
+                  {slipImage ? "แนบสลิปเรียบร้อย" : "ยังไม่ได้แนบสลิป"}
+                </span>
               </div>
             </div>
 
@@ -759,14 +935,14 @@ export default function ShirtOrderPage() {
                 onClick={handleResetForm}
                 className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
-                ส่งคำตอบอีกคน
+                สั่งซื้อเพิ่มอีกคน
               </button>
               <button
                 type="button"
                 onClick={() => window.print()}
                 className="px-4 py-2 rounded-lg bg-[#a31e1e] text-white text-xs font-medium hover:bg-[#881919] cursor-pointer"
               >
-                พิมพ์ใบเสร็จ/คำสั่งซื้อ
+                พิมพ์ใบสั่งซื้อ
               </button>
             </div>
           </div>
