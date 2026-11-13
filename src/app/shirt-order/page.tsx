@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Search,
   CheckCircle2,
-  QrCode,
   ArrowRight,
   RefreshCw,
   Copy,
@@ -20,17 +19,30 @@ import fallbackStudents from "@/data/students.json";
 import { Student } from "@/types/penalty";
 import { ShirtSize, StudentShirtInfo } from "@/types/activities";
 
-const SHIRT_SIZES_GUIDE = [
-  { size: "S", chest: "36", length: "26" },
-  { size: "M", chest: "38", length: "27" },
-  { size: "L", chest: "40", length: "28" },
-  { size: "XL", chest: "42", length: "29" },
-  { size: "2XL", chest: "44", length: "30" },
-  { size: "3XL", chest: "48", length: "31" },
-  { size: "4XL", chest: "52", length: "32" },
+// ตารางขนาดไซส์เสื้อ อ้างอิงตามรูปภาพที่กำหนด
+// SIZE: XS, S, M, L, XL, 2XL, 3XL, 4XL, 5XL
+// CHEST: 34, 36, 38, 40, 42, 44, 46, 48, 50 นิ้ว
+// LONG: 25, 26, 27, 28, 29, 30, 31, 32, 33 นิ้ว
+const SHIRT_SIZES_GUIDE: { size: ShirtSize; chest: string; length: string; price: number }[] = [
+  { size: "XS", chest: "34", length: "25", price: 200 },
+  { size: "S", chest: "36", length: "26", price: 200 },
+  { size: "M", chest: "38", length: "27", price: 200 },
+  { size: "L", chest: "40", length: "28", price: 200 },
+  { size: "XL", chest: "42", length: "29", price: 200 },
+  { size: "2XL", chest: "44", length: "30", price: 200 },
+  { size: "3XL", chest: "46", length: "31", price: 220 }, // เกิน 2XL ขึ้นไป คิดเพิ่มไซส์ละ 20 บาท
+  { size: "4XL", chest: "48", length: "32", price: 240 },
+  { size: "5XL", chest: "50", length: "33", price: 260 },
 ];
 
-const DEFAULT_SHIRT_PRICE = 250;
+export const getShirtUnitPrice = (size: ShirtSize): number => {
+  if (size === "3XL") return 220;
+  if (size === "4XL") return 240;
+  if (size === "5XL") return 260;
+  if (size === "Other") return 260;
+  return 200; // XS, S, M, L, XL, 2XL = 200 บาท
+};
+
 const PROMPTPAY_ACCOUNT = "0987654321";
 const PROMPTPAY_ACCOUNT_NAME = "บัญชีกองกลางห้อง ม.2/3 (คุณครูประจำชั้น)";
 
@@ -130,7 +142,8 @@ export default function ShirtOrderPage() {
     } catch {}
   };
 
-  const totalPrice = quantity * DEFAULT_SHIRT_PRICE;
+  const unitPrice = getShirtUnitPrice(selectedSize);
+  const totalPrice = quantity * unitPrice;
 
   const promptPayQrUrl = useMemo(() => {
     const cleanAccount = PROMPTPAY_ACCOUNT.replace(/[^0-9]/g, "");
@@ -227,7 +240,8 @@ export default function ShirtOrderPage() {
           size: selectedSize,
           quantity: quantity || 1,
           custom_size: selectedSize === "Other" ? customSize.trim() : null,
-          unit_price: DEFAULT_SHIRT_PRICE,
+          unit_price: unitPrice,
+          total_price: totalPrice,
           parent_name: parentName.trim() || null,
           parent_phone: parentPhone.trim() || null,
           note: orderNote.trim() || null,
@@ -256,19 +270,19 @@ export default function ShirtOrderPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 antialiased font-sans pb-16">
+    <div className="min-h-screen bg-[#fcf8f8] text-slate-800 antialiased font-sans pb-16">
       <Toaster position="top-center" />
 
-      {/* Clean Navbar */}
-      <nav className="bg-white border-b border-slate-200 px-4 py-3">
+      {/* Navbar with #a31e1e tone */}
+      <nav className="bg-[#a31e1e] text-white px-4 py-3 shadow-sm">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-900 text-sm">สั่งเสื้อห้อง ม.2/3</span>
-            <span className="text-[11px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded">
-              {DEFAULT_SHIRT_PRICE} บาท/ตัว
+            <span className="font-bold text-sm">สั่งเสื้อห้อง ม.2/3</span>
+            <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded font-medium text-rose-100">
+              เริ่มต้น 200.-
             </span>
           </div>
-          <span className="text-xs text-slate-500">โรงเรียนอัสสัมชัญธนบุรี</span>
+          <span className="text-xs text-rose-100/90">โรงเรียนอัสสัมชัญธนบุรี</span>
         </div>
       </nav>
 
@@ -276,8 +290,8 @@ export default function ShirtOrderPage() {
       <main className="max-w-md mx-auto px-4 pt-5">
         {isExpired ? (
           /* Expired Banner */
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+          <div className="bg-white rounded-xl border border-rose-200 p-6 shadow-xs text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-[#a31e1e] flex items-center justify-center mx-auto">
               <AlertCircle className="w-6 h-6" />
             </div>
             <div>
@@ -288,16 +302,25 @@ export default function ShirtOrderPage() {
                 แบบฟอร์มหมดเขตเมื่อ {SHIRT_ORDER_DEADLINE_TEXT}
               </p>
             </div>
-            <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-200 leading-relaxed">
+            <p className="text-xs text-slate-600 bg-rose-50/50 rounded-lg p-3 border border-rose-100 leading-relaxed">
               หากต้องการสั่งเพิ่มเติมหรือแก้ไขข้อมูล กรุณาติดต่อคุณครูประจำชั้น ม.2/3 โดยตรงครับ
             </p>
           </div>
         ) : !isSuccess ? (
           <form onSubmit={handleSubmitOrder} className="space-y-4">
-            {/* Deadline Notice */}
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 flex items-center justify-between">
-              <span>⏰ หมดเขตสั่งเสื้อ:</span>
-              <span className="font-bold">{SHIRT_ORDER_DEADLINE_TEXT}</span>
+            {/* Price Rule Banner with #a31e1e tone */}
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-[#a31e1e] space-y-1">
+              <div className="font-bold flex items-center justify-between">
+                <span>👕 ราคาเสื้อตัวละ 200 บาท</span>
+                <span className="text-[11px] font-normal text-rose-700">ไซส์ XS - 2XL</span>
+              </div>
+              <div className="text-[11px] text-rose-800">
+                * เกินจากไซส์ 2XL ขึ้นไป (3XL, 4XL, 5XL) คิดเพิ่มไซส์ละ 20 บาท
+              </div>
+              <div className="text-[10px] text-rose-600 pt-0.5 border-t border-rose-200 flex justify-between">
+                <span>⏰ หมดเขตสั่งเสื้อ:</span>
+                <span className="font-bold">{SHIRT_ORDER_DEADLINE_TEXT}</span>
+              </div>
             </div>
 
             {/* 1. Student Lookup */}
@@ -310,7 +333,7 @@ export default function ShirtOrderPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedStudent(null)}
-                    className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                    className="text-xs text-[#a31e1e] hover:underline cursor-pointer font-medium"
                   >
                     เปลี่ยนคน
                   </button>
@@ -326,7 +349,7 @@ export default function ShirtOrderPage() {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="พิมพ์เลขประจำตัว, เลขที่ หรือชื่อนักเรียน..."
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#a31e1e]"
                       autoFocus
                     />
                   </div>
@@ -338,7 +361,7 @@ export default function ShirtOrderPage() {
                           key={s.student_id}
                           type="button"
                           onClick={() => handleSelectStudent(s)}
-                          className="w-full px-3 py-2 text-left flex items-center justify-between hover:bg-slate-50 cursor-pointer"
+                          className="w-full px-3 py-2 text-left flex items-center justify-between hover:bg-rose-50/60 cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-xs text-slate-500 w-6">#{s.student_no}</span>
@@ -360,17 +383,17 @@ export default function ShirtOrderPage() {
                   )}
                 </div>
               ) : (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
+                <div className="bg-rose-50/60 border border-rose-200 rounded-lg p-3 flex items-center justify-between">
                   <div>
                     <div className="text-xs font-bold text-slate-900">
                       เลขที่ {selectedStudent.student_no} • {selectedStudent.prefix}{selectedStudent.first_name} {selectedStudent.last_name}
-                      {selectedStudent.nickname && <span className="text-slate-600 font-normal ml-1">({selectedStudent.nickname})</span>}
+                      {selectedStudent.nickname && <span className="text-[#a31e1e] font-semibold ml-1">({selectedStudent.nickname})</span>}
                     </div>
                     <div className="text-[11px] text-slate-500 font-mono mt-0.5">
                       รหัส: {selectedStudent.student_id} • ห้อง ม.2/3
                     </div>
                   </div>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <CheckCircle2 className="w-5 h-5 text-[#a31e1e] shrink-0" />
                 </div>
               )}
             </div>
@@ -384,42 +407,73 @@ export default function ShirtOrderPage() {
                 <button
                   type="button"
                   onClick={() => setShowSizeGuide(!showSizeGuide)}
-                  className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                  className="text-xs text-[#a31e1e] hover:underline flex items-center gap-1 cursor-pointer font-medium"
                 >
                   <span>ตารางขนาด</span>
                   {showSizeGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
               </div>
 
+              {/* Complete Size Guide Table as per user image */}
               {showSizeGuide && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-[11px] grid grid-cols-4 gap-1.5 text-center">
-                  {SHIRT_SIZES_GUIDE.map((g) => (
-                    <div key={g.size} className="bg-white p-1 rounded border border-slate-200">
-                      <span className="font-bold text-slate-800 block">{g.size}</span>
-                      <span className="text-slate-500 text-[10px]">อก {g.chest}&quot;</span>
-                    </div>
-                  ))}
+                <div className="bg-rose-50/50 border border-rose-200 rounded-lg p-2.5 text-[11px] overflow-x-auto">
+                  <div className="font-bold text-[#a31e1e] mb-1.5 text-center">
+                    ตารางไซส์เสื้อ (นิ้ว):
+                  </div>
+                  <table className="w-full text-center border-collapse text-[10px]">
+                    <thead>
+                      <tr className="bg-white border-b border-rose-200 font-bold text-slate-800">
+                        <th className="py-1 px-1">SIZE</th>
+                        {SHIRT_SIZES_GUIDE.map((g) => (
+                          <th key={g.size} className="py-1 px-1">{g.size}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-rose-100">
+                      <tr>
+                        <td className="py-1 px-1 font-bold text-slate-700 bg-white">CHEST (อก)</td>
+                        {SHIRT_SIZES_GUIDE.map((g) => (
+                          <td key={g.size} className="py-1 px-1 font-mono">{g.chest}&quot;</td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="py-1 px-1 font-bold text-slate-700 bg-white">LONG (ยาว)</td>
+                        {SHIRT_SIZES_GUIDE.map((g) => (
+                          <td key={g.size} className="py-1 px-1 font-mono">{g.length}&quot;</td>
+                        ))}
+                      </tr>
+                      <tr className="bg-rose-100/60 font-bold text-[#a31e1e]">
+                        <td className="py-1 px-1">ราคา</td>
+                        {SHIRT_SIZES_GUIDE.map((g) => (
+                          <td key={g.size} className="py-1 px-1">{g.price}.-</td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               )}
 
-              {/* Size Buttons */}
-              <div className="grid grid-cols-4 gap-2">
+              {/* Size Buttons Grid */}
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                 {SHIRT_SIZES_GUIDE.map((item) => {
                   const isSelected = selectedSize === item.size;
                   return (
                     <button
                       key={item.size}
                       type="button"
-                      onClick={() => setSelectedSize(item.size as ShirtSize)}
+                      onClick={() => setSelectedSize(item.size)}
                       className={`py-2 px-1 rounded-lg border text-center transition-all cursor-pointer ${
                         isSelected
-                          ? "bg-slate-900 text-white border-slate-900 font-bold"
-                          : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 font-medium"
+                          ? "bg-[#a31e1e] text-white border-[#a31e1e] font-bold shadow-xs"
+                          : "bg-white hover:bg-rose-50/50 text-slate-700 border-slate-200 font-medium"
                       }`}
                     >
                       <div className="text-xs">{item.size}</div>
-                      <div className={`text-[10px] ${isSelected ? "text-slate-300" : "text-slate-400"}`}>
+                      <div className={`text-[10px] ${isSelected ? "text-rose-200" : "text-slate-400"}`}>
                         อก {item.chest}&quot;
+                      </div>
+                      <div className={`text-[10px] font-bold mt-0.5 ${isSelected ? "text-white" : "text-[#a31e1e]"}`}>
+                        {item.price}.-
                       </div>
                     </button>
                   );
@@ -430,13 +484,16 @@ export default function ShirtOrderPage() {
                   onClick={() => setSelectedSize("Other")}
                   className={`py-2 px-1 rounded-lg border text-center transition-all cursor-pointer ${
                     selectedSize === "Other"
-                      ? "bg-slate-900 text-white border-slate-900 font-bold"
-                      : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 font-medium"
+                      ? "bg-[#a31e1e] text-white border-[#a31e1e] font-bold shadow-xs"
+                      : "bg-white hover:bg-rose-50/50 text-slate-700 border-slate-200 font-medium"
                   }`}
                 >
                   <div className="text-xs">พิเศษ</div>
-                  <div className={`text-[10px] ${selectedSize === "Other" ? "text-slate-300" : "text-slate-400"}`}>
+                  <div className={`text-[10px] ${selectedSize === "Other" ? "text-rose-200" : "text-slate-400"}`}>
                     ระบุเอง
+                  </div>
+                  <div className={`text-[10px] font-bold mt-0.5 ${selectedSize === "Other" ? "text-white" : "text-[#a31e1e]"}`}>
+                    260.-
                   </div>
                 </button>
               </div>
@@ -447,7 +504,7 @@ export default function ShirtOrderPage() {
                   value={customSize}
                   onChange={(e) => setCustomSize(e.target.value)}
                   placeholder="ระบุขนาดรอบอก เช่น อก 54 นิ้ว..."
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#a31e1e]"
                   required
                 />
               )}
@@ -475,10 +532,17 @@ export default function ShirtOrderPage() {
                 </div>
               </div>
 
-              {/* Price Row */}
-              <div className="bg-slate-50 rounded-lg p-2.5 flex items-center justify-between text-xs">
-                <span className="text-slate-600">ยอดชำระ ({quantity} ตัว):</span>
-                <span className="font-bold text-slate-900 text-sm">{totalPrice.toLocaleString()} บาท</span>
+              {/* Price Calculation Row */}
+              <div className="bg-rose-50/80 rounded-lg p-2.5 flex items-center justify-between text-xs border border-rose-100">
+                <div>
+                  <span className="text-slate-700 font-medium">ยอดชำระ:</span>
+                  <span className="text-[11px] text-slate-500 ml-1">
+                    ({quantity} ตัว × {unitPrice} บาท)
+                  </span>
+                </div>
+                <span className="font-bold text-[#a31e1e] text-sm">
+                  {totalPrice.toLocaleString()} บาท
+                </span>
               </div>
             </div>
 
@@ -494,14 +558,14 @@ export default function ShirtOrderPage() {
                   value={parentName}
                   onChange={(e) => setParentName(e.target.value)}
                   placeholder="ชื่อผู้ปกครอง"
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#a31e1e]"
                 />
                 <input
                   type="tel"
                   value={parentPhone}
                   onChange={(e) => setParentPhone(e.target.value)}
                   placeholder="เบอร์โทรติดต่อ"
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#a31e1e]"
                 />
               </div>
 
@@ -510,7 +574,7 @@ export default function ShirtOrderPage() {
                 value={orderNote}
                 onChange={(e) => setOrderNote(e.target.value)}
                 placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900"
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#a31e1e]"
               />
 
               <input
@@ -525,15 +589,15 @@ export default function ShirtOrderPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-2 border border-dashed border-slate-300 hover:border-slate-400 bg-slate-50 rounded-lg text-xs text-slate-600 flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-full py-2 border border-dashed border-rose-200 hover:border-[#a31e1e] bg-rose-50/40 rounded-lg text-xs text-slate-600 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Upload className="w-3.5 h-3.5" />
+                  <Upload className="w-3.5 h-3.5 text-rose-500" />
                   <span>แนบสลิปโอนเงิน</span>
                 </button>
               ) : (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 flex items-center justify-between">
+                <div className="bg-rose-50/60 border border-rose-200 rounded-lg p-2 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs truncate">
-                    <img src={slipImage} alt="สลิป" className="w-8 h-8 object-cover rounded border border-slate-200" />
+                    <img src={slipImage} alt="สลิป" className="w-8 h-8 object-cover rounded border border-rose-200" />
                     <span className="truncate text-slate-700">{slipFileName || "สลิปโอนเงิน"}</span>
                   </div>
                   <button
@@ -554,7 +618,7 @@ export default function ShirtOrderPage() {
             <button
               type="submit"
               disabled={!selectedStudent || isSubmitting}
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              className="w-full py-2.5 bg-[#a31e1e] hover:bg-[#851818] disabled:bg-slate-200 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
             >
               {isSubmitting ? (
                 <>
@@ -562,14 +626,14 @@ export default function ShirtOrderPage() {
                   <span>กำลังบันทึก...</span>
                 </>
               ) : (
-                <span>ยืนยันและรับ QR จ่ายเงิน</span>
+                <span>ยืนยันและรับ QR จ่ายเงิน ({totalPrice.toLocaleString()} บาท)</span>
               )}
             </button>
           </form>
         ) : (
           /* Payment QR View */
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs text-center space-y-4">
-            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto">
+            <div className="w-10 h-10 rounded-full bg-rose-100 text-[#a31e1e] flex items-center justify-center mx-auto">
               <Check className="w-5 h-5 stroke-[2.5]" />
             </div>
 
@@ -592,7 +656,7 @@ export default function ShirtOrderPage() {
               />
               <div className="mt-2 text-center">
                 <span className="text-xs text-slate-500 block">ยอดชำระ</span>
-                <span className="text-lg font-bold text-slate-900 font-mono">
+                <span className="text-lg font-bold text-[#a31e1e] font-mono">
                   ฿{totalPrice.toLocaleString()}
                 </span>
               </div>
@@ -630,7 +694,7 @@ export default function ShirtOrderPage() {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-[#a31e1e] text-white text-xs font-medium hover:bg-[#851818] cursor-pointer"
               >
                 พิมพ์ใบสั่งซื้อ
               </button>

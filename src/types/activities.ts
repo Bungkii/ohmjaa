@@ -1,6 +1,6 @@
 import { Student } from "./penalty";
 
-export type ShirtSize = "S" | "M" | "L" | "XL" | "2XL" | "3XL" | "4XL" | "Other" | "";
+export type ShirtSize = "XS" | "S" | "M" | "L" | "XL" | "2XL" | "3XL" | "4XL" | "5XL" | "Other" | "";
 
 export interface StudentShirtInfo {
   student_id: string;

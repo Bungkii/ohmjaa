@@ -73,7 +73,7 @@ const GROUP_COLORS = [
   { bg: "bg-pink-50", border: "border-pink-200", text: "text-pink-800", headerBg: "bg-pink-600", light: "bg-pink-100" },
 ];
 
-const STANDARD_SHIRT_SIZES: ShirtSize[] = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "Other"];
+const STANDARD_SHIRT_SIZES: ShirtSize[] = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "Other"];
 
 const ROLE_CONFIGS: Record<ActivityRoleType, { label: string; icon: React.ElementType; badgeBg: string; textColor: string }> = {
   athlete: { label: "นักกีฬา", icon: Trophy, badgeBg: "bg-amber-100 border-amber-300", textColor: "text-amber-800" },
@@ -464,6 +464,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
   // Summary counts of shirt sizes (takes quantity per student into account)
   const shirtSummary = useMemo(() => {
     const counts: Record<string, number> = {
+      XS: 0,
       S: 0,
       M: 0,
       L: 0,
@@ -471,6 +472,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       "2XL": 0,
       "3XL": 0,
       "4XL": 0,
+      "5XL": 0,
       Other: 0,
       unspecified: 0,
     };
@@ -1206,7 +1208,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
             </div>
 
             {/* Quick Stat Cards for Sizes */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 pt-5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2 pt-5">
               {STANDARD_SHIRT_SIZES.map((size) => {
                 const count = shirtSummary.counts[size] || 0;
                 return (
@@ -1300,7 +1302,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                           </td>
                           <td className="py-2.5 px-3">
                             <div className="flex flex-wrap items-center gap-1">
-                              {STANDARD_SHIRT_SIZES.slice(0, 7).map((size) => (
+                              {STANDARD_SHIRT_SIZES.slice(0, 9).map((size) => (
                                 <button
                                   key={size}
                                   type="button"
