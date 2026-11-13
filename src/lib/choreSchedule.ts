@@ -15,17 +15,55 @@ export function bangkokDate(iso: string): string {
   return `${value("year")}-${value("month")}-${value("day")}`;
 }
 
-function dateAtUtc(date: string): Date {
+export function dateAtUtc(date: string): Date {
   return new Date(`${date}T12:00:00Z`);
 }
 
-function toDateKey(date: Date): string {
+export function toDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function isSchoolDay(date: Date, holidays: Set<string>): boolean {
+export function isSchoolDay(date: Date, holidays: Set<string>): boolean {
   const weekday = date.getUTCDay();
   return weekday !== 0 && weekday !== 6 && !holidays.has(toDateKey(date));
+}
+
+/**
+ * คำนวณช่วงวันทำเวร (Start - End) และจำนวนวันเรียนจริง
+ * โดยข้ามวันหยุดเสาร์-อาทิตย์ และวันหยุดพิเศษตาม holidays
+ */
+export function calculateChoreDateRange(
+  startDateStr: string,
+  choreDaysCount: number,
+  holidays: Set<string>
+): { start: string; end: string; schoolDays: number } {
+  const date = dateAtUtc(startDateStr);
+  let days = 0;
+  let start: string | null = null;
+  let end: string | null = null;
+  const targetDays = Math.max(1, choreDaysCount);
+
+  // เลื่อนไปหาวันเรียนแรกที่เริ่มต้นได้จริง
+  while (!isSchoolDay(date, holidays)) {
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+
+  while (days < targetDays) {
+    if (isSchoolDay(date, holidays)) {
+      days++;
+      start ??= toDateKey(date);
+      end = toDateKey(date);
+    }
+    if (days < targetDays) {
+      date.setUTCDate(date.getUTCDate() + 1);
+    }
+  }
+
+  return {
+    start: start ?? startDateStr,
+    end: end ?? startDateStr,
+    schoolDays: days,
+  };
 }
 
 export function getChoreSchedule(record: PenaltyRecord, holidays: Set<string>): ChoreSchedule | null {

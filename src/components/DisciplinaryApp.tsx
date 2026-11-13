@@ -51,13 +51,14 @@ import {
   Download,
   Printer,
   Shuffle,
+  Cookie,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { Description, Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { Student, PenaltyRecord, SeverityLevel } from "@/types/penalty";
 import { motion, AnimatePresence } from "framer-motion";
 import ActivitiesAndGrouping from "./ActivitiesAndGrouping";
-import { getChoreSchedule, parseHolidayDates } from "@/lib/choreSchedule";
+import { getChoreSchedule, parseHolidayDates, calculateChoreDateRange, bangkokDate } from "@/lib/choreSchedule";
 import {
   createPenaltyRecord,
   createPenaltyRecordsBulk,
@@ -129,48 +130,85 @@ const severityConfig: Record<
 };
 
 // Behaviors requested by user with Lucide icons (No emojis!)
+// กฎการทำเวรเริ่มต้น (Default):
+// - เล่นกีฬาในห้อง: 1 เดือน (20 วันทำการ)
+// - สายพัก 10: 1 สัปดาห์ (5 วันทำการ)
+// - สายเที่ยง: 1 สัปดาห์ (5 วันทำการ)
+// - เครื่องแต่งกาย: 1 วัน (1 วันทำการ)
+// - กินขนมในห้อง: 1 สัปดาห์ (5 วันทำการ)
+// - ทำเวรไม่สะอาด: +1 สัปดาห์ (5 วันทำการ)
 const BEHAVIOR_PRESETS = [
   {
     id: "sports",
     label: "เล่นกีฬาในห้อง",
-    sub: "เล่นกีฬาในห้องเรียน",
+    sub: "เวรเริ่มต้น 1 เดือน",
     icon: Dumbbell,
+    defaultDays: 20,
+    defaultLabel: "1 เดือน",
   },
   {
-    id: "talking",
-    label: "พูดคุย",
-    sub: "คุยเสียงดังในห้อง",
-    icon: MessageCircle,
+    id: "late_break10",
+    label: "สายพัก 10",
+    sub: "เวรเริ่มต้น 1 สัปดาห์",
+    icon: Timer,
+    defaultDays: 5,
+    defaultLabel: "1 สัปดาห์",
+  },
+  {
+    id: "late_noon",
+    label: "สายเที่ยง",
+    sub: "เวรเริ่มต้น 1 สัปดาห์",
+    icon: SunMedium,
+    defaultDays: 5,
+    defaultLabel: "1 สัปดาห์",
+  },
+  {
+    id: "uniform",
+    label: "เครื่องแต่งกาย",
+    sub: "เวรเริ่มต้น 1 วัน",
+    icon: Shirt,
+    defaultDays: 1,
+    defaultLabel: "1 วัน",
+  },
+  {
+    id: "snack",
+    label: "กินขนมในห้อง",
+    sub: "เวรเริ่มต้น 1 สัปดาห์",
+    icon: Cookie,
+    defaultDays: 5,
+    defaultLabel: "1 สัปดาห์",
+  },
+  {
+    id: "dirty_chore",
+    label: "ทำเวรไม่สะอาด",
+    sub: "เพิ่มเวร +1 สัปดาห์",
+    icon: Brush,
+    defaultDays: 5,
+    defaultLabel: "+1 สัปดาห์",
   },
   {
     id: "late_morning",
     label: "สายเช้า",
     sub: "มาไม่ทันช่วงเช้า",
     icon: Sun,
+    defaultDays: 1,
+    defaultLabel: "1 วัน",
   },
   {
-    id: "late_noon",
-    label: "สายเที่ยง",
-    sub: "เข้าแถวเที่ยงช้า",
-    icon: SunMedium,
-  },
-  {
-    id: "late_break10",
-    label: "สายพัก 10",
-    sub: "กลับจากพักช้า",
-    icon: Timer,
-  },
-  {
-    id: "uniform",
-    label: "เครื่องแต่งกาย",
-    sub: "ตรวจระเบียบ/ชุด",
-    icon: Shirt,
+    id: "talking",
+    label: "พูดคุย",
+    sub: "คุยเสียงดังในห้อง",
+    icon: MessageCircle,
+    defaultDays: 1,
+    defaultLabel: "1 วัน",
   },
   {
     id: "other",
     label: "อื่น ๆ",
     sub: "ระบุหมายเหตุ",
     icon: MoreHorizontal,
+    defaultDays: 0,
+    defaultLabel: "",
   },
 ];
 
@@ -208,6 +246,7 @@ export default function DisciplinaryApp({
   const [isChoreSelected, setIsChoreSelected] = useState<boolean>(false);
   const [selectedChoreDuration, setSelectedChoreDuration] = useState<string>("+1 วัน");
   const [customChoreDuration, setCustomChoreDuration] = useState<string>("");
+  const [choreExtraDays, setChoreExtraDays] = useState<number>(0); // วันเพิ่มพิเศษสำหรับคุณครู
   const [newRecordStatus, setNewRecordStatus] = useState<PenaltyRecord["status"]>("pending");
   const [newRecordNote, setNewRecordNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -390,6 +429,8 @@ export default function DisciplinaryApp({
       "สายเที่ยง": 0,
       "สายพัก 10": 0,
       "เครื่องแต่งกาย": 0,
+      "กินขนมในห้อง": 0,
+      "ทำเวรไม่สะอาด": 0,
       "พูดคุย": 0,
       "เล่นกีฬาในห้อง": 0,
       "อื่น ๆ": 0,
@@ -481,10 +522,58 @@ export default function DisciplinaryApp({
 
   // Helper methods for disciplinary actions
   const toggleBehavior = (label: string) => {
-    setSelectedBehaviors((prev) =>
-      prev.includes(label) ? prev.filter((b) => b !== label) : [...prev, label]
-    );
+    setSelectedBehaviors((prev) => {
+      const next = prev.includes(label) ? prev.filter((b) => b !== label) : [...prev, label];
+
+      // คำนวณวันทำเวรอัตโนมัติจาก presets
+      if (next.length > 0) {
+        setIsChoreSelected(true);
+        // หา preset ที่มีระยะเวลานานที่สุดเป็นฐาน (Priority: 1 เดือน (20 วัน) > 1 สัปดาห์ (5 วัน) > 1 วัน)
+        let maxDefaultDays = 0;
+        let bestLabel = "+1 วัน";
+
+        next.forEach((bLabel) => {
+          const matched = BEHAVIOR_PRESETS.find((p) => p.label === bLabel);
+          if (matched && matched.defaultDays > maxDefaultDays) {
+            maxDefaultDays = matched.defaultDays;
+            if (matched.defaultDays >= 20) bestLabel = "+1 เดือน";
+            else if (matched.defaultDays >= 5) bestLabel = "+1 สัปดาห์";
+            else if (matched.defaultDays >= 1) bestLabel = "+1 วัน";
+          }
+        });
+
+        if (maxDefaultDays > 0) {
+          setSelectedChoreDuration(bestLabel);
+        }
+      }
+
+      return next;
+    });
   };
+
+  // คำนวณวันทำเวรรวม (Base days + Extra days ที่ครูปรับเพิ่ม)
+  const computedChoreDays = useMemo(() => {
+    if (!isChoreSelected) return 0;
+    let base = 1;
+    if (selectedChoreDuration === "+1 เดือน" || selectedChoreDuration === "1 เดือน") base = 20;
+    else if (selectedChoreDuration === "+1 สัปดาห์" || selectedChoreDuration === "1 สัปดาห์") base = 5;
+    else if (selectedChoreDuration === "+1 วัน" || selectedChoreDuration === "1 วัน") base = 1;
+    else if (selectedChoreDuration === "1 เทอม") base = 100;
+    else if (selectedChoreDuration === "1 ปีการศึกษา") base = 200;
+    else if (selectedChoreDuration === "อื่นๆ") {
+      const num = parseInt(customChoreDuration, 10);
+      base = isNaN(num) ? 1 : num;
+    }
+    return Math.max(1, base + choreExtraDays);
+  }, [isChoreSelected, selectedChoreDuration, customChoreDuration, choreExtraDays]);
+
+  // คำนวณวันเริ่มต้น - สิ้นสุดของการทำเวร (ข้าม ส.-อา. และวันหยุดโรงเรียน)
+  const choreSchedulePreview = useMemo(() => {
+    if (!isChoreSelected || computedChoreDays <= 0) return null;
+    const holidays = parseHolidayDates(schoolHolidays);
+    const todayBangkok = bangkokDate(new Date().toISOString());
+    return calculateChoreDateRange(todayBangkok, computedChoreDays, holidays);
+  }, [isChoreSelected, computedChoreDays, schoolHolidays]);
 
   const selectPokkrong = (level: 1 | 2 | 3) => {
     setSelectedPokkrongLevel((prev) => (prev === level ? null : level));
@@ -538,9 +627,12 @@ export default function DisciplinaryApp({
       parts.push(`ปกครอง${selectedPokkrongLevel}`);
     }
     if (isChoreSelected) {
-      const dur = selectedChoreDuration === "อื่นๆ"
+      let dur = selectedChoreDuration === "อื่นๆ"
         ? (customChoreDuration.trim() || "อื่นๆ")
         : selectedChoreDuration;
+      if (choreExtraDays > 0) {
+        dur = `${dur} (+เพิ่ม ${choreExtraDays} วัน)`;
+      }
       parts.push(`ทำเวร ${dur}`);
     }
     return parts.length > 0 ? parts.join(" + ") : "ตักเตือน";
@@ -660,6 +752,7 @@ export default function DisciplinaryApp({
       setSelectedBehaviors([]);
       setOtherBehaviorText("");
       setNewRecordNote("");
+      setChoreExtraDays(0);
       if (!isGroupMode) {
         setPenaltyStudent(null);
       }
@@ -1662,15 +1755,20 @@ export default function DisciplinaryApp({
                   <div
                     className={`transition-all duration-300 ease-out overflow-hidden ${
                       isChoreSelected
-                        ? "opacity-100 max-h-40 mt-3 pt-3 border-t border-slate-100"
+                        ? "opacity-100 max-h-[480px] mt-3 pt-3 border-t border-slate-100"
                         : "opacity-0 max-h-0 pointer-events-none"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-[#16453d] flex items-center gap-1.5">
                         <Brush size={13} />
-                        <span>เลือกระยะเวลาทำเวร:</span>
+                        <span>ระยะเวลาทำเวร (ระบบคำนวณอัตโนมัติ):</span>
                       </span>
+                      {choreSchedulePreview && (
+                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                          รวม {computedChoreDays} วันเรียน
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap gap-1.5">
@@ -1704,6 +1802,86 @@ export default function DisciplinaryApp({
                         />
                       </div>
                     )}
+
+                    {/* ตัวปรับเพิ่มวันทำเวร (กรณีต้องการเพิ่มวัน) */}
+                    <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-bold text-slate-800">
+                          ปรับเพิ่มวันทำเวร (ถ้าทำเวรน้อยไป)
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setChoreExtraDays((prev) => Math.max(0, prev - 1))}
+                            disabled={choreExtraDays <= 0}
+                            className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-100 disabled:opacity-40 cursor-pointer flex items-center justify-center text-xs"
+                          >
+                            -
+                          </button>
+                          <span className="w-10 text-center text-xs font-bold font-mono text-[#16453d]">
+                            {choreExtraDays > 0 ? `+${choreExtraDays}` : "0"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setChoreExtraDays((prev) => prev + 1)}
+                            className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer flex items-center justify-center text-xs"
+                          >
+                            +
+                          </button>
+                          <span className="text-[11px] text-slate-500 ml-0.5">วัน</span>
+                        </div>
+                      </div>
+
+                      {/* Quick Add Buttons */}
+                      <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200/60">
+                        <span className="text-[10px] text-slate-500">ปุ่มด่วน:</span>
+                        {[
+                          { label: "+1 วัน", add: 1 },
+                          { label: "+3 วัน", add: 3 },
+                          { label: "+1 สัปดาห์ (5 วัน)", add: 5 },
+                          { label: "+1 เดือน (20 วัน)", add: 20 },
+                        ].map((btn) => (
+                          <button
+                            key={btn.label}
+                            type="button"
+                            onClick={() => setChoreExtraDays((prev) => prev + btn.add)}
+                            className="px-2 py-0.5 rounded-full text-[10px] bg-white border border-slate-200 hover:border-[#16453d] hover:bg-emerald-50 text-slate-700 font-medium cursor-pointer"
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
+                        {choreExtraDays > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setChoreExtraDays(0)}
+                            className="text-[10px] text-rose-600 hover:underline cursor-pointer ml-auto"
+                          >
+                            รีเซ็ต
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Preview Start-End Dates */}
+                      {choreSchedulePreview && (
+                        <div className="mt-2 p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-lg text-xs space-y-1">
+                          <div className="font-bold text-[#16453d] flex items-center justify-between">
+                            <span>📅 ช่วงวันทำเวร (เว้น ส.-อา. และวันหยุด):</span>
+                            <span className="text-[11px] font-normal text-emerald-800">
+                              รวม {choreSchedulePreview.schoolDays} วันทำการ
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-700 font-mono flex items-center justify-between">
+                            <span>
+                              เริ่ม: <strong className="text-slate-900">{formatThaiShortDate(choreSchedulePreview.start)}</strong> ({choreSchedulePreview.start})
+                            </span>
+                            <span>➔</span>
+                            <span>
+                              สิ้นสุด: <strong className="text-slate-900">{formatThaiShortDate(choreSchedulePreview.end)}</strong> ({choreSchedulePreview.end})
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
