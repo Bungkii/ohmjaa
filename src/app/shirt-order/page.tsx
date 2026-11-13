@@ -171,68 +171,67 @@ export default function ShirtOrderPage() {
 
     setSlipFileName(file.name);
 
-    // สร้าง local preview ทันทีเพื่อให้ผู้ใช้เห็นรูป
+    // อ่าน base64 ก่อนสำหรับส่งตรวจสอบผ่าน API
     const localReader = new FileReader();
-    localReader.onload = () => {
-      setSlipImage(localReader.result as string);
+    localReader.onload = async () => {
+      const localBase64 = localReader.result as string;
+      setSlipImage(localBase64);
+
+      // อัปโหลดไฟล์สลิปขึ้น Cloudflare Storage (https://storage.cnintercon.tech/)
+      setIsUploadingSlip(true);
+      setSlipVerified(null);
+      setSlipVerifyMessage("");
+      const toastId = toast.loading("กำลังอัปโหลดและตรวจสอบสลิป...");
+      try {
+        const formData = new FormData();
+        formData.append("file", file, file.name);
+
+        const res = await fetch("https://storage.cnintercon.tech/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        let finalUrl = localBase64;
+        if (res.ok) {
+          const result = await res.json();
+          if (result.url) {
+            finalUrl = result.url;
+            setSlipImage(finalUrl);
+          }
+        }
+
+        // ตรวจสอบความถูกต้องของสลิปผ่าน Slip2Go API
+        try {
+          const verifyRes = await fetch("/api/verify-slip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              imageBase64: localBase64,
+              imageUrl: finalUrl.startsWith("http") ? finalUrl : undefined,
+              expectedAmount: totalPrice,
+            }),
+          });
+          const verifyData = await verifyRes.json();
+          if (verifyData.ok) {
+            setSlipVerified(true);
+            setSlipVerifyMessage("สลิปถูกต้อง ยอดเงินครบถ้วน");
+            toast.success("สลิปถูกต้อง ระบบยืนยันยอดเงินสำเร็จ", { id: toastId });
+          } else {
+            setSlipVerified(false);
+            const errMsg = verifyData.message || "ตรวจสอบสลิปไม่ผ่าน";
+            setSlipVerifyMessage(errMsg);
+            toast.success("อัปโหลดสลิปเรียบร้อยแล้ว", { id: toastId });
+          }
+        } catch {
+          toast.success("อัปโหลดสลิปสำเร็จเรียบร้อย", { id: toastId });
+        }
+      } catch {
+        toast.success("แนบรูปสลิปแล้ว", { id: toastId });
+      } finally {
+        setIsUploadingSlip(false);
+      }
     };
     localReader.readAsDataURL(file);
-
-    // อัปโหลดไฟล์สลิปขึ้น Cloudflare Storage (https://storage.cnintercon.tech/)
-    setIsUploadingSlip(true);
-    setSlipVerified(null);
-    setSlipVerifyMessage("");
-    const toastId = toast.loading("กำลังอัปโหลดและตรวจสอบสลิป...");
-    try {
-      const formData = new FormData();
-      formData.append("file", file, file.name);
-
-      const res = await fetch("https://storage.cnintercon.tech/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.ok) {
-        const result = await res.json();
-        if (result.url) {
-          const uploadedUrl = result.url;
-          setSlipImage(uploadedUrl);
-
-          // ตรวจสอบความถูกต้องของสลิปผ่าน Slip2Go API
-          try {
-            const verifyRes = await fetch("/api/verify-slip", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                imageUrl: uploadedUrl,
-                expectedAmount: totalPrice,
-              }),
-            });
-            const verifyData = await verifyRes.json();
-            if (verifyData.ok) {
-              setSlipVerified(true);
-              setSlipVerifyMessage("สลิปถูกต้อง ยอดเงินครบถ้วน");
-              toast.success("สลิปถูกต้อง ระบบยืนยันยอดเงินสำเร็จ", { id: toastId });
-            } else {
-              setSlipVerified(false);
-              const errMsg = verifyData.message || "ตรวจสอบสลิปไม่ผ่าน";
-              setSlipVerifyMessage(errMsg);
-              toast.success("อัปโหลดสลิปเรียบร้อยแล้ว", { id: toastId });
-            }
-          } catch {
-            toast.success("อัปโหลดสลิปสำเร็จเรียบร้อย", { id: toastId });
-          }
-        } else {
-          toast.success("แนบรูปสลิปแล้ว", { id: toastId });
-        }
-      } else {
-        toast.success("แนบรูปสลิปแล้ว (บันทึกรูปในเครื่อง)", { id: toastId });
-      }
-    } catch {
-      toast.success("แนบรูปสลิปแล้ว", { id: toastId });
-    } finally {
-      setIsUploadingSlip(false);
-    }
   };
 
   // Step 1 -> Step 2 Validation
