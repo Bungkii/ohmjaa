@@ -250,10 +250,6 @@ export default function ShirtOrderPage() {
       toast.error("กรุณาเลือกไซส์เสื้อ");
       return;
     }
-    if (selectedSize === "Other" && !customSize.trim()) {
-      toast.error("กรุณาระบุขนาดรอบอกไซส์พิเศษ");
-      return;
-    }
 
     // เลื่อนไปหน้าชำระเงิน
     setCurrentStep(2);
@@ -593,52 +589,7 @@ export default function ShirtOrderPage() {
                     </label>
                   );
                 })}
-
-                {/* Other / Special Size */}
-                <label
-                  className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                    selectedSize === "Other"
-                      ? "bg-rose-50/60 border-[#a31e1e] ring-1 ring-[#a31e1e]"
-                      : "bg-white border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="shirt_size"
-                    value="Other"
-                    checked={selectedSize === "Other"}
-                    onChange={() => setSelectedSize("Other")}
-                    className="accent-[#a31e1e] w-4 h-4"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold text-slate-800 flex items-center justify-between">
-                      <span>ไซส์พิเศษ</span>
-                      <span className={selectedSize === "Other" ? "text-[#a31e1e]" : "text-slate-500 font-normal"}>
-                        260.-
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-slate-400">
-                      ระบุขนาดเอง
-                    </div>
-                  </div>
-                </label>
               </div>
-
-              {selectedSize === "Other" && (
-                <div className="pt-2">
-                  <label className="text-xs font-medium text-slate-700 block mb-1">
-                    ระบุขนาดรอบอกไซส์พิเศษ <span className="text-rose-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={customSize}
-                    onChange={(e) => setCustomSize(e.target.value)}
-                    placeholder="เช่น รอบอก 54 นิ้ว หรือความยาวพิเศษ..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#a31e1e]/20 focus:border-[#a31e1e]"
-                    required
-                  />
-                </div>
-              )}
             </div>
 
             {/* Card 4: Quantity & Price */}
@@ -787,7 +738,7 @@ export default function ShirtOrderPage() {
                 <div className="flex justify-between">
                   <span className="text-slate-500">ไซส์เสื้อ:</span>
                   <span className="font-bold text-slate-800">
-                    {selectedSize === "Other" ? `พิเศษ (${customSize})` : selectedSize}
+                    ไซส์ {selectedSize}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -995,7 +946,7 @@ export default function ShirtOrderPage() {
               <div className="flex justify-between">
                 <span className="text-slate-500">ขนาดไซส์ & จำนวน:</span>
                 <span className="font-bold text-slate-800">
-                  ไซส์ {selectedSize === "Other" ? customSize : selectedSize} ({quantity} ตัว)
+                  ไซส์ {selectedSize} ({quantity} ตัว)
                 </span>
               </div>
               <div className="flex justify-between">
