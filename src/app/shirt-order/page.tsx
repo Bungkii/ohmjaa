@@ -66,10 +66,12 @@ export default function ShirtOrderPage() {
   const [parentPhone, setParentPhone] = useState("");
   const [orderNote, setOrderNote] = useState("");
 
-  // Payment Slip
+  // Payment Slip & Verification
   const [slipImage, setSlipImage] = useState<string | null>(null);
   const [slipFileName, setSlipFileName] = useState<string>("");
   const [isUploadingSlip, setIsUploadingSlip] = useState(false);
+  const [slipVerified, setSlipVerified] = useState<boolean | null>(null);
+  const [slipVerifyMessage, setSlipVerifyMessage] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Multi-step Flow: step 1 (กรอกข้อมูลสั่งเสื้อ) -> step 2 (หน้าชำระเงิน & แนบสลิป) -> step 3 (สำเร็จ)
@@ -178,7 +180,9 @@ export default function ShirtOrderPage() {
 
     // อัปโหลดไฟล์สลิปขึ้น Cloudflare Storage (https://storage.cnintercon.tech/)
     setIsUploadingSlip(true);
-    const toastId = toast.loading("กำลังอัปโหลดสลิปไปยังระบบคลาวด์...");
+    setSlipVerified(null);
+    setSlipVerifyMessage("");
+    const toastId = toast.loading("กำลังอัปโหลดและตรวจสอบสลิป...");
     try {
       const formData = new FormData();
       formData.append("file", file, file.name);
@@ -191,8 +195,33 @@ export default function ShirtOrderPage() {
       if (res.ok) {
         const result = await res.json();
         if (result.url) {
-          setSlipImage(result.url);
-          toast.success("อัปโหลดสลิปสำเร็จเรียบร้อย", { id: toastId });
+          const uploadedUrl = result.url;
+          setSlipImage(uploadedUrl);
+
+          // ตรวจสอบความถูกต้องของสลิปผ่าน Slip2Go API
+          try {
+            const verifyRes = await fetch("/api/verify-slip", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                imageUrl: uploadedUrl,
+                expectedAmount: totalPrice,
+              }),
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyData.ok) {
+              setSlipVerified(true);
+              setSlipVerifyMessage("สลิปถูกต้อง ยอดเงินครบถ้วน");
+              toast.success("สลิปถูกต้อง ระบบยืนยันยอดเงินสำเร็จ", { id: toastId });
+            } else {
+              setSlipVerified(false);
+              const errMsg = verifyData.message || "ตรวจสอบสลิปไม่ผ่าน";
+              setSlipVerifyMessage(errMsg);
+              toast.success("อัปโหลดสลิปเรียบร้อยแล้ว", { id: toastId });
+            }
+          } catch {
+            toast.success("อัปโหลดสลิปสำเร็จเรียบร้อย", { id: toastId });
+          }
         } else {
           toast.success("แนบรูปสลิปแล้ว", { id: toastId });
         }
@@ -859,13 +888,13 @@ export default function ShirtOrderPage() {
                   {isUploadingSlip ? (
                     <>
                       <RefreshCw className="w-5 h-5 text-[#a31e1e] animate-spin" />
-                      <span className="font-semibold text-slate-800">กำลังอัปโหลดรูปภาพสลิปไปยังเซิร์ฟเวอร์...</span>
+                      <span className="font-semibold text-slate-800">กำลังอัปโหลดและตรวจสอบสลิป...</span>
                     </>
                   ) : (
                     <>
                       <Upload className="w-5 h-5 text-[#a31e1e]" />
                       <span className="font-semibold text-slate-800">กดเพื่ออัปโหลดสลิปการโอนเงิน</span>
-                      <span className="text-[11px] text-slate-400">รองรับไฟล์ JPG, PNG (อัปโหลดเข้าคลาวด์อัตโนมัติ)</span>
+                      <span className="text-[11px] text-slate-400">ระบบจะตรวจสอบความถูกต้องของสลิปโดยอัตโนมัติ</span>
                     </>
                   )}
                 </button>
@@ -875,10 +904,22 @@ export default function ShirtOrderPage() {
                     <img src={slipImage} alt="สลิป" className="w-12 h-12 object-cover rounded-md border border-rose-200 shrink-0 bg-white" />
                     <div className="truncate">
                       <span className="font-semibold text-slate-800 block truncate">{slipFileName || "สลิปโอนเงิน"}</span>
-                      <span className="text-[11px] text-emerald-700 flex items-center gap-1 mt-0.5">
-                        <Check className="w-3 h-3" />
-                        <span>{slipImage.startsWith("http") ? "อัปโหลดขึ้นคลาวด์เรียบร้อย" : "แนบไฟล์เรียบร้อย"}</span>
-                      </span>
+                      {slipVerified === true ? (
+                        <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1 mt-0.5">
+                          <Check className="w-3.5 h-3.5" />
+                          <span>ตรวจสอบแล้ว: {slipVerifyMessage || "สลิปถูกต้อง"}</span>
+                        </span>
+                      ) : slipVerified === false ? (
+                        <span className="text-[11px] text-amber-700 font-medium flex items-center gap-1 mt-0.5">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>{slipVerifyMessage || "ตรวจสอบไม่ผ่าน แต่บันทึกสลิปแล้ว"}</span>
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-emerald-700 flex items-center gap-1 mt-0.5">
+                          <Check className="w-3 h-3" />
+                          <span>แนบไฟล์เรียบร้อย</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                   <button
@@ -886,6 +927,8 @@ export default function ShirtOrderPage() {
                     onClick={() => {
                       setSlipImage(null);
                       setSlipFileName("");
+                      setSlipVerified(null);
+                      setSlipVerifyMessage("");
                     }}
                     className="text-xs text-rose-600 hover:underline cursor-pointer ml-3 shrink-0 font-medium"
                   >
