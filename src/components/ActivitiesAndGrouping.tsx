@@ -35,6 +35,7 @@ import {
   ShieldAlert,
   Timer,
   Dice5,
+  Receipt,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, Description } from "@headlessui/react";
@@ -178,6 +179,37 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
     } catch {
       // Ignore local storage parse error
     }
+
+    // Sync latest parent shirt orders & slips from database
+    fetch("/api/shirt-orders")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ok && Array.isArray(data.orders)) {
+          setShirtRecords((prev) => {
+            const merged = { ...prev };
+            for (const order of data.orders) {
+              merged[order.student_id] = {
+                ...(merged[order.student_id] || {}),
+                student_id: order.student_id,
+                size: order.size || "",
+                quantity: order.quantity || 1,
+                custom_size: order.custom_size || undefined,
+                paid: order.status === "paid" || !!merged[order.student_id]?.paid,
+                slip_url: order.slip_url || merged[order.student_id]?.slip_url,
+                parent_name: order.parent_name || undefined,
+                parent_phone: order.parent_phone || undefined,
+                note: order.note || merged[order.student_id]?.note,
+                ordered_at: order.updated_at || order.created_at,
+              };
+            }
+            try {
+              localStorage.setItem("ohmjaa_shirt_sizes_v1", JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Save to localStorage when updated
@@ -437,15 +469,26 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
 
   const handleToggleShirtPaid = (studentId: string) => {
     const prev = shirtRecords[studentId] || { student_id: studentId, size: "", quantity: 1 };
+    const nextPaid = !prev.paid;
     const updated = {
       ...shirtRecords,
       [studentId]: {
         ...prev,
         student_id: studentId,
-        paid: !prev.paid,
+        paid: nextPaid,
       },
     };
     saveShirtRecords(updated);
+
+    // Sync to Supabase
+    fetch("/api/shirt-orders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: studentId,
+        status: nextPaid ? "paid" : "pending",
+      }),
+    }).catch(() => {});
   };
 
   const handleSetShirtNote = (studentId: string, note: string) => {
@@ -576,7 +619,8 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
         const size = shirtRecords[s.student_id]?.size || "";
         if (sizeFilter === "unspecified" && size !== "") return false;
         if (sizeFilter === "unpaid" && shirtRecords[s.student_id]?.paid) return false;
-        if (sizeFilter !== "unspecified" && sizeFilter !== "unpaid" && size !== sizeFilter) return false;
+        if (sizeFilter === "has_slip" && !shirtRecords[s.student_id]?.slip_url) return false;
+        if (sizeFilter !== "unspecified" && sizeFilter !== "unpaid" && sizeFilter !== "has_slip" && size !== sizeFilter) return false;
       }
 
       // Role filter
@@ -1256,6 +1300,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                   </option>
                 ))}
                 <option value="unspecified">ยังไม่ระบุ ({shirtSummary.counts.unspecified})</option>
+                <option value="has_slip">มีสลิปแนบมา</option>
                 <option value="unpaid">ยังไม่จ่ายเงิน</option>
               </select>
             </div>
@@ -1272,6 +1317,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                     <th className="py-3 px-3">ชื่อเล่น</th>
                     <th className="py-3 px-3 min-w-[260px]">เลือกไซส์เสื้อ</th>
                     <th className="py-3 px-3 text-center w-28">จำนวนตัว</th>
+                    <th className="py-3 px-3 text-center">หลักฐานสลิป</th>
                     <th className="py-3 px-3 text-center">ชำระเงิน</th>
                     <th className="py-3 px-3">โน้ตเพิ่มเติม</th>
                   </tr>
@@ -1352,6 +1398,22 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                             </div>
                           </td>
                           <td className="py-2.5 px-3 text-center">
+                            {shirt?.slip_url ? (
+                              <a
+                                href={shirt.slip_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-[11px] font-bold shadow-2xs transition-colors cursor-pointer"
+                                title="คลิกเพื่อเปิดดูสลิป"
+                              >
+                                <Receipt className="w-3.5 h-3.5 text-sky-600" />
+                                <span>ดูสลิป 🧾</span>
+                              </a>
+                            ) : (
+                              <span className="text-slate-300 text-[11px]">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
                             <button
                               type="button"
                               onClick={() => handleToggleShirtPaid(student.student_id)}
@@ -1379,7 +1441,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                   </AnimatePresence>
                   {filteredStudents.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-10 text-center text-slate-400">
+                      <td colSpan={8} className="py-10 text-center text-slate-400">
                         ไม่พบข้อมูลตามตัวกรอง
                       </td>
                     </tr>

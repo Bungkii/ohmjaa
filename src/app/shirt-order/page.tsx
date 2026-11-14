@@ -98,8 +98,9 @@ export default function ShirtOrderPage() {
     receiverName?: string;
     receiverBank?: string;
     receiverAccount?: string;
+    transferDate?: string;
+    transferTime?: string;
     transRef?: string;
-    dateTime?: string;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -299,7 +300,7 @@ export default function ShirtOrderPage() {
 
     setSlipFileName(file.name);
 
-    // อ่าน base64 สำหรับส่งตรวจสอบผ่าน API
+    // อ่าน base64 สำหรับส่งตรวจสอบผ่าน Gemini AI และแสดงตัวอย่าง
     const localReader = new FileReader();
     localReader.onload = async () => {
       const localBase64 = localReader.result as string;
@@ -310,27 +311,44 @@ export default function ShirtOrderPage() {
       setSlipVerified(null);
       setSlipVerifyMessage("");
       setVerifiedSlipData(null);
-      const toastId = toast.loading("กำลังตรวจสอบสลิปกับระบบ Slip2Go...");
+      const toastId = toast.loading("กำลังส่ง AI ตรวจสอบสลิป...");
 
       try {
-        // 1. ถอดรหัส QR Code จากภาพบนเครื่องของผู้ใช้ด้วย jsQR
-        const detectedQr = await scanQrFromDataUrl(localBase64);
-
-        // 2. ส่งตรวจสอบผ่าน API หลังบ้าน
-        const verifyRes = await fetch("/api/verify-slip", {
+        // 1. ส่งตรวจด้วย Gemini 3.5 Flash Lite ผ่าน API หลังบ้าน
+        const verifyPromise = fetch("/api/verify-slip", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            qrCode: detectedQr || undefined,
             imageBase64: localBase64,
             expectedAmount: totalPrice,
           }),
-        });
+        }).then((r) => r.json());
 
-        const verifyData = await verifyRes.json();
+        // 2. อัปโหลดเก็บไฟล์ขึ้น Cloudflare Storage (storage.cnintercon.tech) ในเวลาเดียวกัน
+        const uploadPromise = (async () => {
+          try {
+            const formData = new FormData();
+            formData.append("file", file, file.name);
+            const res = await fetch("https://storage.cnintercon.tech/upload", {
+              method: "POST",
+              body: formData,
+            });
+            if (res.ok) {
+              const result = await res.json();
+              if (result.url) {
+                setUploadedSlipUrl(result.url);
+              }
+            }
+          } catch {
+            // สำรองด้วย base64 หาก storage ขัดข้อง
+          }
+        })();
+
+        const [verifyData] = await Promise.all([verifyPromise, uploadPromise]);
+
         if (verifyData.ok) {
           setSlipVerified(true);
-          const msg = verifyData.message || "สลิปถูกต้อง ยอดเงินครบถ้วน";
+          const msg = verifyData.message || "สลิปถูกต้อง ยอดเงินและวันที่ครบถ้วน";
           setSlipVerifyMessage(msg);
           if (verifyData.data) {
             setVerifiedSlipData(verifyData.data);
@@ -338,28 +356,10 @@ export default function ShirtOrderPage() {
           toast.success(msg, { id: toastId });
         } else {
           setSlipVerified(false);
-          setVerifiedSlipData(null);
+          setVerifiedSlipData(verifyData.data || null);
           const errMsg = verifyData.message || verifyData.error || "ตรวจสอบสลิปไม่ผ่าน";
           setSlipVerifyMessage(errMsg);
           toast.error(errMsg, { id: toastId });
-        }
-
-        // 3. สำรองไฟล์ขึ้น Cloudflare Storage สำหรับบันทึกคำสั่งซื้อ
-        try {
-          const formData = new FormData();
-          formData.append("file", file, file.name);
-          const res = await fetch("https://storage.cnintercon.tech/upload", {
-            method: "POST",
-            body: formData,
-          });
-          if (res.ok) {
-            const result = await res.json();
-            if (result.url) {
-              setUploadedSlipUrl(result.url);
-            }
-          }
-        } catch {
-          // ใช้ Base64 สำรองได้หาก Cloudflare Storage ช้าหรือไม่ตอบสนอง
         }
       } catch {
         setSlipVerified(false);
@@ -990,7 +990,7 @@ export default function ShirtOrderPage() {
                     แนบหลักฐานสลิปการโอนเงิน <span className="text-rose-600 font-bold">* บังคับ</span>
                   </label>
                   <span className="text-xs text-slate-500">
-                    รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WebP) และต้องผ่านการตรวจสอบความถูกต้องก่อนยืนยัน
+                    รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WebP) • ตรวจสอบความถูกต้องของยอดเงิน วันที่โอน (ต้องเป็นวันนี้) และบัญชีปลายทางโดยอัตโนมัติ
                   </span>
                 </div>
               </div>
@@ -1013,13 +1013,13 @@ export default function ShirtOrderPage() {
                   {isUploadingSlip ? (
                     <>
                       <RefreshCw className="w-5 h-5 text-[#a31e1e] animate-spin" />
-                      <span className="font-semibold text-slate-800">กำลังอัปโหลดและตรวจสอบสลิป...</span>
+                      <span className="font-semibold text-slate-800">กำลังตรวจสอบสลิปด้วย AI...</span>
                     </>
                   ) : (
                     <>
                       <Upload className="w-5 h-5 text-[#a31e1e]" />
                       <span className="font-semibold text-slate-800">กดเพื่ออัปโหลดสลิปการโอนเงิน</span>
-                      <span className="text-[11px] text-slate-400">ระบบจะตรวจสอบความถูกต้องของสลิปโดยอัตโนมัติ</span>
+                      <span className="text-[11px] text-slate-400">ระบบ AI จะตรวจสอบยอดเงิน วันที่โอน (ต้องเป็นวันนี้) และบัญชีปลายทาง</span>
                     </>
                   )}
                 </button>
@@ -1107,6 +1107,14 @@ export default function ShirtOrderPage() {
                               </span>
                             </div>
                           )}
+                          {verifiedSlipData.transferDate && (
+                            <div className="flex justify-between py-0.5">
+                              <span className="text-emerald-700">วันที่โอน:</span>
+                              <span className="font-medium text-emerald-800 font-mono">
+                                {verifiedSlipData.transferDate} {verifiedSlipData.transferTime && `เวลา ${verifiedSlipData.transferTime} น.`} (วันนี้ ✓)
+                              </span>
+                            </div>
+                          )}
                           {verifiedSlipData.senderName && (
                             <div className="flex justify-between py-0.5">
                               <span className="text-emerald-700">ผู้โอน:</span>
@@ -1132,8 +1140,11 @@ export default function ShirtOrderPage() {
                         <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                         <span>สลิปไม่ผ่านการตรวจสอบ</span>
                       </div>
-                      <p className="text-[11px] text-rose-700 leading-relaxed">
-                        {slipVerifyMessage || "ระบบไม่สามารถตรวจสอบความถูกต้องของสลิปได้"} กรุณากดปุ่ม <strong>&quot;เปลี่ยนรูปใหม่&quot;</strong> เพื่อแนบสลิปโอนเงินที่มียอดเงินและบัญชีปลายทางถูกต้อง
+                      <p className="text-[11px] text-rose-700 leading-relaxed font-medium">
+                        {slipVerifyMessage || "ระบบไม่สามารถตรวจสอบความถูกต้องของสลิปได้"}
+                      </p>
+                      <p className="text-[10px] text-rose-600 mt-1">
+                        กรุณากดปุ่ม <strong>&quot;เปลี่ยนรูปใหม่&quot;</strong> เพื่อแนบสลิปที่โอนในวันนี้ และโอนเข้าบัญชี น.ส. ปุณยาพร สิงห์ลอ (ธ.กรุงไทย) ยอดเงินครบถ้วน
                       </p>
                     </div>
                   )}

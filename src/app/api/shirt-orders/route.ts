@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const total_price = quantity * unit_price;
+    const total_price = Number(body.total_price) || (quantity * unit_price);
     const now = new Date().toISOString();
 
     const orderPayload = {
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
       size,
       quantity: Number(quantity) || 1,
       custom_size: custom_size || null,
-      unit_price: Number(unit_price) || 250,
+      unit_price: Number(unit_price) || 200,
       total_price,
       parent_name: parent_name || null,
       parent_phone: parent_phone || null,
@@ -104,6 +104,34 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ ok: true, order: data?.[0] || orderPayload });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH: Update order status (e.g. 'paid' or 'pending') by teacher
+ */
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { student_id, status } = body;
+    if (!student_id) {
+      return NextResponse.json({ ok: false, error: 'Missing student_id' }, { status: 400 });
+    }
+
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('ohmjaa_shirt_orders')
+      .update({ status: status || 'pending', updated_at: new Date().toISOString() })
+      .eq('student_id', student_id)
+      .select();
+
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 200 });
+    }
+    return NextResponse.json({ ok: true, order: data?.[0] });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
