@@ -284,12 +284,45 @@ export default function ShirtOrderPage() {
     });
   };
 
+  // ย่อขนาดภาพให้ประมวลผลเร็วขึ้นทันที (ลดขนาด Payload ก่อนส่งตรวจ)
+  const compressImageForVerify = (dataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxDim = 1200;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return resolve(dataUrl);
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.82));
+        } catch {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
+
   const handleSlipChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("รองรับเฉพาะไฟล์ภาพเท่านั้น (JPG, PNG, WebP)");
+      toast.error("รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WebP)");
       return;
     }
 
@@ -300,7 +333,7 @@ export default function ShirtOrderPage() {
 
     setSlipFileName(file.name);
 
-    // อ่าน base64 สำหรับส่งตรวจสอบผ่าน Gemini AI และแสดงตัวอย่าง
+    // อ่าน base64 สำหรับแสดงตัวอย่างภาพและส่งตรวจสอบ
     const localReader = new FileReader();
     localReader.onload = async () => {
       const localBase64 = localReader.result as string;
@@ -311,15 +344,18 @@ export default function ShirtOrderPage() {
       setSlipVerified(null);
       setSlipVerifyMessage("");
       setVerifiedSlipData(null);
-      const toastId = toast.loading("กำลังส่ง AI ตรวจสอบสลิป...");
+      const toastId = toast.loading("กำลังตรวจสอบสลิป...");
 
       try {
-        // 1. ส่งตรวจด้วย Gemini 3.5 Flash Lite ผ่าน API หลังบ้าน
+        // ย่อขนาดภาพแบบเร็ว เพื่อให้ประมวลผลเสร็จในเสี้ยววินาที
+        const compressedBase64 = await compressImageForVerify(localBase64);
+
+        // 1. ส่งตรวจสอบผ่าน API หลังบ้าน
         const verifyPromise = fetch("/api/verify-slip", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            imageBase64: localBase64,
+            imageBase64: compressedBase64,
             expectedAmount: totalPrice,
           }),
         }).then((r) => r.json());
@@ -416,12 +452,14 @@ export default function ShirtOrderPage() {
     setIsSubmitting(true);
 
     const finalSlipUrl = uploadedSlipUrl || slipImage || undefined;
+    const isPaid = slipVerified === true;
 
     const newInfo: StudentShirtInfo = {
       student_id: selectedStudent.student_id,
       size: orderSummaryText,
       quantity: totalQuantity,
       custom_size: selectedSize === "Other" ? customSize.trim() : undefined,
+      paid: isPaid,
       parent_name: parentName.trim() || undefined,
       parent_phone: parentPhone.trim() || undefined,
       note: orderNote.trim() || undefined,
@@ -459,6 +497,8 @@ export default function ShirtOrderPage() {
           parent_phone: parentPhone.trim() || null,
           note: orderNote.trim() || null,
           slip_url: finalSlipUrl || null,
+          status: isPaid ? "paid" : "pending",
+          paid: isPaid,
           items: orderItems,
         }),
       });
@@ -990,7 +1030,7 @@ export default function ShirtOrderPage() {
                     แนบหลักฐานสลิปการโอนเงิน <span className="text-rose-600 font-bold">* บังคับ</span>
                   </label>
                   <span className="text-xs text-slate-500">
-                    รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WebP) • ตรวจสอบความถูกต้องของยอดเงิน วันที่โอน (ต้องเป็นวันนี้) และบัญชีปลายทางโดยอัตโนมัติ
+                    รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WebP) ขนาดไม่เกิน 10 MB
                   </span>
                 </div>
               </div>
@@ -1013,13 +1053,13 @@ export default function ShirtOrderPage() {
                   {isUploadingSlip ? (
                     <>
                       <RefreshCw className="w-5 h-5 text-[#a31e1e] animate-spin" />
-                      <span className="font-semibold text-slate-800">กำลังตรวจสอบสลิปด้วย AI...</span>
+                      <span className="font-semibold text-slate-800">กำลังตรวจสอบสลิป...</span>
                     </>
                   ) : (
                     <>
                       <Upload className="w-5 h-5 text-[#a31e1e]" />
                       <span className="font-semibold text-slate-800">กดเพื่ออัปโหลดสลิปการโอนเงิน</span>
-                      <span className="text-[11px] text-slate-400">ระบบ AI จะตรวจสอบยอดเงิน วันที่โอน (ต้องเป็นวันนี้) และบัญชีปลายทาง</span>
+                      <span className="text-[11px] text-slate-400">รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WebP)</span>
                     </>
                   )}
                 </button>
@@ -1046,7 +1086,7 @@ export default function ShirtOrderPage() {
                         {isUploadingSlip ? (
                           <span className="text-[11px] text-amber-700 font-medium flex items-center gap-1 mt-0.5">
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>กำลังตรวจสอบสลิปกับระบบ Slip2Go...</span>
+                            <span>กำลังตรวจสอบสลิป...</span>
                           </span>
                         ) : slipVerified === true ? (
                           <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1 mt-0.5">

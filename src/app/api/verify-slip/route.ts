@@ -72,8 +72,7 @@ export async function POST(request: Request) {
     const todayDate = getTodayBangkokDate();
     const targetAmount = Number(expectedAmount) > 0 ? Number(expectedAmount) : 200;
 
-    const prompt = `Analyze this Thai bank transfer slip image.
-Extract the transaction details and return strictly valid JSON matching this schema:
+    const prompt = `Extract Thai bank transfer slip data as JSON:
 {
   "amount": number,
   "receiver_name": string,
@@ -85,13 +84,7 @@ Extract the transaction details and return strictly valid JSON matching this sch
   "transfer_time": "HH:mm",
   "trans_ref": string
 }
-Important Instructions:
-1. For transfer_date: Format as "YYYY-MM-DD" in Gregorian calendar (AD). Convert Thai Buddhist Era (พ.ศ.) to Gregorian (ค.ศ. = พ.ศ. - 543). For example, 14 พ.ย. 2569 or 14 พ.ย. 69 must be "2026-11-14".
-2. For amount: Extract the exact numeric amount transferred in THB (e.g. 200.00).
-3. For receiver_name: Extract the beneficiary/receiver name shown on the slip.
-4. For receiver_bank: Extract the destination bank name (e.g. กรุงไทย, Krungthai).
-5. For receiver_account: Extract the destination account number (e.g. 137-0-40451-4 or xxx-x-x0451-x).
-6. Return only valid JSON without any markdown formatting or surrounding backticks.`;
+Convert Thai Buddhist Era (พ.ศ.) to Gregorian (AD = BE - 543) for transfer_date (e.g. 14 พ.ย. 2569 or 14 พ.ย. 69 becomes 2026-11-14). Return valid JSON only.`;
 
     const geminiPayload = {
       contents: [
@@ -109,6 +102,7 @@ Important Instructions:
       ],
       generationConfig: {
         response_mime_type: "application/json",
+        temperature: 0.1,
       },
     };
 
@@ -127,8 +121,8 @@ Important Instructions:
       return NextResponse.json(
         {
           ok: false,
-          error: "ไม่สามารถเชื่อมต่อระบบ AI ตรวจสอบสลิปได้ชั่วคราว",
-          message: "ไม่สามารถเชื่อมต่อระบบ AI ตรวจสอบสลิปได้ชั่วคราว",
+          error: "ไม่สามารถเชื่อมต่อระบบตรวจสอบสลิปได้ชั่วคราว",
+          message: "ไม่สามารถเชื่อมต่อระบบตรวจสอบสลิปได้ชั่วคราว",
         },
         { status: 500 }
       );
@@ -140,8 +134,8 @@ Important Instructions:
       return NextResponse.json(
         {
           ok: false,
-          error: "AI ไม่สามารถอ่านข้อมูลจากภาพสลิปได้ กรุณาแนบภาพที่คมชัดและเห็นข้อมูลครบถ้วน",
-          message: "AI ไม่สามารถอ่านข้อมูลจากภาพสลิปได้ กรุณาแนบภาพที่คมชัดและเห็นข้อมูลครบถ้วน",
+          error: "ระบบไม่สามารถอ่านข้อมูลจากภาพสลิปได้ กรุณาแนบภาพที่คมชัดและเห็นข้อมูลครบถ้วน",
+          message: "ระบบไม่สามารถอ่านข้อมูลจากภาพสลิปได้ กรุณาแนบภาพที่คมชัดและเห็นข้อมูลครบถ้วน",
         },
         { status: 400 }
       );
@@ -188,24 +182,35 @@ Important Instructions:
       });
     }
 
-    // 2. ตรวจสอบบัญชีผู้รับ (ต้องเป็น ปุณยาพร สิงห์ลอ ธ.กรุงไทย หรือเลขบัญชีลงท้าย 0451)
+    // 2. ตรวจสอบบัญชีผู้รับ (ต้องเป็น น.ส. ปุณยาพร สิงห์ลอ หรือ Poonyaphon Singlow หรือตัดคำนำหน้าออก และเป็น ธ.กรุงไทย)
+    const cleanReceiverName = receiverName
+      .toLowerCase()
+      .replace(/^(น\.ส\.|น\.ส|นางสาว|นาง|นาย|ด\.ญ\.|เด็กหญิง|miss|ms\.|ms|mrs\.|mrs|mr\.|mr)\s*/i, "")
+      .replace(/[\s\.\-]+/g, "");
+
+    const cleanReceiverBank = receiverBank.toLowerCase().replace(/[\s\.\-]+/g, "");
+    const cleanReceiverAccount = receiverAccount.replace(/[\s\-]/g, "");
+
     const isNameMatch =
-      receiverName.includes("ปุณยาพร") ||
-      receiverName.includes("สิงห์ลอ") ||
-      receiverName.includes("Punyaporn") ||
-      receiverName.includes("Singlor");
+      cleanReceiverName.includes("ปุณยาพร") ||
+      cleanReceiverName.includes("สิงห์ลอ") ||
+      cleanReceiverName.includes("poonyaphon") ||
+      cleanReceiverName.includes("singlow") ||
+      cleanReceiverName.includes("punyaporn") ||
+      cleanReceiverName.includes("singlor") ||
+      cleanReceiverName.includes("poonyapon");
 
     const isBankMatch =
-      receiverBank.includes("กรุงไทย") ||
-      receiverBank.includes("KTB") ||
-      receiverBank.includes("Krungthai") ||
-      receiverAccount.includes("0451") ||
-      receiverAccount.includes("404514");
+      cleanReceiverBank.includes("กรุงไทย") ||
+      cleanReceiverBank.includes("ktb") ||
+      cleanReceiverBank.includes("krungthai") ||
+      cleanReceiverAccount.includes("0451") ||
+      cleanReceiverAccount.includes("1370404514");
 
     const isReceiverMatch = isNameMatch || isBankMatch;
 
     if (!isReceiverMatch) {
-      const errMessage = `บัญชีผู้รับไม่ถูกต้อง (ต้องโอนเข้า ธ.กรุงไทย 1370404514 น.ส. ปุณยาพร สิงห์ลอ) แต่ในสลิปคือ ${receiverName || "ไม่ระบุ"} (${receiverBank || "ไม่ระบุ"})`;
+      const errMessage = `บัญชีผู้รับไม่ถูกต้อง (ต้องโอนเข้า ธ.กรุงไทย 1370404514 ปุณยาพร สิงห์ลอ / Poonyaphon Singlow) แต่ในสลิปคือ ${receiverName || "ไม่ระบุ"} (${receiverBank || "ไม่ระบุ"})`;
       return NextResponse.json({
         ok: false,
         error: errMessage,

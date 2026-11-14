@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       parent_phone: parent_phone || null,
       note: note || null,
       slip_url: slip_url || null,
-      status: 'pending',
+      status: body.status || (body.paid ? 'paid' : 'pending'),
       updated_at: now,
     };
 
