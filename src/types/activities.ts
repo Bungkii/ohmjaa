@@ -4,8 +4,8 @@ export type ShirtSize = "XS" | "S" | "M" | "L" | "XL" | "2XL" | "3XL" | "4XL" | 
 
 export interface StudentShirtInfo {
   student_id: string;
-  size: ShirtSize;
-  quantity?: number; // จำนวนตัวที่สั่ง (default: 1)
+  size: ShirtSize | string; // ไซส์หลัก หรือสรุปเช่น "L x 1, M x 2"
+  quantity?: number; // จำนวนตัวที่สั่งรวม
   custom_size?: string;
   paid?: boolean;
   slip_url?: string;
@@ -13,6 +13,7 @@ export interface StudentShirtInfo {
   parent_phone?: string;
   ordered_at?: string;
   note?: string;
+  items?: Array<{ size: ShirtSize; quantity: number; unit_price: number }>;
 }
 
 export type ActivityRoleType =

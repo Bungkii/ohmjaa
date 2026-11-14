@@ -61,7 +61,20 @@ export default function ShirtOrderPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
-  // Form Fields
+  // Form Fields: รองรับการสั่งหลายไซส์ หลายตัว เช่น L 1 ตัว, M 2 ตัว
+  const [sizeQuantities, setSizeQuantities] = useState<Record<ShirtSize, number>>({
+    XS: 0,
+    S: 0,
+    M: 1, // ค่าเริ่มต้น 1 ตัว
+    L: 0,
+    XL: 0,
+    "2XL": 0,
+    "3XL": 0,
+    "4XL": 0,
+    "5XL": 0,
+    Other: 0,
+    "": 0,
+  });
   const [selectedSize, setSelectedSize] = useState<ShirtSize>("M");
   const [quantity, setQuantity] = useState<number>(1);
   const [customSize, setCustomSize] = useState<string>("");
@@ -113,6 +126,38 @@ export default function ShirtOrderPage() {
     );
   }, [students, searchQuery]);
 
+  // คำนวณสรุปรายการเสื้อทั้งหมดที่เลือก
+  const orderItems = useMemo(() => {
+    return SHIRT_SIZES_GUIDE.map((g) => ({
+      size: g.size,
+      quantity: sizeQuantities[g.size] || 0,
+      unitPrice: g.price,
+      total: (sizeQuantities[g.size] || 0) * g.price,
+    })).filter((item) => item.quantity > 0);
+  }, [sizeQuantities]);
+
+  const totalQuantity = useMemo(() => {
+    return orderItems.reduce((sum, item) => sum + item.quantity, 0);
+  }, [orderItems]);
+
+  const totalPrice = useMemo(() => {
+    return orderItems.reduce((sum, item) => sum + item.total, 0);
+  }, [orderItems]);
+
+  // สรุปข้อความไซส์ เช่น "M (2 ตัว), L (1 ตัว)"
+  const orderSummaryText = useMemo(() => {
+    if (orderItems.length === 0) return "ยังไม่ได้เลือกไซส์";
+    return orderItems.map((item) => `${item.size} × ${item.quantity}`).join(", ");
+  }, [orderItems]);
+
+  const updateSizeQty = (size: ShirtSize, delta: number) => {
+    setSizeQuantities((prev) => {
+      const current = prev[size] || 0;
+      const next = Math.max(0, Math.min(20, current + delta));
+      return { ...prev, [size]: next };
+    });
+  };
+
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
     setSearchQuery("");
@@ -123,8 +168,20 @@ export default function ShirtOrderPage() {
         const records = JSON.parse(saved);
         if (records[student.student_id]) {
           const rec: StudentShirtInfo = records[student.student_id];
-          setSelectedSize(rec.size || "M");
-          setQuantity(rec.quantity || 1);
+          if (rec.items && Array.isArray(rec.items)) {
+            const nextQuantities: Record<ShirtSize, number> = {
+              XS: 0, S: 0, M: 0, L: 0, XL: 0, "2XL": 0, "3XL": 0, "4XL": 0, "5XL": 0, Other: 0, "": 0,
+            };
+            rec.items.forEach((it) => {
+              if (it.size) nextQuantities[it.size] = it.quantity || 1;
+            });
+            setSizeQuantities(nextQuantities);
+          } else if (rec.size) {
+            setSizeQuantities({
+              XS: 0, S: 0, M: 0, L: 0, XL: 0, "2XL": 0, "3XL": 0, "4XL": 0, "5XL": 0, Other: 0, "": 0,
+              [rec.size as ShirtSize]: rec.quantity || 1,
+            });
+          }
           if (rec.custom_size) setCustomSize(rec.custom_size);
           if (rec.parent_name) setParentName(rec.parent_name);
           if (rec.parent_phone) setParentPhone(rec.parent_phone);
@@ -138,9 +195,6 @@ export default function ShirtOrderPage() {
     } catch {}
     setHasExistingOrder(false);
   };
-
-  const unitPrice = getShirtUnitPrice(selectedSize);
-  const totalPrice = unitPrice * Math.max(1, quantity);
 
   const promptPayQrUrl = useMemo(() => {
     const acc = BANK_ACCOUNT_NO.replace(/[^0-9]/g, "");
@@ -253,8 +307,8 @@ export default function ShirtOrderPage() {
       toast.error("กรุณาเลือกนักเรียน");
       return;
     }
-    if (!selectedSize) {
-      toast.error("กรุณาเลือกไซส์เสื้อ");
+    if (totalQuantity === 0 || orderItems.length === 0) {
+      toast.error("กรุณาเลือกจำนวนเสื้ออย่างน้อย 1 ตัว");
       return;
     }
 
@@ -286,14 +340,19 @@ export default function ShirtOrderPage() {
 
     const newInfo: StudentShirtInfo = {
       student_id: selectedStudent.student_id,
-      size: selectedSize,
-      quantity: quantity || 1,
+      size: orderSummaryText,
+      quantity: totalQuantity,
       custom_size: selectedSize === "Other" ? customSize.trim() : undefined,
       parent_name: parentName.trim() || undefined,
       parent_phone: parentPhone.trim() || undefined,
       note: orderNote.trim() || undefined,
       slip_url: slipImage || undefined,
       ordered_at: new Date().toISOString(),
+      items: orderItems.map((it) => ({
+        size: it.size,
+        quantity: it.quantity,
+        unit_price: it.unitPrice,
+      })),
     };
 
     try {
@@ -312,15 +371,16 @@ export default function ShirtOrderPage() {
           student_no: selectedStudent.student_no,
           student_name: `${selectedStudent.prefix}${selectedStudent.first_name} ${selectedStudent.last_name}`,
           student_nickname: selectedStudent.nickname || null,
-          size: selectedSize,
-          quantity: quantity || 1,
+          size: orderSummaryText,
+          quantity: totalQuantity,
           custom_size: selectedSize === "Other" ? customSize.trim() : null,
-          unit_price: unitPrice,
+          unit_price: orderItems[0]?.unitPrice || 200,
           total_price: totalPrice,
           parent_name: parentName.trim() || null,
           parent_phone: parentPhone.trim() || null,
           note: orderNote.trim() || null,
           slip_url: slipImage || null,
+          items: orderItems,
         }),
       });
     } catch {}
@@ -333,6 +393,9 @@ export default function ShirtOrderPage() {
 
   const handleResetForm = () => {
     setSelectedStudent(null);
+    setSizeQuantities({
+      XS: 0, S: 0, M: 1, L: 0, XL: 0, "2XL": 0, "3XL": 0, "4XL": 0, "5XL": 0, Other: 0, "": 0,
+    });
     setSelectedSize("M");
     setQuantity(1);
     setCustomSize("");
@@ -585,93 +648,103 @@ export default function ShirtOrderPage() {
               </div>
             </div>
 
-            {/* Card 3: Size Selection */}
-            <div className={`bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3 transition-opacity ${!selectedStudent ? "opacity-50 pointer-events-none" : ""}`}>
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-slate-900">
-                  เลือกไซส์ที่ต้องการ <span className="text-rose-600 font-bold">*</span>
-                </label>
-                <span className="text-xs font-semibold text-[#a31e1e]">
-                  ราคา {unitPrice} บาท/ตัว
-                </span>
+            {/* Card 3: Size & Quantity Selection (รองรับหลายไซส์ หลายตัว เช่น L 1 ตัว, M 2 ตัว) */}
+            <div className={`bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4 transition-opacity ${!selectedStudent ? "opacity-50 pointer-events-none" : ""}`}>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <div>
+                  <label className="text-sm font-semibold text-slate-900 block">
+                    เลือกไซส์และระบุจำนวนที่ต้องการ <span className="text-rose-600 font-bold">*</span>
+                  </label>
+                  <span className="text-xs text-slate-500">
+                    สามารถกดสั่งหลายไซส์พร้อมกันได้ (เช่น L 1 ตัว, M 2 ตัว)
+                  </span>
+                </div>
+                {totalQuantity > 0 && (
+                  <span className="text-xs font-bold text-[#a31e1e] bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
+                    รวม {totalQuantity} ตัว
+                  </span>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {/* Size rows with +/- stepper for each size */}
+              <div className="space-y-2">
                 {SHIRT_SIZES_GUIDE.map((item) => {
-                  const isChecked = selectedSize === item.size;
+                  const qty = sizeQuantities[item.size] || 0;
+                  const isSelected = qty > 0;
                   return (
-                    <label
+                    <div
                       key={item.size}
-                      className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                        isChecked
-                          ? "bg-rose-50/60 border-[#a31e1e] ring-1 ring-[#a31e1e]"
-                          : "bg-white border-slate-200 hover:bg-slate-50"
+                      className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                        isSelected
+                          ? "bg-rose-50/50 border-[#a31e1e] ring-1 ring-[#a31e1e]/20"
+                          : "bg-white border-slate-200 hover:bg-slate-50/60"
                       }`}
                     >
-                      <input
-                        type="radio"
-                        name="shirt_size"
-                        value={item.size}
-                        checked={isChecked}
-                        onChange={() => setSelectedSize(item.size)}
-                        className="accent-[#a31e1e] w-4 h-4"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-slate-800 flex items-center justify-between">
-                          <span>{item.size}</span>
-                          <span className={isChecked ? "text-[#a31e1e]" : "text-slate-500 font-normal"}>
-                            {item.price}.-
+                      <div className="flex items-center gap-3">
+                        <span className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${
+                          isSelected ? "bg-[#a31e1e] text-white" : "bg-slate-100 text-slate-700"
+                        }`}>
+                          {item.size}
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs sm:text-sm font-bold text-slate-900">
+                              ไซส์ {item.size}
+                            </span>
+                            <span className="text-xs font-semibold text-[#a31e1e]">
+                              {item.price} บาท/ตัว
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block">
+                            รอบอก {item.chest}&quot; • ความยาว {item.length}&quot;
                           </span>
                         </div>
-                        <div className="text-[10px] text-slate-400">
-                          อก {item.chest}&quot; ยาว {item.length}&quot;
-                        </div>
                       </div>
-                    </label>
+
+                      {/* Quantity Stepper */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateSizeQty(item.size, -1)}
+                          disabled={qty === 0}
+                          className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white text-slate-700 font-bold text-sm cursor-pointer transition-colors flex items-center justify-center"
+                        >
+                          -
+                        </button>
+                        <span className={`w-8 text-center text-sm font-bold font-mono ${
+                          qty > 0 ? "text-[#a31e1e]" : "text-slate-400"
+                        }`}>
+                          {qty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateSizeQty(item.size, 1)}
+                          className="w-8 h-8 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[#a31e1e] font-bold text-sm cursor-pointer transition-colors flex items-center justify-center"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
-            </div>
 
-            {/* Card 4: Quantity & Price */}
-            <div className={`bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3 transition-opacity ${!selectedStudent ? "opacity-50 pointer-events-none" : ""}`}>
-              <div className="flex items-center justify-between">
+              {/* Total Summary Strip */}
+              <div className="bg-rose-50/80 border border-rose-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <label className="text-sm font-semibold text-slate-900 block">
-                    จำนวนเสื้อที่ต้องการสั่ง <span className="text-rose-600 font-bold">*</span>
-                  </label>
-                  <span className="text-xs text-slate-500">ระบุจำนวนตัว (ตัวละ {unitPrice} บาท)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-8 h-8 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-sm cursor-pointer transition-colors"
-                  >
-                    -
-                  </button>
-                  <span className="w-8 text-center text-sm font-bold font-mono text-slate-900">
-                    {quantity}
+                  <span className="text-xs text-slate-600 block">
+                    รายการที่เลือก: <strong className="text-slate-900">{orderSummaryText}</strong>
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setQuantity(Math.min(10, quantity + 1))}
-                    className="w-8 h-8 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-sm cursor-pointer transition-colors"
-                  >
-                    +
-                  </button>
-                  <span className="text-xs text-slate-500">ตัว</span>
+                  <span className="text-[11px] text-slate-500">
+                    รวมทั้งสิ้น {totalQuantity} ตัว
+                  </span>
                 </div>
-              </div>
-
-              {/* Total Calculation Strip */}
-              <div className="bg-rose-50/70 border border-rose-200 rounded-lg p-3 flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-700">
-                  ยอดรวมทั้งหมด ({quantity} ตัว × {unitPrice} บาท):
-                </span>
-                <span className="text-base font-bold text-[#a31e1e]">
-                  {totalPrice.toLocaleString()} บาท
-                </span>
+                <div className="text-right">
+                  <span className="text-xs text-slate-500 block">ยอดรวมทั้งหมด</span>
+                  <span className="text-xl font-bold text-[#a31e1e] font-mono">
+                    ฿{totalPrice.toLocaleString()}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -724,15 +797,19 @@ export default function ShirtOrderPage() {
                     {selectedStudent?.prefix}{selectedStudent?.first_name} {selectedStudent?.last_name} (เลขที่ #{selectedStudent?.student_no})
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">ไซส์เสื้อ:</span>
-                  <span className="font-bold text-slate-800">
-                    ไซส์ {selectedSize}
-                  </span>
+                <div className="flex justify-between items-start">
+                  <span className="text-slate-500 shrink-0">รายการเสื้อ:</span>
+                  <div className="text-right space-y-0.5">
+                    {orderItems.map((it) => (
+                      <div key={it.size} className="font-bold text-slate-800">
+                        ไซส์ {it.size} × {it.quantity} ตัว ({it.total.toLocaleString()} บาท)
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">จำนวน:</span>
-                  <span className="font-bold text-slate-800">{quantity} ตัว (ตัวละ {unitPrice} บาท)</span>
+                  <span className="text-slate-500">จำนวนรวมทั้งหมด:</span>
+                  <span className="font-bold text-[#a31e1e]">{totalQuantity} ตัว</span>
                 </div>
                 {parentName && (
                   <div className="flex justify-between">
@@ -769,7 +846,7 @@ export default function ShirtOrderPage() {
                   ฿{totalPrice.toLocaleString()}
                 </span>
                 <span className="text-[11px] text-slate-500 mt-1 block">
-                  ({quantity} ตัว × {unitPrice} บาท)
+                  (รวมทั้งหมด {totalQuantity} ตัว • {orderSummaryText})
                 </span>
               </div>
 
