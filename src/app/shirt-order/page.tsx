@@ -112,18 +112,43 @@ export default function ShirtOrderPage() {
   const [copiedAccountNo, setCopiedAccountNo] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
 
+  const [isLoadingStudents, setIsLoadingStudents] = useState(true);
+
   useEffect(() => {
     setIsExpired(Date.now() > SHIRT_ORDER_DEADLINE_MS);
   }, []);
 
+  // ดึงรายชื่อนักเรียนจาก SQL Database โดยตรง
   useEffect(() => {
-    try {
-      const list = (fallbackStudents as unknown) as Student[];
-      const sorted = [...list].sort((a, b) => a.student_no - b.student_no);
-      setStudents(sorted);
-    } catch {
-      setStudents([]);
-    }
+    let isMounted = true;
+    setIsLoadingStudents(true);
+
+    fetch("/api/students")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isMounted) return;
+        if (data.ok && Array.isArray(data.students) && data.students.length > 0) {
+          setStudents(data.students);
+        } else {
+          const list = (fallbackStudents as unknown) as Student[];
+          const sorted = [...list].sort((a, b) => a.student_no - b.student_no);
+          setStudents(sorted);
+        }
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.warn("Failed to load students from SQL, using fallback:", err);
+        const list = (fallbackStudents as unknown) as Student[];
+        const sorted = [...list].sort((a, b) => a.student_no - b.student_no);
+        setStudents(sorted);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingStudents(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const filteredStudents = useMemo(() => {
