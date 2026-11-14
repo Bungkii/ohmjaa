@@ -46,8 +46,10 @@ export const getShirtUnitPrice = (size: ShirtSize): number => {
   return 200; // XS, S, M, L, XL, 2XL = 200 บาท
 };
 
-const PROMPTPAY_ACCOUNT = "0987654321";
-const PROMPTPAY_ACCOUNT_NAME = "บัญชีกองกลางห้อง ม.2/3 (คุณครูประจำชั้น)";
+const BANK_NAME = "ธนาคารกรุงไทย";
+const BANK_ACCOUNT_NO = "1370404514";
+const BANK_ACCOUNT_NAME = "นางสาวปุณยาพร สิงห์ลอ";
+const BANK_LOGO_URL = "/ktb-logo.png";
 
 // กำหนดเวลาหมดเขตสั่งเสื้อ: 20 พฤศจิกายน 2569 เวลา 23:59:59 น. (Asia/Bangkok = UTC+7)
 const SHIRT_ORDER_DEADLINE_MS = new Date("2026-11-20T23:59:59+07:00").getTime();
@@ -79,7 +81,7 @@ export default function ShirtOrderPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasExistingOrder, setHasExistingOrder] = useState(false);
-  const [copiedPromptPay, setCopiedPromptPay] = useState(false);
+  const [copiedAccountNo, setCopiedAccountNo] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
@@ -140,16 +142,16 @@ export default function ShirtOrderPage() {
   const totalPrice = unitPrice * Math.max(1, quantity);
 
   const promptPayQrUrl = useMemo(() => {
-    const acc = PROMPTPAY_ACCOUNT.replace(/[^0-9]/g, "");
+    const acc = BANK_ACCOUNT_NO.replace(/[^0-9]/g, "");
     return `https://promptpay.io/${acc}/${totalPrice}.png`;
   }, [totalPrice]);
 
-  const handleCopyPromptPay = async () => {
+  const handleCopyAccountNo = async () => {
     try {
-      await navigator.clipboard.writeText(PROMPTPAY_ACCOUNT);
-      setCopiedPromptPay(true);
-      toast.success("คัดลอกเลขพร้อมเพย์แล้ว");
-      setTimeout(() => setCopiedPromptPay(false), 2000);
+      await navigator.clipboard.writeText(BANK_ACCOUNT_NO);
+      setCopiedAccountNo(true);
+      toast.success("คัดลอกเลขบัญชีแล้ว");
+      setTimeout(() => setCopiedAccountNo(false), 2000);
     } catch {
       toast.error("ไม่สามารถคัดลอกได้");
     }
@@ -766,17 +768,17 @@ export default function ShirtOrderPage() {
               </div>
             </div>
 
-            {/* PromptPay QR Code Card */}
+            {/* Bank Payment Card */}
             <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 shadow-xs text-center space-y-4">
-              <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-800">
-                <QrCode className="w-4 h-4 text-[#a31e1e]" />
-                <span>สแกน QR Code เพื่อชำระเงิน</span>
+              <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-800">
+                <img src={BANK_LOGO_URL} alt="KTB" className="w-5 h-5 rounded-full object-contain shadow-xs" />
+                <span>ช่องทางการโอนเงิน / ชำระเงิน</span>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 inline-block mx-auto max-w-xs w-full">
                 <img
                   src={promptPayQrUrl}
-                  alt="QR พร้อมเพย์"
+                  alt="QR ชำระเงิน"
                   className="w-48 h-48 mx-auto rounded-lg bg-white p-1 border border-slate-200 shadow-xs"
                 />
                 <div className="mt-3 text-center">
@@ -787,24 +789,50 @@ export default function ShirtOrderPage() {
                 </div>
               </div>
 
-              <div className="bg-slate-50 rounded-lg p-3 text-left border border-slate-200 text-xs space-y-1.5 max-w-sm mx-auto">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">ชื่อบัญชี:</span>
-                  <span className="font-medium text-slate-800">{PROMPTPAY_ACCOUNT_NAME}</span>
+              {/* Bank Account Details Card */}
+              <div className="bg-sky-50/60 rounded-xl p-4 text-left border border-sky-100 text-xs space-y-2.5 max-w-sm mx-auto">
+                <div className="flex items-center gap-3 pb-2 border-b border-sky-100">
+                  <img
+                    src={BANK_LOGO_URL}
+                    alt="ธนาคารกรุงไทย"
+                    className="w-10 h-10 rounded-full bg-white p-1 shadow-xs border border-sky-200 shrink-0"
+                  />
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">{BANK_NAME}</div>
+                    <div className="text-[11px] text-sky-800 font-medium">บัญชีเงินฝากออมทรัพย์</div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">พร้อมเพย์:</span>
+
+                <div className="flex justify-between items-center pt-0.5">
+                  <span className="text-slate-500">เลขที่บัญชี:</span>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono font-bold text-slate-900">{PROMPTPAY_ACCOUNT}</span>
+                    <span className="font-mono font-bold text-slate-900 text-sm tracking-wide">
+                      {BANK_ACCOUNT_NO}
+                    </span>
                     <button
                       type="button"
-                      onClick={handleCopyPromptPay}
-                      className="p-1 rounded bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
-                      title="คัดลอกเบอร์"
+                      onClick={handleCopyAccountNo}
+                      className="px-2 py-1 rounded bg-white border border-sky-200 text-sky-800 hover:bg-sky-100 cursor-pointer flex items-center gap-1 text-[11px] font-medium transition-colors"
+                      title="คัดลอกเลขบัญชี"
                     >
-                      {copiedPromptPay ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      {copiedAccountNo ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span className="text-emerald-700">คัดลอกแล้ว</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>คัดลอก</span>
+                        </>
+                      )}
                     </button>
                   </div>
+                </div>
+
+                <div className="flex justify-between items-start pt-1 border-t border-sky-100/70">
+                  <span className="text-slate-500 shrink-0">ชื่อบัญชี:</span>
+                  <span className="font-bold text-slate-900 text-right">{BANK_ACCOUNT_NAME}</span>
                 </div>
               </div>
             </div>
