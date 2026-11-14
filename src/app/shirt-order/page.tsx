@@ -50,6 +50,7 @@ const BANK_NAME = "ธนาคารกรุงไทย";
 const BANK_ACCOUNT_NO = "1370404514";
 const BANK_ACCOUNT_NAME = "นางสาวปุณยาพร สิงห์ลอ";
 const BANK_LOGO_URL = "/ktb-logo.png";
+const SHIRT_PREVIEW_URL = "/shirt-preview.jpg";
 
 // กำหนดเวลาหมดเขตสั่งเสื้อ: 20 พฤศจิกายน 2569 เวลา 23:59:59 น. (Asia/Bangkok = UTC+7)
 const SHIRT_ORDER_DEADLINE_MS = new Date("2026-11-20T23:59:59+07:00").getTime();
@@ -437,6 +438,30 @@ export default function ShirtOrderPage() {
         ) : currentStep === 1 ? (
           /* ================= STEP 1: ORDER DETAILS ================= */
           <form onSubmit={handleProceedToPayment} className="space-y-4">
+            {/* Card 0: Shirt Design Preview */}
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    แบบเสื้อห้อง ม.2/3 (STEM-CEL)
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    เสื้อโปโรคอวี แดง-ชมพู-ขาว โรงเรียนอัสสัมชัญธนบุรี
+                  </p>
+                </div>
+                <span className="text-[11px] font-semibold px-2 py-0.5 bg-rose-50 text-[#a31e1e] rounded border border-rose-200">
+                  แบบจำลอง
+                </span>
+              </div>
+              <div className="p-2 sm:p-3 bg-slate-50 flex items-center justify-center">
+                <img
+                  src={SHIRT_PREVIEW_URL}
+                  alt="แบบเสื้อห้อง ม.2/3"
+                  className="w-full max-h-80 sm:max-h-96 object-contain rounded-lg shadow-2xs bg-white"
+                />
+              </div>
+            </div>
+
             {/* Card 1: Student Selection */}
             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
