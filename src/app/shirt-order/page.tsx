@@ -162,7 +162,7 @@ export default function ShirtOrderPage() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("กรุณาเลือกไฟล์รูปภาพสลิป");
+      toast.error("รองรับเฉพาะไฟล์ภาพเท่านั้น (JPG, PNG, WebP)");
       return;
     }
 
@@ -217,18 +217,22 @@ export default function ShirtOrderPage() {
           if (verifyData.ok) {
             setSlipVerified(true);
             setSlipVerifyMessage("สลิปถูกต้อง ยอดเงินครบถ้วน");
-            toast.success("สลิปถูกต้อง ระบบยืนยันยอดเงินสำเร็จ", { id: toastId });
+            toast.success("สลิปถูกต้อง ยืนยันยอดเงินสำเร็จ", { id: toastId });
           } else {
             setSlipVerified(false);
-            const errMsg = verifyData.message || "ตรวจสอบสลิปไม่ผ่าน";
+            const errMsg = verifyData.message || "ตรวจสอบสลิปไม่ผ่านหรือไม่พบ QR Code";
             setSlipVerifyMessage(errMsg);
-            toast.success("อัปโหลดสลิปเรียบร้อยแล้ว", { id: toastId });
+            toast.error(errMsg, { id: toastId });
           }
         } catch {
-          toast.success("อัปโหลดสลิปสำเร็จเรียบร้อย", { id: toastId });
+          setSlipVerified(false);
+          setSlipVerifyMessage("ไม่สามารถเชื่อมต่อระบบตรวจสอบสลิปได้");
+          toast.error("ตรวจสอบสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", { id: toastId });
         }
       } catch {
-        toast.success("แนบรูปสลิปแล้ว", { id: toastId });
+        setSlipVerified(false);
+        setSlipVerifyMessage("อัปโหลดไฟล์สลิปไม่สำเร็จ");
+        toast.error("อัปโหลดไฟล์สลิปไม่สำเร็จ กรุณาลองใหม่", { id: toastId });
       } finally {
         setIsUploadingSlip(false);
       }
@@ -266,6 +270,16 @@ export default function ShirtOrderPage() {
       return;
     }
     if (!selectedStudent) return;
+
+    if (!slipImage) {
+      toast.error("กรุณาแนบหลักฐานสลิปการโอนเงิน (เฉพาะไฟล์ภาพ)");
+      return;
+    }
+
+    if (slipVerified !== true) {
+      toast.error("กรุณารอตรวจสอบสลิปให้ผ่าน หรือแนบสลิปที่ถูกต้องก่อนยืนยัน");
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -636,58 +650,6 @@ export default function ShirtOrderPage() {
               </div>
             </div>
 
-            {/* Card 5: Contact Info */}
-            <div className={`bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3 transition-opacity ${!selectedStudent ? "opacity-50 pointer-events-none" : ""}`}>
-              <div>
-                <label className="text-sm font-semibold text-slate-900 block">
-                  ข้อมูลผู้สั่งเสื้อ
-                </label>
-                <span className="text-xs text-slate-500">
-                  กรอกข้อมูลติดต่อเพื่อความสะดวกในการประสานงาน (ไม่บังคับ)
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="text-xs font-medium text-slate-700 block mb-1">
-                    ชื่อผู้ปกครอง / ผู้สั่ง
-                  </label>
-                  <input
-                    type="text"
-                    value={parentName}
-                    onChange={(e) => setParentName(e.target.value)}
-                    placeholder="เช่น คุณแม่วรรณา"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#a31e1e]/20 focus:border-[#a31e1e]"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-700 block mb-1">
-                    เบอร์โทรศัพท์ติดต่อ
-                  </label>
-                  <input
-                    type="tel"
-                    value={parentPhone}
-                    onChange={(e) => setParentPhone(e.target.value)}
-                    placeholder="เช่น 081-234-5678"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#a31e1e]/20 focus:border-[#a31e1e]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-slate-700 block mb-1">
-                  หมายเหตุเพิ่มเติม
-                </label>
-                <input
-                  type="text"
-                  value={orderNote}
-                  onChange={(e) => setOrderNote(e.target.value)}
-                  placeholder="เช่น ต้องการปักชื่อเพิ่ม หรือข้อมูลอื่น ๆ"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#a31e1e]/20 focus:border-[#a31e1e]"
-                />
-              </div>
-            </div>
-
             {/* Bottom Actions -> Go to Next Step (Payment) */}
             <div className="flex items-center justify-between pt-1">
               <button
@@ -775,18 +737,15 @@ export default function ShirtOrderPage() {
                 <span>ช่องทางการโอนเงิน / ชำระเงิน</span>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 inline-block mx-auto max-w-xs w-full">
-                <img
-                  src={promptPayQrUrl}
-                  alt="QR ชำระเงิน"
-                  className="w-48 h-48 mx-auto rounded-lg bg-white p-1 border border-slate-200 shadow-xs"
-                />
-                <div className="mt-3 text-center">
-                  <span className="text-xs text-slate-500 block">ยอดชำระตามยอดสั่งซื้อ</span>
-                  <span className="text-2xl font-bold text-[#a31e1e] font-mono">
-                    ฿{totalPrice.toLocaleString()}
-                  </span>
-                </div>
+              {/* Total Amount Display */}
+              <div className="bg-rose-50/70 border border-rose-200 rounded-xl p-4 max-w-sm mx-auto text-center">
+                <span className="text-xs text-slate-500 block">ยอดเงินที่ต้องโอนชำระ</span>
+                <span className="text-3xl font-bold text-[#a31e1e] font-mono mt-0.5 block">
+                  ฿{totalPrice.toLocaleString()}
+                </span>
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  ({quantity} ตัว × {unitPrice} บาท)
+                </span>
               </div>
 
               {/* Bank Account Details Card */}
@@ -839,13 +798,15 @@ export default function ShirtOrderPage() {
 
             {/* Slip Upload Card */}
             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
-              <div>
-                <label className="text-sm font-semibold text-slate-900 block">
-                  แนบหลักฐานสลิปการโอนเงิน (ถ้ามี)
-                </label>
-                <span className="text-xs text-slate-500">
-                  ท่านสามารถแนบสลิปตอนนี้ หรือส่งให้ครูประจำชั้นภายหลังได้
-                </span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-semibold text-slate-900 block">
+                    แนบหลักฐานสลิปการโอนเงิน <span className="text-rose-600 font-bold">* บังคับ</span>
+                  </label>
+                  <span className="text-xs text-slate-500">
+                    รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WebP) และต้องผ่านการตรวจสอบความถูกต้องก่อนยืนยัน
+                  </span>
+                </div>
               </div>
 
               <input
@@ -930,13 +891,23 @@ export default function ShirtOrderPage() {
               <button
                 type="button"
                 onClick={handleFinalSubmitOrder}
-                disabled={isSubmitting}
-                className="flex-1 py-2.5 bg-[#a31e1e] hover:bg-[#881919] disabled:bg-slate-300 text-white font-bold text-xs sm:text-sm rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                disabled={isSubmitting || isUploadingSlip || !slipImage || slipVerified !== true}
+                className="flex-1 py-2.5 bg-[#a31e1e] hover:bg-[#881919] disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
                     <span>กำลังยืนยันการสั่งซื้อ...</span>
+                  </>
+                ) : isUploadingSlip ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>กำลังตรวจสอบสลิป...</span>
+                  </>
+                ) : slipVerified !== true ? (
+                  <>
+                    <AlertCircle className="w-4 h-4" />
+                    <span>ต้องแนบและยืนยันสลิปก่อนสั่งซื้อ</span>
                   </>
                 ) : (
                   <>
