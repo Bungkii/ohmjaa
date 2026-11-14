@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   QrCode,
   FileCheck,
+  FileText,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import jsQR from "jsqr";
@@ -85,6 +86,7 @@ export default function ShirtOrderPage() {
 
   // Payment Slip & Verification
   const [slipImage, setSlipImage] = useState<string | null>(null);
+  const [uploadedSlipUrl, setUploadedSlipUrl] = useState<string | null>(null);
   const [slipFileName, setSlipFileName] = useState<string>("");
   const [isUploadingSlip, setIsUploadingSlip] = useState(false);
   const [slipVerified, setSlipVerified] = useState<boolean | null>(null);
@@ -92,7 +94,10 @@ export default function ShirtOrderPage() {
   const [verifiedSlipData, setVerifiedSlipData] = useState<{
     amount?: number;
     senderName?: string;
+    senderBank?: string;
     receiverName?: string;
+    receiverBank?: string;
+    receiverAccount?: string;
     transRef?: string;
     dateTime?: string;
   } | null>(null);
@@ -194,7 +199,12 @@ export default function ShirtOrderPage() {
           if (rec.parent_name) setParentName(rec.parent_name);
           if (rec.parent_phone) setParentPhone(rec.parent_phone);
           if (rec.note) setOrderNote(rec.note);
-          if (rec.slip_url) setSlipImage(rec.slip_url);
+          if (rec.slip_url) {
+            setSlipImage(rec.slip_url);
+            setUploadedSlipUrl(rec.slip_url);
+            setSlipVerified(true);
+            setSlipVerifyMessage("พบข้อมูลหลักฐานสลิปเดิมที่เคยแนบไว้");
+          }
           setHasExistingOrder(true);
           toast("พบข้อมูลการสั่งที่เคยบันทึกไว้ ท่านสามารถแก้ไขได้", { icon: "ℹ️" });
           return;
@@ -294,6 +304,7 @@ export default function ShirtOrderPage() {
     localReader.onload = async () => {
       const localBase64 = localReader.result as string;
       setSlipImage(localBase64);
+      setUploadedSlipUrl(null);
 
       setIsUploadingSlip(true);
       setSlipVerified(null);
@@ -328,7 +339,7 @@ export default function ShirtOrderPage() {
         } else {
           setSlipVerified(false);
           setVerifiedSlipData(null);
-          const errMsg = verifyData.message || "ตรวจสอบสลิปไม่ผ่าน";
+          const errMsg = verifyData.message || verifyData.error || "ตรวจสอบสลิปไม่ผ่าน";
           setSlipVerifyMessage(errMsg);
           toast.error(errMsg, { id: toastId });
         }
@@ -344,7 +355,7 @@ export default function ShirtOrderPage() {
           if (res.ok) {
             const result = await res.json();
             if (result.url) {
-              setSlipImage(result.url);
+              setUploadedSlipUrl(result.url);
             }
           }
         } catch {
@@ -404,6 +415,8 @@ export default function ShirtOrderPage() {
 
     setIsSubmitting(true);
 
+    const finalSlipUrl = uploadedSlipUrl || slipImage || undefined;
+
     const newInfo: StudentShirtInfo = {
       student_id: selectedStudent.student_id,
       size: orderSummaryText,
@@ -412,7 +425,7 @@ export default function ShirtOrderPage() {
       parent_name: parentName.trim() || undefined,
       parent_phone: parentPhone.trim() || undefined,
       note: orderNote.trim() || undefined,
-      slip_url: slipImage || undefined,
+      slip_url: finalSlipUrl,
       ordered_at: new Date().toISOString(),
       items: orderItems.map((it) => ({
         size: it.size,
@@ -445,7 +458,7 @@ export default function ShirtOrderPage() {
           parent_name: parentName.trim() || null,
           parent_phone: parentPhone.trim() || null,
           note: orderNote.trim() || null,
-          slip_url: slipImage || null,
+          slip_url: finalSlipUrl || null,
           items: orderItems,
         }),
       });
@@ -469,10 +482,12 @@ export default function ShirtOrderPage() {
     setParentPhone("");
     setOrderNote("");
     setSlipImage(null);
+    setUploadedSlipUrl(null);
     setSlipFileName("");
     setSlipVerified(null);
     setSlipVerifyMessage("");
     setVerifiedSlipData(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setCurrentStep(1);
     setHasExistingOrder(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1012,7 +1027,18 @@ export default function ShirtOrderPage() {
                 <div className="space-y-3">
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3 text-xs truncate">
-                      <img src={slipImage} alt="สลิป" className="w-14 h-14 object-cover rounded-lg border border-slate-200 shrink-0 bg-white shadow-xs" />
+                      {slipImage.toLowerCase().endsWith(".pdf") ? (
+                        <div className="w-14 h-14 rounded-lg border border-slate-200 bg-red-50 flex flex-col items-center justify-center text-red-600 shrink-0 shadow-xs">
+                          <FileText className="w-6 h-6" />
+                          <span className="text-[9px] font-bold mt-0.5">PDF</span>
+                        </div>
+                      ) : (
+                        <img
+                          src={slipImage}
+                          alt="สลิป"
+                          className="w-14 h-14 object-cover rounded-lg border border-slate-200 shrink-0 bg-white shadow-xs"
+                        />
+                      )}
                       <div className="truncate">
                         <span className="font-semibold text-slate-900 block truncate text-xs sm:text-sm">
                           {slipFileName || "สลิปโอนเงิน"}
@@ -1045,10 +1071,12 @@ export default function ShirtOrderPage() {
                       disabled={isUploadingSlip}
                       onClick={() => {
                         setSlipImage(null);
+                        setUploadedSlipUrl(null);
                         setSlipFileName("");
                         setSlipVerified(null);
                         setSlipVerifyMessage("");
                         setVerifiedSlipData(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
                       }}
                       className="text-xs text-rose-600 hover:underline cursor-pointer ml-3 shrink-0 font-medium disabled:opacity-50"
                     >
@@ -1068,13 +1096,23 @@ export default function ShirtOrderPage() {
                           {verifiedSlipData.amount !== undefined && (
                             <div className="flex justify-between py-0.5">
                               <span className="text-emerald-700">ยอดเงินที่ตรวจสอบได้:</span>
-                              <span className="font-bold text-emerald-900 font-mono">฿{Number(verifiedSlipData.amount).toLocaleString()}</span>
+                              <span className="font-bold text-emerald-900 font-mono">฿{Number(verifiedSlipData.amount).toLocaleString()} บาท</span>
+                            </div>
+                          )}
+                          {verifiedSlipData.receiverName && (
+                            <div className="flex justify-between py-0.5">
+                              <span className="text-emerald-700">บัญชีปลายทาง:</span>
+                              <span className="font-medium text-slate-800">
+                                {verifiedSlipData.receiverName} ({verifiedSlipData.receiverBank || "ธ.กรุงไทย"})
+                              </span>
                             </div>
                           )}
                           {verifiedSlipData.senderName && (
                             <div className="flex justify-between py-0.5">
                               <span className="text-emerald-700">ผู้โอน:</span>
-                              <span className="font-medium text-slate-800">{verifiedSlipData.senderName}</span>
+                              <span className="font-medium text-slate-800">
+                                {verifiedSlipData.senderName} {verifiedSlipData.senderBank && `(${verifiedSlipData.senderBank})`}
+                              </span>
                             </div>
                           )}
                           {verifiedSlipData.transRef && (

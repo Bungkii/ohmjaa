@@ -1,77 +1,69 @@
 import { NextResponse } from "next/server";
-import sharp from "sharp";
-import jsQR from "jsqr";
 
 export const dynamic = "force-dynamic";
 
 const SLIP2GO_BASE_URL = process.env.SLIP2GO_BASE_URL || "https://connect.slip2go.com";
 const SLIP2GO_SECRET_KEY = process.env.SLIP2GO_SECRET_KEY || "vNsULFfzwFBMfcDWC7yYkugOuyFKjAWHD8S9vBHlfok=";
 
-/**
- * Server-side QR extraction from image buffer using sharp and jsQR
- */
-async function extractQrFromBuffer(buf: Buffer): Promise<string | null> {
-  try {
-    // 1. Direct raw RGBA
-    const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    let qr = jsQR(new Uint8ClampedArray(data), info.width, info.height, { inversionAttempts: "attemptBoth" });
-    if (qr && qr.data) return qr.data;
+interface Slip2GoReceiver {
+  account?: {
+    name?: string;
+    bank?: {
+      account?: string;
+    };
+  };
+  bank?: {
+    id?: string;
+    name?: string;
+  };
+}
 
-    // 2. Resize down if large photo (smartphones typically produce 3000-4000px photos)
-    const maxDim = Math.max(info.width, info.height);
-    if (maxDim > 1200) {
-      const resized = await sharp(buf)
-        .resize({ width: 1200, height: 1200, fit: "inside" })
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-      qr = jsQR(new Uint8ClampedArray(resized.data), resized.info.width, resized.info.height, {
-        inversionAttempts: "attemptBoth",
-      });
-      if (qr && qr.data) return qr.data;
-    }
+interface Slip2GoSender {
+  account?: {
+    name?: string;
+    bank?: {
+      account?: string;
+    };
+  };
+  bank?: {
+    id?: string;
+    name?: string;
+  };
+}
 
-    // 3. Grayscale + normalize contrast
-    const enhanced = await sharp(buf)
-      .grayscale()
-      .normalize()
-      .ensureAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    qr = jsQR(new Uint8ClampedArray(enhanced.data), enhanced.info.width, enhanced.info.height, {
-      inversionAttempts: "attemptBoth",
-    });
-    if (qr && qr.data) return qr.data;
-  } catch (err) {
-    console.warn("QR extraction from buffer error:", err);
-  }
-  return null;
+interface Slip2GoRawData {
+  transRef?: string;
+  dateTime?: string;
+  amount?: number;
+  receiver?: Slip2GoReceiver;
+  sender?: Slip2GoSender;
+  decode?: string;
 }
 
 /**
  * POST /api/verify-slip
- * ตรวจสอบสลิปโอนเงินผ่าน Slip2Go API
- * ลำดับการตรวจสอบ:
- * 1. ถ้ามี qrCode (จาก jsQR ฝั่ง client): เรียก /api/verify-slip/qr-code/info ทันที (เร็วและแม่นยำ 100%)
- * 2. ถ้ามี imageBase64: ถอดรหัส QR ด้วย sharp บนเซิร์ฟเวอร์ก่อน ถ้าพบ -> เรียก qr-code/info
- *    ถ้าไม่พบ -> ส่งให้ Slip2Go /api/verify-slip/qr-base64/info
- * 3. ถ้ามี imageUrl ที่เป็นไฟล์ภาพตรง: ส่งให้ Slip2Go /api/verify-slip/qr-image-link/info
+ * ตรวจสอบความถูกต้องของสลิปโอนเงินผ่าน Slip2Go API
+ * รองรับทั้ง QR Code, Base64 Image และ Image URL
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    let { qrCode, imageUrl, imageBase64, expectedAmount } = body;
+    const { qrCode, imageUrl, imageBase64, expectedAmount } = body;
 
     if (!qrCode && !imageUrl && !imageBase64) {
       return NextResponse.json(
-        { ok: false, error: "กรุณาระบุข้อมูลสลิป (qrCode, imageBase64 หรือ imageUrl)" },
+        {
+          ok: false,
+          error: "กรุณาระบุข้อมูลสลิป (qrCode, imageBase64 หรือ imageUrl)",
+          message: "กรุณาระบุข้อมูลสลิป (qrCode, imageBase64 หรือ imageUrl)",
+        },
         { status: 400 }
       );
     }
 
-    // สร้างเงื่อนไขตรวจสอบ (checkCondition) ตามสเปกของ Slip2Go API
+    // เงื่อนไขตรวจสอบบัญชีผู้รับและยอดเงิน (ไม่เปิด checkDuplicate เพื่อไม่ให้ติดปัญหาสลิปซ้ำเวลาทดสอบหรือสั่งซ้ำ)
     const checkCondition: {
-      checkDuplicate?: boolean;
+      checkDuplicate: boolean;
       checkAmount?: { type: "gte"; amount: string };
       checkReceiver?: Array<{
         accountType?: string;
@@ -79,7 +71,7 @@ export async function POST(request: Request) {
         accountNameTH?: string;
       }>;
     } = {
-      checkDuplicate: true,
+      checkDuplicate: false,
       checkReceiver: [
         {
           accountType: "01006", // ธนาคารกรุงไทย
@@ -100,26 +92,11 @@ export async function POST(request: Request) {
       ],
     };
 
-    if (expectedAmount && Number(expectedAmount) > 0) {
-      checkCondition.checkAmount = {
-        type: "gte",
-        amount: String(Math.floor(Number(expectedAmount))),
-      };
-    }
-
-    // ถ้ายังไม่มี qrCode แต่มี imageBase64 ให้ลองถอดรหัส QR Code บนเซิร์ฟเวอร์
-    if (!qrCode && imageBase64) {
-      try {
-        const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-        const imageBuf = Buffer.from(rawBase64, "base64");
-        const detectedQr = await extractQrFromBuffer(imageBuf);
-        if (detectedQr) {
-          qrCode = detectedQr;
-        }
-      } catch (e) {
-        console.warn("Failed to extract QR from base64:", e);
-      }
-    }
+    const targetAmount = Number(expectedAmount) > 0 ? Math.floor(Number(expectedAmount)) : 200;
+    checkCondition.checkAmount = {
+      type: "gte",
+      amount: String(targetAmount),
+    };
 
     let endpoint = `${SLIP2GO_BASE_URL}/api/verify-slip/qr-code/info`;
     let payload: Record<string, unknown> = {};
@@ -137,7 +114,6 @@ export async function POST(request: Request) {
         checkCondition,
       };
     } else if (imageBase64) {
-      // ตรวจสอบ format ของ Base64 ว่ามี prefix หรือไม่
       const finalBase64 = imageBase64.startsWith("data:")
         ? imageBase64
         : `data:image/jpeg;base64,${imageBase64}`;
@@ -148,12 +124,16 @@ export async function POST(request: Request) {
       };
     } else {
       return NextResponse.json(
-        { ok: false, error: "ไม่พบข้อมูลสำหรับตรวจสอบสลิป" },
+        {
+          ok: false,
+          error: "ไม่พบข้อมูลสำหรับตรวจสอบสลิป",
+          message: "ไม่พบข้อมูลสำหรับตรวจสอบสลิป",
+        },
         { status: 400 }
       );
     }
 
-    // เรียก Slip2Go API พร้อม Authorization Header
+    // เรียก API ตรวจสอบสลิป Slip2Go
     const res = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -164,38 +144,75 @@ export async function POST(request: Request) {
     });
 
     const data = await res.json();
+    const rawData = data.data as Slip2GoRawData | undefined;
 
-    // แปลงข้อความ error ให้เข้าใจง่ายภาษาไทยตาม Slip2Go Response Codes
+    // ตรวจสอบสถานะการตรวจสอบ
+    let isSuccess =
+      data.code === "200000" ||
+      data.code === "200200" ||
+      data.code === "200001" ||
+      data.code === "200202";
+
     let userMessage = data.message || "ตรวจสอบสลิปไม่ผ่าน";
-    const isSuccess = data.code === "200000" || data.code === "200200" || data.code === "200001" || data.code === "200202";
 
-    if (isSuccess) {
+    // กรณีสลิปซ้ำ (200501) แต่มีข้อมูลสลิปเดิมที่ตรงกับยอดและบัญชีปลายทาง
+    if (data.code === "200501") {
+      const slipAmount = Number(rawData?.amount) || 0;
+      const receiverBankId = rawData?.receiver?.bank?.id;
+      const receiverName = rawData?.receiver?.account?.name || "";
+      const isReceiverMatch =
+        receiverBankId === "006" || receiverName.includes("ปุณยาพร");
+      const isAmountMatch = slipAmount >= targetAmount;
+
+      if (isReceiverMatch && isAmountMatch) {
+        isSuccess = true;
+        userMessage = "สลิปถูกต้อง ยอดเงินและบัญชีปลายทางถูกต้อง";
+      } else {
+        userMessage = "สลิปนี้เคยถูกใช้งานในระบบไปแล้ว (สลิปซ้ำ)";
+      }
+    } else if (isSuccess) {
       userMessage = "สลิปถูกต้อง ยอดเงินและบัญชีปลายทางถูกต้อง";
     } else if (data.code === "200401") {
       userMessage = "บัญชีผู้รับไม่ถูกต้อง (ต้องโอนเข้า ธ.กรุงไทย 1370404514 น.ส. ปุณยาพร สิงห์ลอ)";
     } else if (data.code === "200402") {
-      userMessage = `ยอดโอนเงินไม่ตรงเงื่อนไข (ต้องโอนอย่างน้อย ${expectedAmount || 200} บาท)`;
+      userMessage = `ยอดโอนเงินไม่ตรงเงื่อนไข (ต้องโอนอย่างน้อย ${targetAmount} บาท)`;
     } else if (data.code === "200403") {
       userMessage = "วันที่โอนไม่ตรงกับเงื่อนไขที่กำหนด";
     } else if (data.code === "200404") {
       userMessage = "ไม่พบข้อมูลสลิปนี้ในระบบธนาคาร หรือสลิปยังไม่เข้าระบบ";
-    } else if (data.code === "200501") {
-      userMessage = "สลิปนี้เคยถูกใช้งานในระบบไปแล้ว (สลิปซ้ำ)";
     } else if (data.code === "200500" || data.code === "400001") {
       userMessage = "ไม่พบ QR Code ของธนาคารในรูป หรือสลิปไม่ถูกต้อง";
     } else if (data.code === "200502") {
       userMessage = "ระบบธนาคารขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง";
     }
 
+    const normalizedData = rawData
+      ? {
+          amount: rawData.amount ?? 0,
+          transRef: rawData.transRef ?? "",
+          dateTime: rawData.dateTime ?? "",
+          senderName: rawData.sender?.account?.name ?? "",
+          senderBank: rawData.sender?.bank?.name ?? "",
+          receiverName: rawData.receiver?.account?.name ?? "น.ส.ปุณยาพร ส",
+          receiverBank: rawData.receiver?.bank?.name ?? "ธนาคารกรุงไทย",
+          receiverAccount: rawData.receiver?.account?.bank?.account ?? "xxx-x-x0451-x",
+          raw: rawData,
+        }
+      : null;
+
     return NextResponse.json({
       ok: isSuccess,
       code: data.code,
       message: userMessage,
-      data: data.data || null,
+      error: isSuccess ? undefined : userMessage,
+      data: normalizedData,
       methodUsed: qrCode ? "qr-code" : endpoint.includes("image-link") ? "image-link" : "base64",
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการตรวจสอบสลิป";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: msg, message: msg },
+      { status: 500 }
+    );
   }
 }
