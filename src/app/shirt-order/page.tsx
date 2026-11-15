@@ -474,11 +474,6 @@ export default function ShirtOrderPage() {
       return;
     }
 
-    if (slipVerified !== true) {
-      toast.error("กรุณารอตรวจสอบสลิปให้ผ่าน หรือแนบสลิปที่ถูกต้องก่อนยืนยัน");
-      return;
-    }
-
     setIsSubmitting(true);
 
     const finalSlipUrl = uploadedSlipUrl || slipImage || undefined;
@@ -1205,16 +1200,16 @@ export default function ShirtOrderPage() {
                   )}
 
                   {slipVerified === false && (
-                    <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-1">
-                      <div className="flex items-center gap-2 font-bold text-rose-700">
-                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                        <span>สลิปไม่ผ่านการตรวจสอบ</span>
+                    <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
+                      <div className="flex items-center gap-2 font-bold text-amber-800">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>สลิปยังไม่ผ่านการตรวจสอบอัตโนมัติ (สถานะ: ยังไม่ชำระ)</span>
                       </div>
-                      <p className="text-[11px] text-rose-700 leading-relaxed font-medium">
-                        {slipVerifyMessage || "ระบบไม่สามารถตรวจสอบความถูกต้องของสลิปได้"}
+                      <p className="text-[11px] text-amber-800 leading-relaxed font-medium">
+                        {slipVerifyMessage || "ระบบไม่สามารถตรวจสอบความถูกต้องของสลิปได้อัตโนมัติ"}
                       </p>
-                      <p className="text-[10px] text-rose-600 mt-1">
-                        กรุณากดปุ่ม <strong>&quot;เปลี่ยนรูปใหม่&quot;</strong> เพื่อแนบสลิปที่โอนในวันนี้ และโอนเข้าบัญชี น.ส. ปุณยาพร สิงห์ลอ (ธ.กรุงไทย) ยอดเงินครบถ้วน
+                      <p className="text-[10px] text-amber-700 mt-1">
+                        * ระบบบันทึกเป็น <strong>&ldquo;ยังไม่ชำระ&rdquo;</strong> เพื่อให้คุณครูตรวจสอบสลิปด้วยตนเองภายหลัง แต่ท่านสามารถกดยืนยันคำสั่งซื้อเพื่อส่งข้อมูลได้ทันที
                       </p>
                     </div>
                   )}
@@ -1236,7 +1231,7 @@ export default function ShirtOrderPage() {
               <button
                 type="button"
                 onClick={handleFinalSubmitOrder}
-                disabled={isSubmitting || isUploadingSlip || !slipImage || slipVerified !== true}
+                disabled={isSubmitting || isUploadingSlip || !slipImage}
                 className="flex-1 py-2.5 bg-[#a31e1e] hover:bg-[#881919] disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (
@@ -1249,15 +1244,13 @@ export default function ShirtOrderPage() {
                     <RefreshCw className="w-4 h-4 animate-spin" />
                     <span>กำลังตรวจสอบสลิป...</span>
                   </>
-                ) : slipVerified !== true ? (
-                  <>
-                    <AlertCircle className="w-4 h-4" />
-                    <span>ต้องแนบและยืนยันสลิปก่อนสั่งซื้อ</span>
-                  </>
                 ) : (
                   <>
                     <FileCheck className="w-4 h-4" />
-                    <span>ยืนยันคำสั่งซื้อ ({totalPrice.toLocaleString()} บาท)</span>
+                    <span>
+                      ยืนยันคำสั่งซื้อ ({totalPrice.toLocaleString()} บาท)
+                      {slipVerified === false && " • รอครูตรวจสลิป"}
+                    </span>
                   </>
                 )}
               </button>
@@ -1300,9 +1293,9 @@ export default function ShirtOrderPage() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">สถานะสลิป:</span>
-                <span className={slipImage ? "text-emerald-700 font-medium" : "text-amber-700 font-medium"}>
-                  {slipImage ? "แนบสลิปเรียบร้อย" : "ยังไม่ได้แนบสลิป"}
+                <span className="text-slate-500">สถานะการชำระเงิน:</span>
+                <span className={slipVerified === true ? "text-emerald-700 font-bold" : "text-amber-700 font-bold"}>
+                  {slipVerified === true ? "ชำระเงินแล้ว (ผ่านการตรวจสอบ ✓)" : "ยังไม่ชำระเงิน (รอคุณครูตรวจสอบสลิป)"}
                 </span>
               </div>
             </div>
