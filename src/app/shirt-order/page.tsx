@@ -63,11 +63,11 @@ export default function ShirtOrderPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
-  // Form Fields: รองรับการสั่งหลายไซส์ หลายตัว เช่น L 1 ตัว, M 2 ตัว
+  // Form Fields: รองรับการสั่งหลายไซส์ หลายตัว เช่น L 1 ตัว, M 2 ตัว (เริ่มต้นเป็น 0 ทุกไซส์ เพื่อให้ผู้ปกครองกดเลือกไซส์ที่ต้องการเอง)
   const [sizeQuantities, setSizeQuantities] = useState<Record<ShirtSize, number>>({
     XS: 0,
     S: 0,
-    M: 1, // ค่าเริ่มต้น 1 ตัว
+    M: 0,
     L: 0,
     XL: 0,
     "2XL": 0,
@@ -543,7 +543,7 @@ export default function ShirtOrderPage() {
   const handleResetForm = () => {
     setSelectedStudent(null);
     setSizeQuantities({
-      XS: 0, S: 0, M: 1, L: 0, XL: 0, "2XL": 0, "3XL": 0, "4XL": 0, "5XL": 0, Other: 0, "": 0,
+      XS: 0, S: 0, M: 0, L: 0, XL: 0, "2XL": 0, "3XL": 0, "4XL": 0, "5XL": 0, Other: 0, "": 0,
     });
     setSelectedSize("M");
     setQuantity(1);
@@ -1287,10 +1287,10 @@ export default function ShirtOrderPage() {
                   {selectedStudent?.prefix}{selectedStudent?.first_name} {selectedStudent?.last_name} (#{selectedStudent?.student_no})
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">ขนาดไซส์ & จำนวน:</span>
-                <span className="font-bold text-slate-800">
-                  ไซส์ {selectedSize} ({quantity} ตัว)
+              <div className="flex justify-between items-start">
+                <span className="text-slate-500 shrink-0">ขนาดไซส์ & จำนวน:</span>
+                <span className="font-bold text-slate-800 text-right">
+                  {orderSummaryText} (รวม {totalQuantity} ตัว)
                 </span>
               </div>
               <div className="flex justify-between">

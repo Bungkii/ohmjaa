@@ -24,7 +24,18 @@ export default async function HomePage() {
     ]);
 
     if (studentsRes.data && studentsRes.data.length > 0) {
-      students = studentsRes.data as Student[];
+      // รวมข้อมูลจาก Supabase โดยผสานชื่อเล่นและข้อมูลล่าสุดจาก src/data/students.json
+      const localMap = new Map((fallbackStudents as unknown as Student[]).map((s) => [s.student_id, s]));
+      students = (studentsRes.data as Student[]).map((s) => {
+        const local = localMap.get(s.student_id);
+        return {
+          ...s,
+          nickname: local?.nickname ?? s.nickname,
+          first_name: local?.first_name ?? s.first_name,
+          last_name: local?.last_name ?? s.last_name,
+          full_name: local?.full_name ?? s.full_name,
+        };
+      });
     }
     if (recordsRes.data) {
       records = recordsRes.data as PenaltyRecord[];
