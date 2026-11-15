@@ -88,6 +88,36 @@ const ROLE_CONFIGS: Record<ActivityRoleType, { label: string; icon: React.Elemen
   none: { label: "ยังไม่ระบุ", icon: Info, badgeBg: "bg-slate-50 border-slate-200", textColor: "text-slate-400" },
 };
 
+// Helper แยกรายการไซส์และจำนวน เช่น "S × 1, M × 2" หรือ "L × 2" หรือ "L"
+function parseShirtItems(sizeStr?: string, fallbackQty = 1): { size: ShirtSize; quantity: number }[] {
+  if (!sizeStr || typeof sizeStr !== "string") return [];
+  const parts = sizeStr.split(",").map((s) => s.trim()).filter(Boolean);
+  const items: { size: ShirtSize; quantity: number }[] = [];
+  for (const part of parts) {
+    const match = part.match(/^([A-Za-z0-9]+)\s*[×x*]\s*(\d+)/i);
+    if (match) {
+      items.push({
+        size: match[1].toUpperCase() as ShirtSize,
+        quantity: parseInt(match[2], 10) || 1,
+      });
+    } else if (part) {
+      items.push({
+        size: part as ShirtSize,
+        quantity: fallbackQty > 0 ? fallbackQty : 1,
+      });
+    }
+  }
+  return items;
+}
+
+// Helper รวมรายการไซส์กลับเป็นข้อความ เช่น "L × 2"
+function formatShirtSizeStr(items: { size: ShirtSize; quantity: number }[]): string {
+  if (!items || items.length === 0) return "";
+  return items
+    .map((it) => (it.quantity > 1 ? `${it.size} × ${it.quantity}` : `${it.size} × 1`))
+    .join(", ");
+}
+
 interface ActivitiesAndGroupingProps {
   students: Student[];
 }
@@ -441,14 +471,39 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
   const handleSetShirtSize = (studentId: string, size: ShirtSize) => {
     const student = students.find((s) => s.student_id === studentId);
     const prev = shirtRecords[studentId] || { student_id: studentId, size: "", quantity: 1 };
-    const nextSize = prev.size === size ? "" : size; // Toggle off if clicked again
+    const items = parseShirtItems(prev.size, prev.quantity);
+
+    let nextItems: { size: ShirtSize; quantity: number }[] = [];
+    const currentQty = prev.quantity && prev.quantity > 0 ? prev.quantity : 1;
+
+    if (!size) {
+      // Clear
+      nextItems = [];
+    } else {
+      const matchIdx = items.findIndex((it) => it.size === size);
+      if (matchIdx >= 0) {
+        // Toggle off if only this size
+        if (items.length === 1) {
+          nextItems = [];
+        } else {
+          nextItems = items.filter((_, idx) => idx !== matchIdx);
+        }
+      } else {
+        // Single size selected with preserved quantity
+        nextItems = [{ size, quantity: currentQty }];
+      }
+    }
+
+    const nextSizeStr = formatShirtSizeStr(nextItems);
+    const nextTotalQty = nextItems.reduce((sum, it) => sum + it.quantity, 0) || (nextSizeStr ? 1 : 0);
+
     const updated = {
       ...shirtRecords,
       [studentId]: {
         ...prev,
         student_id: studentId,
-        size: nextSize,
-        quantity: prev.quantity || 1,
+        size: nextSizeStr,
+        quantity: nextTotalQty,
       },
     };
     saveShirtRecords(updated);
@@ -462,8 +517,8 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
         student_no: student?.student_no,
         student_name: student ? `${student.prefix}${student.first_name} ${student.last_name}` : "",
         student_nickname: student?.nickname || null,
-        size: nextSize,
-        quantity: prev.quantity || 1,
+        size: nextSizeStr,
+        quantity: nextTotalQty,
       }),
     }).catch(() => {});
   };
@@ -471,14 +526,29 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
   const handleSetShirtQuantity = (studentId: string, delta: number) => {
     const student = students.find((s) => s.student_id === studentId);
     const prev = shirtRecords[studentId] || { student_id: studentId, size: "", quantity: 1 };
-    const currentQty = prev.quantity || 1;
+    const items = parseShirtItems(prev.size, prev.quantity);
+    const currentQty = prev.quantity && prev.quantity > 0 ? prev.quantity : 1;
     const nextQty = Math.max(1, Math.min(20, currentQty + delta));
+
+    let nextItems: { size: ShirtSize; quantity: number }[] = [];
+    if (items.length <= 1) {
+      const singleSize = items[0]?.size || (prev.size ? (prev.size as ShirtSize) : "M");
+      nextItems = [{ size: singleSize, quantity: nextQty }];
+    } else {
+      // If multiple sizes, adjust the first item or scale
+      nextItems = items.map((it, idx) => (idx === 0 ? { ...it, quantity: Math.max(1, it.quantity + delta) } : it));
+    }
+
+    const nextSizeStr = formatShirtSizeStr(nextItems);
+    const nextTotalQty = nextItems.reduce((sum, it) => sum + it.quantity, 0);
+
     const updated = {
       ...shirtRecords,
       [studentId]: {
         ...prev,
         student_id: studentId,
-        quantity: nextQty,
+        size: nextSizeStr,
+        quantity: nextTotalQty,
       },
     };
     saveShirtRecords(updated);
@@ -492,7 +562,8 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
         student_no: student?.student_no,
         student_name: student ? `${student.prefix}${student.first_name} ${student.last_name}` : "",
         student_nickname: student?.nickname || null,
-        quantity: nextQty,
+        size: nextSizeStr,
+        quantity: nextTotalQty,
       }),
     }).catch(() => {});
   };
@@ -548,7 +619,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
     }).catch(() => {});
   };
 
-  // Summary counts of shirt sizes (takes quantity per student into account)
+  // Summary counts of shirt sizes (takes quantity per student and multi-size items into account)
   const shirtSummary = useMemo(() => {
     const counts: Record<string, number> = {
       XS: 0,
@@ -569,12 +640,19 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
 
     students.forEach((s) => {
       const rec = shirtRecords[s.student_id];
-      const qty = rec?.quantity && rec.quantity > 0 ? rec.quantity : 1;
+      const items = parseShirtItems(rec?.size, rec?.quantity);
 
-      if (rec?.size && counts[rec.size] !== undefined) {
-        counts[rec.size] += qty;
-        totalShirts += qty;
+      if (items.length > 0) {
         studentCountWithShirt++;
+        items.forEach((it) => {
+          const qty = it.quantity > 0 ? it.quantity : 1;
+          if (counts[it.size] !== undefined) {
+            counts[it.size] += qty;
+          } else {
+            counts.Other += qty;
+          }
+          totalShirts += qty;
+        });
       } else {
         counts.unspecified++;
       }
@@ -660,11 +738,19 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
 
       // Size filter
       if (sizeFilter !== "all") {
-        const size = shirtRecords[s.student_id]?.size || "";
-        if (sizeFilter === "unspecified" && size !== "") return false;
-        if (sizeFilter === "unpaid" && shirtRecords[s.student_id]?.paid) return false;
-        if (sizeFilter === "has_slip" && !shirtRecords[s.student_id]?.slip_url) return false;
-        if (sizeFilter !== "unspecified" && sizeFilter !== "unpaid" && sizeFilter !== "has_slip" && size !== sizeFilter) return false;
+        const rec = shirtRecords[s.student_id];
+        const items = parseShirtItems(rec?.size, rec?.quantity);
+        if (sizeFilter === "unspecified" && items.length > 0) return false;
+        if (sizeFilter === "unpaid" && rec?.paid) return false;
+        if (sizeFilter === "has_slip" && !rec?.slip_url) return false;
+        if (
+          sizeFilter !== "unspecified" &&
+          sizeFilter !== "unpaid" &&
+          sizeFilter !== "has_slip" &&
+          !items.some((it) => it.size === sizeFilter)
+        ) {
+          return false;
+        }
       }
 
       // Role filter
@@ -1371,6 +1457,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                     {filteredStudents.map((student) => {
                       const shirt = shirtRecords[student.student_id];
                       const selectedSize = shirt?.size || "";
+                      const items = parseShirtItems(selectedSize, shirt?.quantity);
                       const isPaid = !!shirt?.paid;
 
                       return (
@@ -1392,20 +1479,29 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                           </td>
                           <td className="py-2.5 px-3">
                             <div className="flex flex-wrap items-center gap-1">
-                              {STANDARD_SHIRT_SIZES.slice(0, 9).map((size) => (
-                                <button
-                                  key={size}
-                                  type="button"
-                                  onClick={() => handleSetShirtSize(student.student_id, size)}
-                                  className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                                    selectedSize === size
-                                      ? "bg-[#16453d] text-white border-[#16453d] shadow-xs scale-105"
-                                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                                  }`}
-                                >
-                                  {size}
-                                </button>
-                              ))}
+                              {STANDARD_SHIRT_SIZES.slice(0, 9).map((size) => {
+                                const matchedItem = items.find((it) => it.size === size);
+                                const isSelected = !!matchedItem;
+                                return (
+                                  <button
+                                    key={size}
+                                    type="button"
+                                    onClick={() => handleSetShirtSize(student.student_id, size)}
+                                    className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                                      isSelected
+                                        ? "bg-[#16453d] text-white border-[#16453d] shadow-xs scale-105"
+                                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    <span>{size}</span>
+                                    {matchedItem && matchedItem.quantity > 1 && (
+                                      <span className="text-[10px] bg-white/20 px-1 rounded-sm">
+                                        ×{matchedItem.quantity}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
                               {selectedSize && (
                                 <button
                                   type="button"
