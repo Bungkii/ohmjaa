@@ -192,7 +192,47 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
     }, 150);
   };
 
-  // Load from localStorage on mount
+  const [isSyncingOrders, setIsSyncingOrders] = useState(false);
+
+  // Sync latest parent shirt orders & slips from database
+  const refreshShirtOrdersFromDb = async () => {
+    setIsSyncingOrders(true);
+    try {
+      const res = await fetch("/api/shirt-orders", { cache: "no-store" });
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.orders)) {
+        setShirtRecords((prev) => {
+          const merged = { ...prev };
+          for (const order of data.orders) {
+            merged[order.student_id] = {
+              ...(merged[order.student_id] || {}),
+              student_id: order.student_id,
+              size: order.size || "",
+              quantity: order.quantity || 1,
+              custom_size: order.custom_size || undefined,
+              paid: order.status === "paid" || !!merged[order.student_id]?.paid,
+              slip_url: order.slip_url || merged[order.student_id]?.slip_url,
+              parent_name: order.parent_name || undefined,
+              parent_phone: order.parent_phone || undefined,
+              note: order.note || merged[order.student_id]?.note,
+              ordered_at: order.updated_at || order.created_at,
+            };
+          }
+          try {
+            localStorage.setItem("ohmjaa_shirt_sizes_v1", JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+        toast.success(`ซิงค์ข้อมูลกับฐานข้อมูลสำเร็จ (${data.orders.length} รายการ)`, { id: "sync-orders" });
+      }
+    } catch {
+      toast.error("ไม่สามารถเชื่อมต่อฐานข้อมูลได้", { id: "sync-orders" });
+    } finally {
+      setIsSyncingOrders(false);
+    }
+  };
+
+  // Load from localStorage on mount and auto-sync from Supabase DB
   useEffect(() => {
     try {
       const savedSizes = localStorage.getItem("ohmjaa_shirt_sizes_v1");
@@ -210,36 +250,8 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       // Ignore local storage parse error
     }
 
-    // Sync latest parent shirt orders & slips from database
-    fetch("/api/shirt-orders")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.ok && Array.isArray(data.orders)) {
-          setShirtRecords((prev) => {
-            const merged = { ...prev };
-            for (const order of data.orders) {
-              merged[order.student_id] = {
-                ...(merged[order.student_id] || {}),
-                student_id: order.student_id,
-                size: order.size || "",
-                quantity: order.quantity || 1,
-                custom_size: order.custom_size || undefined,
-                paid: order.status === "paid" || !!merged[order.student_id]?.paid,
-                slip_url: order.slip_url || merged[order.student_id]?.slip_url,
-                parent_name: order.parent_name || undefined,
-                parent_phone: order.parent_phone || undefined,
-                note: order.note || merged[order.student_id]?.note,
-                ordered_at: order.updated_at || order.created_at,
-              };
-            }
-            try {
-              localStorage.setItem("ohmjaa_shirt_sizes_v1", JSON.stringify(merged));
-            } catch {}
-            return merged;
-          });
-        }
-      })
-      .catch(() => {});
+    // Auto-fetch latest parent shirt orders & slips from database
+    refreshShirtOrdersFromDb();
   }, []);
 
   // Save to localStorage when updated
@@ -1350,6 +1362,17 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                 >
                   <Copy className="w-3.5 h-3.5 text-emerald-600" />
                   <span>คัดลอกลิงก์ส่งไลน์</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={refreshShirtOrdersFromDb}
+                  disabled={isSyncingOrders}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+                  title="ดึงข้อมูลคำสั่งซื้อและสลิปล่าสุดจากฐานข้อมูล Supabase"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 text-sky-600 ${isSyncingOrders ? "animate-spin" : ""}`} />
+                  <span>{isSyncingOrders ? "กำลังซิงค์..." : "ซิงค์กับ DB 🔄"}</span>
                 </button>
 
                 <button
