@@ -385,14 +385,19 @@ export default function ShirtOrderPage() {
           }),
         }).then((r) => r.json());
 
-        // 2. อัปโหลดเก็บไฟล์ขึ้น Cloudflare Storage (storage.cnintercon.tech) ในเวลาเดียวกัน
+        // 2. อัปโหลดเก็บไฟล์รูปภาพขึ้น Cloudflare Storage (storage.cnintercon.tech) แบบ raw image
         const uploadPromise = (async () => {
           try {
-            const formData = new FormData();
-            formData.append("file", file, file.name);
-            const res = await fetch("https://storage.cnintercon.tech/upload", {
+            const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+            const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
+            const uniqueFilename = `slip_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
+
+            const res = await fetch(`https://storage.cnintercon.tech/upload/${uniqueFilename}`, {
               method: "POST",
-              body: formData,
+              headers: {
+                "Content-Type": file.type || "image/jpeg",
+              },
+              body: file,
             });
             if (res.ok) {
               const result = await res.json();

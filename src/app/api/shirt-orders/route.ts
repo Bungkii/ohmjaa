@@ -111,22 +111,68 @@ export async function POST(request: Request) {
 }
 
 /**
- * PATCH: Update order status (e.g. 'paid' or 'pending') by teacher
+ * PATCH: Update order details (size, quantity, status, note) by teacher or parent
  */
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { student_id, status } = body;
+    const { student_id, ...updates } = body;
     if (!student_id) {
       return NextResponse.json({ ok: false, error: 'Missing student_id' }, { status: 400 });
     }
 
     const supabase = createClient();
-    const { data, error } = await supabase
+    const updatePayload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.status !== undefined) updatePayload.status = updates.status;
+    if (updates.size !== undefined) updatePayload.size = updates.size;
+    if (updates.quantity !== undefined) updatePayload.quantity = Number(updates.quantity) || 1;
+    if (updates.note !== undefined) updatePayload.note = updates.note;
+    if (updates.slip_url !== undefined) updatePayload.slip_url = updates.slip_url;
+
+    // Check if record exists
+    const { data: existing } = await supabase
       .from('ohmjaa_shirt_orders')
-      .update({ status: status || 'pending', updated_at: new Date().toISOString() })
+      .select('student_id')
       .eq('student_id', student_id)
-      .select();
+      .maybeSingle();
+
+    let data;
+    let error;
+
+    if (existing) {
+      const res = await supabase
+        .from('ohmjaa_shirt_orders')
+        .update(updatePayload)
+        .eq('student_id', student_id)
+        .select();
+      data = res.data;
+      error = res.error;
+    } else {
+      // If no record exists yet, create one for this student
+      const insertPayload = {
+        student_id,
+        student_no: Number(updates.student_no) || 0,
+        student_name: updates.student_name || '',
+        student_nickname: updates.student_nickname || null,
+        size: updates.size || '',
+        quantity: Number(updates.quantity) || 1,
+        unit_price: 200,
+        total_price: (Number(updates.quantity) || 1) * 200,
+        status: updates.status || 'pending',
+        note: updates.note || null,
+        slip_url: updates.slip_url || null,
+        ...updatePayload,
+      };
+      const res = await supabase
+        .from('ohmjaa_shirt_orders')
+        .insert(insertPayload)
+        .select();
+      data = res.data;
+      error = res.error;
+    }
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 200 });

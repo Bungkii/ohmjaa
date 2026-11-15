@@ -439,20 +439,37 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
   // SHIRT SIZES LOGIC
   // ==========================================
   const handleSetShirtSize = (studentId: string, size: ShirtSize) => {
+    const student = students.find((s) => s.student_id === studentId);
     const prev = shirtRecords[studentId] || { student_id: studentId, size: "", quantity: 1 };
+    const nextSize = prev.size === size ? "" : size; // Toggle off if clicked again
     const updated = {
       ...shirtRecords,
       [studentId]: {
         ...prev,
         student_id: studentId,
-        size: prev.size === size ? "" : size, // Toggle off if clicked again
+        size: nextSize,
         quantity: prev.quantity || 1,
       },
     };
     saveShirtRecords(updated);
+
+    // Sync to Supabase DB ทันที
+    fetch("/api/shirt-orders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: studentId,
+        student_no: student?.student_no,
+        student_name: student ? `${student.prefix}${student.first_name} ${student.last_name}` : "",
+        student_nickname: student?.nickname || null,
+        size: nextSize,
+        quantity: prev.quantity || 1,
+      }),
+    }).catch(() => {});
   };
 
   const handleSetShirtQuantity = (studentId: string, delta: number) => {
+    const student = students.find((s) => s.student_id === studentId);
     const prev = shirtRecords[studentId] || { student_id: studentId, size: "", quantity: 1 };
     const currentQty = prev.quantity || 1;
     const nextQty = Math.max(1, Math.min(20, currentQty + delta));
@@ -465,9 +482,23 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       },
     };
     saveShirtRecords(updated);
+
+    // Sync to Supabase DB ทันที
+    fetch("/api/shirt-orders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: studentId,
+        student_no: student?.student_no,
+        student_name: student ? `${student.prefix}${student.first_name} ${student.last_name}` : "",
+        student_nickname: student?.nickname || null,
+        quantity: nextQty,
+      }),
+    }).catch(() => {});
   };
 
   const handleToggleShirtPaid = (studentId: string) => {
+    const student = students.find((s) => s.student_id === studentId);
     const prev = shirtRecords[studentId] || { student_id: studentId, size: "", quantity: 1 };
     const nextPaid = !prev.paid;
     const updated = {
@@ -480,12 +511,15 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
     };
     saveShirtRecords(updated);
 
-    // Sync to Supabase
+    // Sync to Supabase DB ทันที
     fetch("/api/shirt-orders", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         student_id: studentId,
+        student_no: student?.student_no,
+        student_name: student ? `${student.prefix}${student.first_name} ${student.last_name}` : "",
+        student_nickname: student?.nickname || null,
         status: nextPaid ? "paid" : "pending",
       }),
     }).catch(() => {});
@@ -502,6 +536,16 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
       },
     };
     saveShirtRecords(updated);
+
+    // Sync to Supabase DB
+    fetch("/api/shirt-orders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: studentId,
+        note,
+      }),
+    }).catch(() => {});
   };
 
   // Summary counts of shirt sizes (takes quantity per student into account)
