@@ -36,6 +36,8 @@ import {
   Timer,
   Dice5,
   Receipt,
+  Minus,
+  RotateCcw,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, Description } from "@headlessui/react";
@@ -167,7 +169,116 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
   const [showBottomSignatures, setShowBottomSignatures] = useState(true);
   const [signature1Title, setSignature1Title] = useState("ครูประจำชั้น ม.2/3");
   const [signature2Title, setSignature2Title] = useState("หัวหน้าห้อง ม.2/3");
+  const [showShirtSummaryTable, setShowShirtSummaryTable] = useState(true);
+  const [printTableDensity, setPrintTableDensity] = useState<"compact" | "normal" | "spacious">("normal");
+
+  const DEFAULT_SIZES_COLUMN_WIDTHS: Record<string, number> = {
+    studentNo: 38,
+    studentId: 58,
+    name: 180,
+    nickname: 52,
+    mainData: 56, // ไซส์เสื้อ
+    secondaryData: 74, // สถานะชำระเงิน
+    note: 96,
+    signatureCell: 110,
+  };
+
+  const DEFAULT_ROLES_COLUMN_WIDTHS: Record<string, number> = {
+    studentNo: 38,
+    studentId: 58,
+    name: 170,
+    nickname: 52,
+    mainData: 110,
+    secondaryData: 120,
+    note: 90,
+    signatureCell: 100,
+  };
+
+  const [printColumnWidths, setPrintColumnWidths] = useState<Record<string, number>>(DEFAULT_SIZES_COLUMN_WIDTHS);
   const reportPrintRef = useRef<HTMLDivElement | null>(null);
+
+  const currentColumnConfigs = useMemo(() => {
+    if (printDocType === "roles") {
+      return [
+        { key: "studentNo", label: "เลขที่", defaultWidth: 38, min: 28, max: 70, step: 2 },
+        { key: "studentId", label: "รหัสประจำตัว", defaultWidth: 58, min: 40, max: 90, step: 2 },
+        { key: "name", label: "ชื่อ - สกุล", defaultWidth: 170, min: 110, max: 280, step: 5 },
+        { key: "nickname", label: "ชื่อเล่น", defaultWidth: 52, min: 36, max: 80, step: 2 },
+        { key: "mainData", label: "หน้าที่ที่มอบหมาย", defaultWidth: 110, min: 60, max: 180, step: 5 },
+        { key: "secondaryData", label: "รายละเอียดหน้าที่", defaultWidth: 120, min: 60, max: 200, step: 5 },
+        { key: "note", label: "หมายเหตุ", defaultWidth: 90, min: 50, max: 180, step: 5 },
+        { key: "signatureCell", label: "ช่องเซ็นชื่อ", defaultWidth: 100, min: 60, max: 200, step: 5 },
+      ];
+    }
+    return [
+      { key: "studentNo", label: "เลขที่", defaultWidth: 38, min: 28, max: 70, step: 2 },
+      { key: "studentId", label: "รหัสประจำตัว", defaultWidth: 58, min: 40, max: 90, step: 2 },
+      { key: "name", label: "ชื่อ - สกุล", defaultWidth: 180, min: 110, max: 300, step: 5 },
+      { key: "nickname", label: "ชื่อเล่น", defaultWidth: 52, min: 36, max: 80, step: 2 },
+      { key: "mainData", label: "ไซส์เสื้อ", defaultWidth: 56, min: 36, max: 120, step: 2 },
+      { key: "secondaryData", label: "สถานะชำระเงิน", defaultWidth: 74, min: 50, max: 130, step: 2 },
+      { key: "note", label: "หมายเหตุ", defaultWidth: 96, min: 50, max: 200, step: 5 },
+      { key: "signatureCell", label: "ช่องเซ็นชื่อ", defaultWidth: 110, min: 60, max: 220, step: 5 },
+    ];
+  }, [printDocType]);
+
+  const totalActiveColumnsWidth = useMemo(() => {
+    return currentColumnConfigs.reduce((total, col) => {
+      const isVisible = (printColumns as Record<string, boolean>)[col.key];
+      if (!isVisible) return total;
+      return total + (printColumnWidths[col.key] || col.defaultWidth);
+    }, 0);
+  }, [currentColumnConfigs, printColumns, printColumnWidths]);
+
+  const handleUpdateColumnWidth = (key: string, delta: number) => {
+    const config = currentColumnConfigs.find((c) => c.key === key);
+    if (!config) return;
+    const current = printColumnWidths[key] || config.defaultWidth;
+    const next = Math.max(config.min, Math.min(config.max, current + delta));
+    const updated = { ...printColumnWidths, [key]: next };
+    setPrintColumnWidths(updated);
+    try {
+      localStorage.setItem("ohmjaa_print_col_widths_v1", JSON.stringify(updated));
+    } catch {}
+  };
+
+  const handleSetColumnWidthDirect = (key: string, val: number) => {
+    const config = currentColumnConfigs.find((c) => c.key === key);
+    if (!config) return;
+    const next = Math.max(config.min, Math.min(config.max, val));
+    const updated = { ...printColumnWidths, [key]: next };
+    setPrintColumnWidths(updated);
+    try {
+      localStorage.setItem("ohmjaa_print_col_widths_v1", JSON.stringify(updated));
+    } catch {}
+  };
+
+  const handleResetColumnWidths = () => {
+    const defaults = printDocType === "roles" ? DEFAULT_ROLES_COLUMN_WIDTHS : DEFAULT_SIZES_COLUMN_WIDTHS;
+    setPrintColumnWidths(defaults);
+    try {
+      localStorage.setItem("ohmjaa_print_col_widths_v1", JSON.stringify(defaults));
+    } catch {}
+    toast.success("รีเซ็ตความกว้างคอลัมน์เป็นค่าเริ่มต้นแล้ว");
+  };
+
+  const printDensityStyles = {
+    compact: {
+      table: "text-[10px]",
+      th: "py-1 px-1.5",
+      td: "py-0.5 px-1.5",
+    },
+    normal: {
+      table: "text-xs",
+      th: "py-1.5 px-2",
+      td: "py-1.5 px-2",
+    },
+    spacious: {
+      table: "text-sm",
+      th: "py-2 px-2.5",
+      td: "py-2 px-2.5",
+    },
+  }[printTableDensity];
 
   const handleOpenPrintModal = (type: "groups" | "sizes" | "roles") => {
     setPrintDocType(type);
@@ -246,6 +357,15 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
 
       const savedGroups = localStorage.getItem("ohmjaa_saved_groups_v1");
       if (savedGroups) setGroups(JSON.parse(savedGroups));
+
+      const savedColWidths = localStorage.getItem("ohmjaa_print_col_widths_v1");
+      if (savedColWidths) setPrintColumnWidths(JSON.parse(savedColWidths));
+
+      const savedShowSummary = localStorage.getItem("ohmjaa_print_show_shirt_summary");
+      if (savedShowSummary !== null) setShowShirtSummaryTable(savedShowSummary === "true");
+
+      const savedDensity = localStorage.getItem("ohmjaa_print_table_density");
+      if (savedDensity) setPrintTableDensity(savedDensity as any);
     } catch {
       // Ignore local storage parse error
     }
@@ -2039,7 +2159,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <DialogPanel
             transition
-            className="w-full max-w-lg rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-slate-100 transition-all duration-300 data-[closed]:scale-95 data-[closed]:opacity-0 max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-2xl rounded-3xl bg-white p-6 sm:p-7 shadow-2xl border border-slate-100 transition-all duration-300 data-[closed]:scale-95 data-[closed]:opacity-0 max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -2052,7 +2172,7 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                   </DialogTitle>
                   <Description className="text-xs text-slate-500">
                     {printDocType === "groups" && "รายงานการจัดกลุ่มนักเรียน"}
-                    {printDocType === "sizes" && "ใบสรุปยอดการสั่งตัดเสื้อกิจกรรม"}
+                    {printDocType === "sizes" && "รายงานใบสั่งเสื้อ (ปรับขนาดคอลัมน์และเปิด/ปิดได้)"}
                     {printDocType === "roles" && "เอกสารมอบหมายหน้าที่นักเรียนในกิจกรรม"}
                   </Description>
                 </div>
@@ -2066,58 +2186,109 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
               </button>
             </div>
 
-            {/* Section 1: Choose Columns */}
+            {/* Section 1: Choose Columns & Adjust Column Width */}
             <div className="py-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <SlidersHorizontal size={14} className="text-[#16453d]" />
-                  <span>1. เลือกคอลัมน์ที่ต้องการแสดงในตาราง:</span>
-                </span>
-                <span className="text-[11px] text-slate-400">ติ๊กเลือกตามต้องการ</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <SlidersHorizontal size={14} className="text-[#16453d]" />
+                    <span>1. คอลัมน์ตารางพิมพ์ (ปิด/เปิด และปรับขนาด Column Width):</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400 block sm:inline sm:ml-5">
+                    กดติ๊กเพื่อเปิด/ปิด และกดปุ่ม - / + หรือเลื่อนแถบเพื่อปรับความกว้าง
+                  </span>
+                </div>
+                {printDocType !== "groups" && (
+                  <button
+                    type="button"
+                    onClick={handleResetColumnWidths}
+                    className="self-start sm:self-auto flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                    title="คืนค่าความกว้างคอลัมน์มาตรฐาน"
+                  >
+                    <RotateCcw size={12} />
+                    <span>รีเซ็ตขนาด</span>
+                  </button>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs">
-                <label className="flex items-center gap-2 cursor-pointer py-1">
-                  <input
-                    type="checkbox"
-                    checked={printColumns.studentNo}
-                    onChange={(e) => setPrintColumns({ ...printColumns, studentNo: e.target.checked })}
-                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
-                  />
-                  <span className="font-medium text-slate-700">เลขที่</span>
-                </label>
+              {/* Live Preview Bar */}
+              {printDocType !== "groups" && (
+                <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-slate-700">ตัวอย่างสัดส่วนคอลัมน์ที่พิมพ์:</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 font-mono">ความกว้างรวม: {totalActiveColumnsWidth}px</span>
+                      {totalActiveColumnsWidth <= 720 ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                          ✓ พอดีหน้า A4
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full">
+                          ⚠️ เกินกรอบ A4 เล็กน้อย
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex w-full overflow-x-auto rounded-lg border border-slate-300 bg-white text-[10px] divide-x divide-slate-200 shadow-2xs">
+                    {currentColumnConfigs.map((col) => {
+                      const isVisible = (printColumns as Record<string, boolean>)[col.key];
+                      if (!isVisible) return null;
+                      const width = printColumnWidths[col.key] || col.defaultWidth;
+                      return (
+                        <div
+                          key={col.key}
+                          style={{ width: `${width}px`, minWidth: `${Math.max(28, width * 0.7)}px` }}
+                          className="py-1 px-1 text-center font-bold text-slate-800 bg-slate-100/70 truncate flex-1"
+                          title={`${col.label}: ${width}px`}
+                        >
+                          <div className="truncate">{col.label}</div>
+                          <div className="text-[9px] font-mono font-normal text-slate-500">{width}px</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-                <label className="flex items-center gap-2 cursor-pointer py-1">
-                  <input
-                    type="checkbox"
-                    checked={printColumns.studentId}
-                    onChange={(e) => setPrintColumns({ ...printColumns, studentId: e.target.checked })}
-                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
-                  />
-                  <span className="font-medium text-slate-700">เลขประจำตัว</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer py-1">
-                  <input
-                    type="checkbox"
-                    checked={printColumns.name}
-                    onChange={(e) => setPrintColumns({ ...printColumns, name: e.target.checked })}
-                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
-                  />
-                  <span className="font-medium text-slate-700">ชื่อ - สกุล</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer py-1">
-                  <input
-                    type="checkbox"
-                    checked={printColumns.nickname}
-                    onChange={(e) => setPrintColumns({ ...printColumns, nickname: e.target.checked })}
-                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
-                  />
-                  <span className="font-medium text-slate-700">ชื่อเล่น</span>
-                </label>
-
-                {printDocType === "groups" && (
+              {/* Column Control Cards */}
+              {printDocType === "groups" ? (
+                <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer py-1">
+                    <input
+                      type="checkbox"
+                      checked={printColumns.studentNo}
+                      onChange={(e) => setPrintColumns({ ...printColumns, studentNo: e.target.checked })}
+                      className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                    />
+                    <span className="font-medium text-slate-700">เลขที่</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer py-1">
+                    <input
+                      type="checkbox"
+                      checked={printColumns.studentId}
+                      onChange={(e) => setPrintColumns({ ...printColumns, studentId: e.target.checked })}
+                      className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                    />
+                    <span className="font-medium text-slate-700">เลขประจำตัว</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer py-1">
+                    <input
+                      type="checkbox"
+                      checked={printColumns.name}
+                      onChange={(e) => setPrintColumns({ ...printColumns, name: e.target.checked })}
+                      className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                    />
+                    <span className="font-medium text-slate-700">ชื่อ - สกุล</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer py-1">
+                    <input
+                      type="checkbox"
+                      checked={printColumns.nickname}
+                      onChange={(e) => setPrintColumns({ ...printColumns, nickname: e.target.checked })}
+                      className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                    />
+                    <span className="font-medium text-slate-700">ชื่อเล่น</span>
+                  </label>
                   <label className="flex items-center gap-2 cursor-pointer py-1">
                     <input
                       type="checkbox"
@@ -2127,84 +2298,207 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                     />
                     <span className="font-medium text-slate-700">ตำแหน่ง (หัวหน้า/สมาชิก)</span>
                   </label>
-                )}
+                  <label className="flex items-center gap-2 cursor-pointer py-1">
+                    <input
+                      type="checkbox"
+                      checked={printColumns.signatureCell}
+                      onChange={(e) => setPrintColumns({ ...printColumns, signatureCell: e.target.checked })}
+                      className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                    />
+                    <span className="font-medium text-slate-700">ช่องเซ็นชื่อ / ลายมือชื่อ</span>
+                  </label>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {currentColumnConfigs.map((col) => {
+                    const isVisible = (printColumns as Record<string, boolean>)[col.key];
+                    const width = printColumnWidths[col.key] || col.defaultWidth;
 
-                {printDocType === "sizes" && (
-                  <>
-                    <label className="flex items-center gap-2 cursor-pointer py-1">
-                      <input
-                        type="checkbox"
-                        checked={printColumns.mainData}
-                        onChange={(e) => setPrintColumns({ ...printColumns, mainData: e.target.checked })}
-                        className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
-                      />
-                      <span className="font-medium text-slate-700">ไซส์เสื้อ</span>
-                    </label>
+                    return (
+                      <div
+                        key={col.key}
+                        className={`p-2.5 rounded-2xl border transition-all ${
+                          isVisible
+                            ? "bg-slate-50 border-slate-200"
+                            : "bg-slate-100/50 border-slate-100 opacity-60"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={isVisible}
+                              onChange={(e) =>
+                                setPrintColumns({
+                                  ...printColumns,
+                                  [col.key]: e.target.checked,
+                                })
+                              }
+                              className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                            />
+                            <span className={`font-bold ${isVisible ? "text-slate-800" : "text-slate-400"}`}>
+                              {col.label}
+                            </span>
+                          </label>
 
-                    <label className="flex items-center gap-2 cursor-pointer py-1">
-                      <input
-                        type="checkbox"
-                        checked={printColumns.secondaryData}
-                        onChange={(e) => setPrintColumns({ ...printColumns, secondaryData: e.target.checked })}
-                        className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
-                      />
-                      <span className="font-medium text-slate-700">สถานะชำระเงิน</span>
-                    </label>
-                  </>
-                )}
+                          {isVisible ? (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateColumnWidth(col.key, -col.step)}
+                                disabled={width <= col.min}
+                                className="w-6 h-6 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 text-slate-700 font-bold flex items-center justify-center transition-colors cursor-pointer"
+                                title="ลดขนาดคอลัมน์"
+                              >
+                                <Minus size={11} />
+                              </button>
+                              <span className="w-12 text-center font-mono font-bold text-slate-800 bg-white border border-slate-200 rounded-md py-0.5 text-[11px]">
+                                {width}px
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateColumnWidth(col.key, col.step)}
+                                disabled={width >= col.max}
+                                className="w-6 h-6 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 text-slate-700 font-bold flex items-center justify-center transition-colors cursor-pointer"
+                                title="เพิ่มขนาดคอลัมน์"
+                              >
+                                <Plus size={11} />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              (ปิดแสดง)
+                            </span>
+                          )}
+                        </div>
 
-                {printDocType === "roles" && (
-                  <>
-                    <label className="flex items-center gap-2 cursor-pointer py-1">
-                      <input
-                        type="checkbox"
-                        checked={printColumns.mainData}
-                        onChange={(e) => setPrintColumns({ ...printColumns, mainData: e.target.checked })}
-                        className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
-                      />
-                      <span className="font-medium text-slate-700">หน้าที่ที่มอบหมาย</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer py-1">
-                      <input
-                        type="checkbox"
-                        checked={printColumns.secondaryData}
-                        onChange={(e) => setPrintColumns({ ...printColumns, secondaryData: e.target.checked })}
-                        className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
-                      />
-                      <span className="font-medium text-slate-700">รายละเอียดหน้าที่</span>
-                    </label>
-                  </>
-                )}
-
-                <label className="flex items-center gap-2 cursor-pointer py-1">
-                  <input
-                    type="checkbox"
-                    checked={printColumns.note}
-                    onChange={(e) => setPrintColumns({ ...printColumns, note: e.target.checked })}
-                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
-                  />
-                  <span className="font-medium text-slate-700">หมายเหตุ</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer py-1">
-                  <input
-                    type="checkbox"
-                    checked={printColumns.signatureCell}
-                    onChange={(e) => setPrintColumns({ ...printColumns, signatureCell: e.target.checked })}
-                    className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
-                  />
-                  <span className="font-medium text-slate-700">ช่องเซ็นชื่อ / ลายมือชื่อ</span>
-                </label>
-              </div>
+                        {isVisible && (
+                          <div className="mt-2 pt-1 border-t border-slate-200/60 flex items-center gap-2">
+                            <span className="text-[10px] text-slate-400">ขนาด:</span>
+                            <input
+                              type="range"
+                              min={col.min}
+                              max={col.max}
+                              step={col.step}
+                              value={width}
+                              onChange={(e) => handleSetColumnWidthDirect(col.key, Number(e.target.value))}
+                              className="flex-1 h-1.5 accent-[#16453d] cursor-pointer"
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleSetColumnWidthDirect(col.key, col.min)}
+                                className="text-[9px] px-1.5 py-0.5 bg-white hover:bg-slate-100 rounded border border-slate-200 text-slate-600 cursor-pointer"
+                              >
+                                แคบ
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSetColumnWidthDirect(col.key, col.defaultWidth)}
+                                className="text-[9px] px-1.5 py-0.5 bg-white hover:bg-slate-100 rounded border border-slate-200 text-slate-600 cursor-pointer"
+                              >
+                                ปกติ
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSetColumnWidthDirect(col.key, col.max)}
+                                className="text-[9px] px-1.5 py-0.5 bg-white hover:bg-slate-100 rounded border border-slate-200 text-slate-600 cursor-pointer"
+                              >
+                                กว้าง
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Section 2: Bottom Signature Block */}
+            {/* Section 2: Shirt Size Summary Table (Toggle ON / OFF) */}
+            {printDocType === "sizes" && (
+              <div className="py-3 border-t border-slate-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Shirt size={14} className="text-[#16453d]" />
+                    <span>2. ตารางสรุปยอดรวมขนาดเสื้อ (Shirt Sizes Table):</span>
+                  </span>
+                  <label className="flex items-center gap-2 text-xs font-bold text-[#16453d] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showShirtSummaryTable}
+                      onChange={(e) => {
+                        setShowShirtSummaryTable(e.target.checked);
+                        try {
+                          localStorage.setItem("ohmjaa_print_show_shirt_summary", String(e.target.checked));
+                        } catch {}
+                      }}
+                      className="w-4 h-4 rounded text-[#16453d] focus:ring-[#16453d]"
+                    />
+                    <span>เปิดแสดงตารางสรุปไซส์</span>
+                  </label>
+                </div>
+                <p className="text-[11px] text-slate-500 pl-5">
+                  {showShirtSummaryTable
+                    ? "✓ เปิดอยู่: แสดงตารางสรุปยอดสั่งเสื้อแต่ละขนาด (XS - 5XL) ด้านบนตารางรายชื่อ"
+                    : "✕ ปิดอยู่: ซ่อนตารางสรุปเพื่อประหยัดพื้นที่กระดาษ ให้ตารางนักเรียน 53 คนแสดงได้พอดี 1 หน้า A4"}
+                </p>
+              </div>
+            )}
+
+            {/* Section 3: Table Density / Font Size */}
+            {printDocType !== "groups" && (
+              <div className="py-3 border-t border-slate-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <SlidersHorizontal size={14} className="text-[#16453d]" />
+                    <span>3. ขนาดตัวอักษรและระยะบรรทัดในตาราง:</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      { id: "compact", label: "กะทัดรัด (เล็ก)", desc: "53 คนพอดี 1 หน้า" },
+                      { id: "normal", label: "ปกติ (มาตรฐาน)", desc: "ขนาดมาตรฐาน" },
+                      { id: "spacious", label: "ใหญ่ (โปร่ง)", desc: "อ่านง่าย สบายตา" },
+                    ] as const
+                  ).map((density) => (
+                    <button
+                      key={density.id}
+                      type="button"
+                      onClick={() => {
+                        setPrintTableDensity(density.id);
+                        try {
+                          localStorage.setItem("ohmjaa_print_table_density", density.id);
+                        } catch {}
+                      }}
+                      className={`p-2 rounded-2xl border text-center transition-all cursor-pointer ${
+                        printTableDensity === density.id
+                          ? "bg-[#16453d] text-white border-[#16453d] shadow-xs font-bold"
+                          : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 text-xs"
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{density.label}</div>
+                      <div
+                        className={`text-[10px] ${
+                          printTableDensity === density.id ? "text-emerald-100" : "text-slate-400"
+                        }`}
+                      >
+                        {density.desc}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Section 4: Bottom Signature Block */}
             <div className="py-3 border-t border-slate-100 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                   <CheckCircle2 size={14} className="text-[#16453d]" />
-                  <span>2. ช่องลงชื่อท้ายเอกสาร:</span>
+                  <span>4. ช่องลงชื่อท้ายเอกสาร:</span>
                 </span>
                 <label className="flex items-center gap-2 text-xs font-bold text-[#16453d] cursor-pointer">
                   <input
@@ -2335,26 +2629,52 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
             {/* Dashed line */}
             <div className="border-t-2 border-dashed border-slate-700 my-6" />
 
-            {/* Summary KPI Box if Sizes */}
-            {printDocType === "sizes" && (
-              <div className="mb-4 p-2.5 border border-slate-400 rounded bg-slate-50 text-[11px] text-slate-800">
-                <div className="font-bold border-b border-slate-300 pb-1 mb-1.5">
-                  สรุปยอดรวมขนาดเสื้อ (จำนวนที่สั่งตัดทั้งหมด):
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1">
-                  {STANDARD_SHIRT_SIZES.map((size) => {
-                    const count = shirtSummary.counts[size] || 0;
-                    if (count === 0) return null;
-                    return (
-                      <span key={size}>
-                        ไซส์ {size}: <strong>{count}</strong> ตัว
-                      </span>
-                    );
-                  })}
-                  <span className="font-bold border-l border-slate-400 pl-3">
-                    รวมทั้งสิ้น: {shirtSummary.totalSpecified} ตัว
+            {/* Summary KPI Box / Table if Sizes (Toggled ON/OFF) */}
+            {printDocType === "sizes" && showShirtSummaryTable && (
+              <div className="mb-4 border border-slate-400 rounded-md overflow-hidden bg-slate-50/70 text-xs break-inside-avoid">
+                <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 border-b border-slate-300 font-bold text-slate-800 text-[11px]">
+                  <span>สรุปยอดรวมขนาดเสื้อ (จำนวนที่สั่งตัดทั้งหมด):</span>
+                  <span className="text-slate-600 font-normal">
+                    รวมทั้งสิ้น: <strong className="text-slate-900">{shirtSummary.totalSpecified}</strong> ตัว (ชำระเงินแล้ว: {shirtSummary.paidCount} คน)
                   </span>
-                  <span>(ชำระเงินแล้ว: {shirtSummary.paidCount} คน)</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-center text-[11px] border-collapse bg-white">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold text-[10px]">
+                        <th className="py-1 px-2 text-left pl-3 border-r border-slate-200">ไซส์ (SIZE)</th>
+                        {STANDARD_SHIRT_SIZES.map((size) => (
+                          <th key={size} className="py-1 px-1 border-r border-slate-200 min-w-7">
+                            {size}
+                          </th>
+                        ))}
+                        <th className="py-1 px-2 font-bold bg-slate-100">รวม</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="font-bold text-slate-900 text-[11px]">
+                        <td className="py-1 px-2 text-left pl-3 border-r border-slate-200 bg-slate-50/50 text-slate-600 font-medium">
+                          จำนวน (ตัว)
+                        </td>
+                        {STANDARD_SHIRT_SIZES.map((size) => {
+                          const count = shirtSummary.counts[size] || 0;
+                          return (
+                            <td
+                              key={size}
+                              className={`py-1 px-1 border-r border-slate-200 ${
+                                count > 0 ? "font-bold text-[#16453d]" : "text-slate-300 font-normal"
+                              }`}
+                            >
+                              {count > 0 ? count : "-"}
+                            </td>
+                          );
+                        })}
+                        <td className="py-1 px-2 bg-slate-100 font-black text-[#16453d]">
+                          {shirtSummary.totalSpecified}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -2436,91 +2756,205 @@ export default function ActivitiesAndGrouping({ students }: ActivitiesAndGroupin
                   ))}
                 </div>
               ) : (
-                /* Formal Table (Sizes / Roles) */
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b-2 border-slate-800 font-bold text-slate-800">
-                      {printColumns.studentNo && <th className="py-1.5 px-2 w-10 text-center">เลขที่</th>}
-                      {printColumns.studentId && <th className="py-1.5 px-2 w-16 text-center">รหัส</th>}
-                      {printColumns.name && <th className="py-1.5 px-2">ชื่อ - สกุล</th>}
-                      {printColumns.nickname && <th className="py-1.5 px-2 w-14 text-center">ชื่อเล่น</th>}
-                      {printDocType === "sizes" && printColumns.mainData && (
-                        <th className="py-1.5 px-2 w-14 text-center">ไซส์</th>
-                      )}
-                      {printDocType === "sizes" && printColumns.secondaryData && (
-                        <th className="py-1.5 px-2 w-20 text-center">ชำระเงิน</th>
-                      )}
-                      {printDocType === "roles" && printColumns.mainData && (
-                        <th className="py-1.5 px-2 w-36">หน้าที่ที่ได้รับมอบหมาย</th>
-                      )}
-                      {printDocType === "roles" && printColumns.secondaryData && (
-                        <th className="py-1.5 px-2">รายละเอียดหน้าที่</th>
-                      )}
-                      {printColumns.note && <th className="py-1.5 px-2 w-28">หมายเหตุ</th>}
-                      {printColumns.signatureCell && <th className="py-1.5 px-2 w-28 text-center">ลายมือชื่อผู้รับ / ตรวจ</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {students.map((student) => {
-                      const shirt = shirtRecords[student.student_id];
-                      const assignment = roleRecords[student.student_id];
-                      const roleKey = assignment?.role || "none";
-
-                      return (
-                        <tr key={student.student_id} className="break-inside-avoid">
+                /* Formal Table (Sizes / Roles) with Custom Column Widths & Density */
+                <table className={`w-full text-left ${printDensityStyles.table} border-collapse table-fixed`}>
+                      <colgroup>
+                        {printColumns.studentNo && <col style={{ width: `${printColumnWidths.studentNo || 38}px` }} />}
+                        {printColumns.studentId && <col style={{ width: `${printColumnWidths.studentId || 58}px` }} />}
+                        {printColumns.name && <col style={{ width: `${printColumnWidths.name || 180}px` }} />}
+                        {printColumns.nickname && <col style={{ width: `${printColumnWidths.nickname || 52}px` }} />}
+                        {printDocType === "sizes" && printColumns.mainData && (
+                          <col style={{ width: `${printColumnWidths.mainData || 56}px` }} />
+                        )}
+                        {printDocType === "sizes" && printColumns.secondaryData && (
+                          <col style={{ width: `${printColumnWidths.secondaryData || 74}px` }} />
+                        )}
+                        {printDocType === "roles" && printColumns.mainData && (
+                          <col style={{ width: `${printColumnWidths.mainData || 110}px` }} />
+                        )}
+                        {printDocType === "roles" && printColumns.secondaryData && (
+                          <col style={{ width: `${printColumnWidths.secondaryData || 120}px` }} />
+                        )}
+                        {printColumns.note && <col style={{ width: `${printColumnWidths.note || 96}px` }} />}
+                        {printColumns.signatureCell && (
+                          <col style={{ width: `${printColumnWidths.signatureCell || 110}px` }} />
+                        )}
+                      </colgroup>
+                      <thead>
+                        <tr className="border-b-2 border-slate-800 font-bold text-slate-800">
                           {printColumns.studentNo && (
-                            <td className="py-1.5 px-2 text-center text-slate-600 font-mono">
-                              #{student.student_no}
-                            </td>
+                            <th
+                              style={{ width: `${printColumnWidths.studentNo || 38}px` }}
+                              className={`${printDensityStyles.th} text-center`}
+                            >
+                              เลขที่
+                            </th>
                           )}
                           {printColumns.studentId && (
-                            <td className="py-1.5 px-2 text-center text-slate-500 font-mono">
-                              {student.student_id}
-                            </td>
+                            <th
+                              style={{ width: `${printColumnWidths.studentId || 58}px` }}
+                              className={`${printDensityStyles.th} text-center`}
+                            >
+                              รหัส
+                            </th>
                           )}
                           {printColumns.name && (
-                            <td className="py-1.5 px-2 font-bold text-slate-900">
-                              {formatStudentFullName(student)}
-                            </td>
+                            <th
+                              style={{ width: `${printColumnWidths.name || 180}px` }}
+                              className={printDensityStyles.th}
+                            >
+                              ชื่อ - สกุล
+                            </th>
                           )}
                           {printColumns.nickname && (
-                            <td className="py-1.5 px-2 text-center text-slate-700">
-                              {student.nickname || "-"}
-                            </td>
+                            <th
+                              style={{ width: `${printColumnWidths.nickname || 52}px` }}
+                              className={`${printDensityStyles.th} text-center`}
+                            >
+                              ชื่อเล่น
+                            </th>
                           )}
                           {printDocType === "sizes" && printColumns.mainData && (
-                            <td className="py-1.5 px-2 text-center font-bold text-[#16453d]">
-                              {shirt?.size || "-"}
-                            </td>
+                            <th
+                              style={{ width: `${printColumnWidths.mainData || 56}px` }}
+                              className={`${printDensityStyles.th} text-center`}
+                            >
+                              ไซส์
+                            </th>
                           )}
                           {printDocType === "sizes" && printColumns.secondaryData && (
-                            <td className="py-1.5 px-2 text-center text-slate-700">
-                              {shirt?.paid ? "✓ ชำระแล้ว" : "ค้างชำระ"}
-                            </td>
+                            <th
+                              style={{ width: `${printColumnWidths.secondaryData || 74}px` }}
+                              className={`${printDensityStyles.th} text-center`}
+                            >
+                              ชำระเงิน
+                            </th>
                           )}
                           {printDocType === "roles" && printColumns.mainData && (
-                            <td className="py-1.5 px-2 font-bold text-[#16453d]">
-                              {ROLE_CONFIGS[roleKey].label}
-                            </td>
+                            <th
+                              style={{ width: `${printColumnWidths.mainData || 110}px` }}
+                              className={printDensityStyles.th}
+                            >
+                              หน้าที่ที่ได้รับมอบหมาย
+                            </th>
                           )}
                           {printDocType === "roles" && printColumns.secondaryData && (
-                            <td className="py-1.5 px-2 text-slate-800">
-                              {assignment?.role_detail || "-"}
-                            </td>
+                            <th
+                              style={{ width: `${printColumnWidths.secondaryData || 120}px` }}
+                              className={printDensityStyles.th}
+                            >
+                              รายละเอียดหน้าที่
+                            </th>
                           )}
                           {printColumns.note && (
-                            <td className="py-1.5 px-2 text-slate-600">
-                              {(printDocType === "sizes" ? shirt?.note : assignment?.note) || "-"}
-                            </td>
+                            <th
+                              style={{ width: `${printColumnWidths.note || 96}px` }}
+                              className={printDensityStyles.th}
+                            >
+                              หมายเหตุ
+                            </th>
                           )}
                           {printColumns.signatureCell && (
-                            <td className="py-1.5 px-2 border-b border-slate-200"></td>
+                            <th
+                              style={{ width: `${printColumnWidths.signatureCell || 110}px` }}
+                              className={`${printDensityStyles.th} text-center`}
+                            >
+                              ลายมือชื่อผู้รับ / ตรวจ
+                            </th>
                           )}
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {students.map((student) => {
+                          const shirt = shirtRecords[student.student_id];
+                          const assignment = roleRecords[student.student_id];
+                          const roleKey = assignment?.role || "none";
+
+                          return (
+                            <tr key={student.student_id} className="break-inside-avoid">
+                              {printColumns.studentNo && (
+                                <td
+                                  style={{ width: `${printColumnWidths.studentNo || 38}px` }}
+                                  className={`${printDensityStyles.td} text-center text-slate-600 font-mono`}
+                                >
+                                  #{student.student_no}
+                                </td>
+                              )}
+                              {printColumns.studentId && (
+                                <td
+                                  style={{ width: `${printColumnWidths.studentId || 58}px` }}
+                                  className={`${printDensityStyles.td} text-center text-slate-500 font-mono`}
+                                >
+                                  {student.student_id}
+                                </td>
+                              )}
+                              {printColumns.name && (
+                                <td
+                                  style={{ width: `${printColumnWidths.name || 180}px` }}
+                                  className={`${printDensityStyles.td} font-bold text-slate-900 truncate`}
+                                >
+                                  {formatStudentFullName(student)}
+                                </td>
+                              )}
+                              {printColumns.nickname && (
+                                <td
+                                  style={{ width: `${printColumnWidths.nickname || 52}px` }}
+                                  className={`${printDensityStyles.td} text-center text-slate-700`}
+                                >
+                                  {student.nickname || "-"}
+                                </td>
+                              )}
+                              {printDocType === "sizes" && printColumns.mainData && (
+                                <td
+                                  style={{ width: `${printColumnWidths.mainData || 56}px` }}
+                                  className={`${printDensityStyles.td} text-center font-bold text-[#16453d]`}
+                                >
+                                  {shirt?.size || "-"}
+                                </td>
+                              )}
+                              {printDocType === "sizes" && printColumns.secondaryData && (
+                                <td
+                                  style={{ width: `${printColumnWidths.secondaryData || 74}px` }}
+                                  className={`${printDensityStyles.td} text-center text-slate-700`}
+                                >
+                                  {shirt?.paid ? "✓ ชำระแล้ว" : "ค้างชำระ"}
+                                </td>
+                              )}
+                              {printDocType === "roles" && printColumns.mainData && (
+                                <td
+                                  style={{ width: `${printColumnWidths.mainData || 110}px` }}
+                                  className={`${printDensityStyles.td} font-bold text-[#16453d]`}
+                                >
+                                  {ROLE_CONFIGS[roleKey].label}
+                                </td>
+                              )}
+                              {printDocType === "roles" && printColumns.secondaryData && (
+                                <td
+                                  style={{ width: `${printColumnWidths.secondaryData || 120}px` }}
+                                  className={`${printDensityStyles.td} text-slate-800`}
+                                >
+                                  {assignment?.role_detail || "-"}
+                                </td>
+                              )}
+                              {printColumns.note && (
+                                <td
+                                  style={{ width: `${printColumnWidths.note || 96}px` }}
+                                  className={`${printDensityStyles.td} text-slate-600 truncate`}
+                                >
+                                  {(printDocType === "sizes" ? shirt?.note : assignment?.note) || "-"}
+                                </td>
+                              )}
+                              {printColumns.signatureCell && (
+                                <td
+                                  style={{ width: `${printColumnWidths.signatureCell || 110}px` }}
+                                  className={`${printDensityStyles.td} border-b border-slate-200`}
+                                ></td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
               )}
             </div>
           </div>

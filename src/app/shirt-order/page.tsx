@@ -54,9 +54,9 @@ const BANK_ACCOUNT_NAME = "นางสาวปุณยาพร สิงห�
 const BANK_LOGO_URL = "/ktb-logo.png";
 const SHIRT_PREVIEW_URL = "/shirt-preview.jpg";
 
-// กำหนดเวลาหมดเขตสั่งเสื้อ: 20 พฤศจิกายน 2569 เวลา 23:59:59 น. (Asia/Bangkok = UTC+7)
-const SHIRT_ORDER_DEADLINE_MS = new Date("2026-11-20T23:59:59+07:00").getTime();
-const SHIRT_ORDER_DEADLINE_TEXT = "20 พ.ย. 2569 เวลา 23:59 น.";
+// กำหนดเวลาหมดเขตสั่งเสื้อ: 19 พฤศจิกายน 2569 เวลา 23:59:59 น. (Asia/Bangkok = UTC+7)
+const SHIRT_ORDER_DEADLINE_MS = new Date("2026-11-19T23:59:59+07:00").getTime();
+const SHIRT_ORDER_DEADLINE_TEXT = "19 พ.ย. 2569 เวลา 23:59 น.";
 
 export default function ShirtOrderPage() {
   const [students, setStudents] = useState<Student[]>([]);

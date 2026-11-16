@@ -31,8 +31,8 @@ export async function GET(request: Request) {
   }
 }
 
-// กำหนดเวลาปิดรับแบบฟอร์มสั่งเสื้อ: 20 พ.ย. 2569 เวลา 23:59:59 น. (Asia/Bangkok = UTC+7)
-const SHIRT_ORDER_DEADLINE_MS = new Date("2026-11-20T23:59:59+07:00").getTime();
+// กำหนดเวลาปิดรับแบบฟอร์มสั่งเสื้อ: 19 พ.ย. 2569 เวลา 23:59:59 น. (Asia/Bangkok = UTC+7)
+const SHIRT_ORDER_DEADLINE_MS = new Date("2026-11-19T23:59:59+07:00").getTime();
 
 /**
  * POST: Submit or update a student's shirt order from the parent form
