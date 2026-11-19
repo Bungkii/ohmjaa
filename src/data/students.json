@@ -383,7 +383,7 @@
     "prefix": "ด.ช.",
     "first_name": "ธีรภัทร",
     "last_name": "ลิ้มสงวน",
-    "nickname": "ไนน์)",
+    "nickname": "ไนน์",
     "full_name": "ด.ช.ธีรภัทร ลิ้มสงวน"
   },
   {
@@ -475,5 +475,23 @@
     "last_name": "ชมะโชติ",
     "nickname": "ชีต้า",
     "full_name": "ด.ญ.รมิดา ชมะโชติ"
+  },
+    {
+    "student_id": "10761",
+    "student_no": 54,
+    "prefix": "ม.",
+    "first_name": "ธนากร",
+    "last_name": "พิมพ์ประเสริฐ",
+    "nickname": "-",
+    "full_name": "ม.ธนากร พิมพ์ประเสริฐ"
+  },
+    {
+    "student_id": "10302",
+    "student_no": 55,
+    "prefix": "ม.",
+    "first_name": "อัคเดศ",
+    "last_name": "กานต์อัศฒ์เดช",
+    "nickname": "-",
+    "full_name": "ม.อัคเดศ กานต์อัศฒ์เดช"
   }
 ]
